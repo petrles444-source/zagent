@@ -26,6 +26,10 @@ class Router:
     ) -> None:
         self.agents = {str(role): list(chain) for role, chain in agents.items()}
         self.models = list(models or [])
+        # Кеш для быстрого поиска меток моделей (O(1) вместо O(n))
+        self._model_labels: dict[str, str] = {
+            m["id"]: m.get("label") or m["id"] for m in self.models
+        }
 
     @property
     def roles(self) -> list[str]:
@@ -43,10 +47,8 @@ class Router:
 
     def label(self, model_id: str) -> str:
         """Метка модели из models.json (или сам id)."""
-        for item in self.models:
-            if item.get("id") == model_id:
-                return item.get("label") or model_id
-        return model_id
+        # Используем кеш для O(1) поиска вместо O(n)
+        return self._model_labels.get(model_id, model_id)
 
     async def ask(
         self,
