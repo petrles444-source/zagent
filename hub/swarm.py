@@ -28,6 +28,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -168,8 +169,19 @@ class Plan:
 
 
 def slot_account(gateway: str, key: str) -> str:
-    """Ключ, по которому ограничитель темпа считает этот аккаунт."""
-    return f"{gateway}:{key[-8:]}"
+    """Ключ, по которому ограничитель темпа считает этот аккаунт.
+
+    Это **отпечаток**, а не последние символы. Хвоста в одиночку мало: два
+    аккаунта одного провайдера с одинаковыми последними восемью символами
+    делили одно ведро ограничителя и удваивали темп друг друга — ровно то,
+    из-за чего в рое у аккаунта ровно один слот. `fingerprint()` для показа
+    человеку годится (там хвост полезен глазу), для идентификации — нет.
+
+    Хэш устойчив к перезапускам программы, иначе накопленный расход в
+    ограничителе обнулялся бы при каждом пуске.
+    """
+    digest = hashlib.sha256(str(key or "").encode("utf-8")).hexdigest()
+    return f"{gateway}:{digest[:12]}"
 
 
 def build_slots(selector: Any, gateways: list[dict], keyring: Any) -> list[Slot]:
@@ -456,10 +468,18 @@ class Swarm:
         return "\n".join(lines)
 
     def pending(self) -> list[str]:
-        out = []
-        for slot in self.plan.workers:
+        """Части, которые ещё работают.
+
+        Смотрятся и рабочие, и резервные слоты: после подмены часть стоит
+        на резервном слоте, и раньше она выпадала из «ещё в работе» —
+        промежуточный взгляд срабатывал слишком рано и показывал неполную
+        картину.
+        """
+        out: list[str] = []
+        for slot in list(self.plan.workers) + list(self.plan.reserve):
             name = slot.taken_by
-            if name and name not in self.done and name not in self.failed:
+            if name and name not in out and name not in self.done \
+                    and name not in self.failed:
                 out.append(name)
         return out
 

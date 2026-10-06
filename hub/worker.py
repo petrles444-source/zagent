@@ -1065,8 +1065,14 @@ class Worker:
 
     # ------------------------------------------------------------------ пинг
 
-    def ping(self, ref: str | None = None) -> dict[str, Any]:
-        """Живой пинг одной модели или всех."""
+    def ping(self, ref: str | None = None,
+              refs: list[str] | None = None) -> dict[str, Any]:
+        """Живой пинг одной модели, списка моделей или всех.
+
+        Список нужен кнопке «Пинг недоступных»: она обещает проверить
+        именно их, а отправка без списка проверяла весь реестр —
+        кнопка врала и вдобавок съедала квоту.
+        """
 
         async def job() -> dict[str, Any]:
             if self.registry is None:
@@ -1074,10 +1080,13 @@ class Worker:
             if self.registry is None:
                 raise RuntimeError(self.last_error or "реестр не загружен")
 
-            if ref:
-                targets = [m for m in self.registry.chat_models if m.ref == ref]
+            wanted = list(refs) if refs else ([ref] if ref else [])
+            if wanted:
+                targets = [m for m in self.registry.chat_models
+                           if m.ref in wanted]
                 if not targets:
-                    raise ValueError(f"Модель не найдена: {ref}")
+                    raise ValueError("Модели не найдены: "
+                                     + ", ".join(wanted[:5]))
             else:
                 targets = self.registry.chat_models
 
@@ -1391,6 +1400,11 @@ class Worker:
                 require_vision=self.config.require_vision,
             )
             self._restore_model_state()
+            # VPN-фильтр переносится на новый селектор. Раньше он терялся:
+            # `selector_from_registry` его не принимает, а ставит значения по
+            # умолчанию, и после «Обновить каталог» агент снова начинал
+            # долбиться в заблокированные модели — до перезапуска программы.
+            self._apply_vpn_preference()
             self._refresh_snapshot()
             return {"ok": True, "models": len(self.registry.chat_models)}
 
@@ -2027,8 +2041,31 @@ class Worker:
                 "selector": self._selector_state()}
 
 
-def run(loop: asyncio.AbstractEventLoop | None, coro: Any) -> Any:
-    """Выполнить корутину в loop воркера."""
+def run(loop: asyncio.AbstractEventLoop | None, coro: Any,
+        timeout: float = 600.0, on_timeout: Any = None) -> Any:
+    """Выполнить корутину в loop воркера.
+
+    По таймауту корутина **отменяется**, а не просто забывается. Раньше
+    `future.cancel()` не вызывался, и `TimeoutError` поднимался на
+    ожидании — а сама работа продолжалась в loop воркера: следующая задача
+    из очереди стартовала параллельно, писала в тот же воркспейс и тот же
+    селектор, события двух задач перемешивались в потоке, а квота
+    аккаунтов расходовалась вдвое. Рой из десяти частей уходит за эти
+    600 секунд почти всегда, то есть это был не редкий случай, а обычный.
+
+    `on_timeout` вызывается после отмены — там, где нужно снять флаги,
+    например попросить агента остановиться.
+    """
     if loop is None:
         raise RuntimeError("Воркер не запущен")
-    return asyncio.run_coroutine_threadsafe(coro, loop).result(timeout=600)
+    future = asyncio.run_coroutine_threadsafe(coro, loop)
+    try:
+        return future.result(timeout=timeout)
+    except concurrent.futures.TimeoutError:
+        future.cancel()
+        if on_timeout is not None:
+            try:
+                on_timeout()
+            except Exception:  # noqa: BLE001
+                pass
+        raise

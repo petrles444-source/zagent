@@ -28,6 +28,7 @@ from hub.autonomy import AccessLevel, Autonomy  # noqa: E402
 from hub.keyring import KeyRing  # noqa: E402
 from hub.subagents import parse_parts  # noqa: E402
 from hub.subagents import denied_for_all, globs_for_all
+from hub.swarm import slot_account  # noqa: E402
 from hub.swarm_run import SwarmRun  # noqa: E402
 
 SPLIT = json.dumps({"parts": [
@@ -292,7 +293,9 @@ def test_темп_настроен_на_каждый_аккаунт(tmp_path: Pa
                    task={"id": 1, "task": "t"}, task_context="t")
     plan = run.build_plan()
     for slot in plan.workers + plan.reserve:
-        account = slot.gateway + ":" + slot.key[-8:]
+        # Тот же расчёт, что и в планировщике: иначе проверка смотрела бы на
+        # ведро, которое никто не открывал, и проходила бы вхолостую.
+        account = slot_account(slot.gateway, slot.key)
         assert run.pacer.bucket(account).rate_per_min == 40, account
 
 

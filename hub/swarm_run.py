@@ -125,13 +125,20 @@ def _verdict_for(text: str, part: Any) -> str:
     return "не проверено: " + body[:240]
 
 
-def files_ready(part: Any, base: Path) -> list[str]:
-    """Какие файлы части появились на диске.
+def files_ready(part: Any, base: Path, *, since: float = 0.0) -> list[str]:
+    """Какие файлы части появились на диске — и не раньше `since`.
 
     Часть объявляет свои файлы при разбиении — иногда точно (`index.html`),
     иногда маской (`src/*.js`). И то и другое раскрывается на настоящем
     диске: иначе пришлось бы верить модели на слово, а модель может написать
     «готово» и ничего не создать.
+
+    Время изменения обязательно. Воркспейс переиспользуется между
+    задачами, и без этого чужой файл от прошлой задачи засчитывался
+    провалившейся части: модель упала на первом запроске, файл от вчерашнего
+    прогона лежит на месте — и часть объявлялась выполненной, причём с
+    пустым отчётом и без единого шага. Ровно то, ради чего вердикт и берётся
+    с диска, а не со слов.
     """
     out: list[str] = []
     for raw in getattr(part, "files", None) or []:
@@ -141,14 +148,25 @@ def files_ready(part: Any, base: Path) -> list[str]:
         target = base / rel
         try:
             if any(ch in rel for ch in "*?["):
-                out.extend(str(p.relative_to(base).as_posix())
-                           for p in sorted(base.glob(rel))
-                           if p.is_file())
+                for found in sorted(base.glob(rel)):
+                    if found.is_file() and _fresh_enough(found, since):
+                        out.append(str(found.relative_to(base).as_posix()))
             elif target.is_file() and target.stat().st_size:
-                out.append(rel)
+                if _fresh_enough(target, since):
+                    out.append(rel)
         except (OSError, ValueError):
             continue
     return out
+
+
+def _fresh_enough(path: Path, since: float) -> bool:
+    """Менялся ли файл после начала попытки части."""
+    if since <= 0:
+        return True
+    try:
+        return path.stat().st_mtime >= since - 2.0
+    except OSError:
+        return False
 
 
 def system_of(agent: Agent) -> str:
@@ -333,7 +351,7 @@ class SwarmRun:
         # Без этого части, выполнившие задание, попадали в отчёт как
         # невыполненные, главный агент получал «НЕ СДЕЛАНО» по всем частям,
         # а подмена уводила на резервный аккаунт тех, кто уже закончил.
-        made = files_ready(part, self.base)
+        made = files_ready(part, self.base, since=started)
         by_disk = bool(made) and not ok
         if by_disk:
             ok = True
@@ -385,7 +403,7 @@ class SwarmRun:
     async def start_parts(self, plan: Plan, denied: list[list[str]],
                           globs: list[list[str]]) -> None:
         """Запустить части параллельно, но с разбросом стартов."""
-        index_of = {p.name: i for i, p in enumerate(self.parts)}
+        index_of = {id(p): i for i, p in enumerate(self.parts)}
         for part in self.parts:
             slot = None
             for candidate in plan.workers:
@@ -393,9 +411,25 @@ class SwarmRun:
                     slot = candidate
                     break
             if slot is None:
+                # Часть без аккаунта раньше просто не стартовала и
+                # исчезала из отчёта: её не было ни в результатах, ни в
+                # сводке, ни среди «не выполнено». Задача «разбита на
+                # 10 частей, сделано 4» выглядела как «разбита неудачно».
+                # Теперь такая часть попадает в результат и в сводку с
+                # честной причиной.
+                reason = ("не достался свободный аккаунт: частей больше, "
+                          "чем могли занять рабочие")
+                self.results[part.name] = {
+                    "ok": False, "summary": "", "error": reason,
+                    "tools": [], "models": [], "steps": 0,
+                    "elapsed_ms": 0, "attempt": 0, "files": [],
+                    "by_disk": False,
+                }
+                if self.swarm is not None:
+                    self.swarm.mark_failed(part.name, reason)
                 continue
             self.asyncio_tasks[part.name] = asyncio.create_task(
-                self.run_part(part, index_of[part.name], slot, denied, globs))
+                self.run_part(part, index_of[id(part)], slot, denied, globs))
 
     async def wait_parts(self) -> None:
         if self.asyncio_tasks:

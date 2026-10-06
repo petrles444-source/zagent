@@ -361,32 +361,59 @@ def check_url(url: str) -> str:
 def _client(timeout: float) -> Any:
     import httpx
 
-    return httpx.Client(follow_redirects=True, timeout=timeout,
+    # Редиректы **не** следуются автоматически. `check_url` запрещает читать
+    # внутреннюю сеть, и это обходилось одним редиректом: публичный сайт
+    # отвечает `302` на `http://127.0.0.1:8783/api/state`, httpx следует за
+    # ним молча, и содержимое уходит агенту. Ровно тот случай, ради которого
+    # проверка написана, а в её комментарии этот адрес назван прямо.
+    return httpx.Client(follow_redirects=False, timeout=timeout,
                         headers=BROWSER_HEADERS)
 
 
 def _download(url: str, timeout: float) -> tuple[str, str]:
-    """Скачать адрес и вернуть (текст, content-type)."""
-    with _client(timeout) as client:
-        with client.stream("GET", url) as response:
-            if response.status_code >= 400:
-                raise WebError(f"Сайт ответил {response.status_code}.")
-            content_type = str(response.headers.get("content-type") or "").lower()
-            if content_type and not any(t in content_type for t in _TEXTUAL_TYPES):
-                raise WebError(
-                    f"По ссылке не текст, а {content_type.split(';')[0]}. "
-                    "Читать нечего."
-                )
-            chunks: list[bytes] = []
-            size = 0
-            for chunk in response.iter_bytes():
-                chunks.append(chunk)
-                size += len(chunk)
-                if size >= MAX_DOWNLOAD_BYTES:
-                    break
-            raw = b"".join(chunks)
-            encoding = response.encoding or "utf-8"
-            return raw.decode(encoding, errors="replace"), content_type
+    """Скачать адрес и вернуть (текст, content-type).
+
+    Редирект обрабатывается здесь, а не клиентом: адрес назначения
+    проходит ту же проверку, что и исходный. Просто «следовать» нельзя —
+    это и есть обход.
+    """
+    target = url
+    for _ in range(MAX_REDIRECTS):
+        with _client(timeout) as client:
+            with client.stream("GET", target) as response:
+                if response.status_code in (301, 302, 303, 307, 308):
+                    location = response.headers.get("location")
+                    if not location:
+                        raise WebError("Сайт перенаправил, но не сказал куда.")
+                    target = str(httpx.URL(target).join(location))
+                    # Тот же барьер, что и для исходного адреса.
+                    check_url(target)
+                    continue
+                if response.status_code >= 400:
+                    raise WebError(f"Сайт ответил {response.status_code}.")
+                content_type = str(
+                    response.headers.get("content-type") or "").lower()
+                if content_type and not any(t in content_type
+                                            for t in _TEXTUAL_TYPES):
+                    raise WebError(
+                        f"По ссылке не текст, а {content_type.split(';')[0]}. "
+                        "Читать нечего."
+                    )
+                chunks: list[bytes] = []
+                size = 0
+                for chunk in response.iter_bytes():
+                    chunks.append(chunk)
+                    size += len(chunk)
+                    if size >= MAX_DOWNLOAD_BYTES:
+                        break
+                raw = b"".join(chunks)
+                encoding = response.encoding or "utf-8"
+                return raw.decode(encoding, errors="replace"), content_type
+    raise WebError(f"Слишком много редиректов: больше {MAX_REDIRECTS}.")
+
+
+#: Сколько редиректов считать нормой. Браузер делает около двадцати.
+MAX_REDIRECTS = 10
 
 
 class _Results(HTMLParser):
@@ -408,6 +435,9 @@ class _Results(HTMLParser):
         self._title: list[str] = []
         self._snippet: list[str] = []
         self._in_snippet = 0
+        #: Сниппет этого результата уже собран — чтобы следующий результат
+        #: не приписал к своему заголовку чужое описание.
+        self._snippet_done = False
 
     @staticmethod
     def _classes(attrs: list[tuple[str, str | None]]) -> str:
@@ -436,16 +466,24 @@ class _Results(HTMLParser):
             return
         self._flush()
         self._url = url
+        self._snippet_done = False
         self._title = []
 
     def handle_endtag(self, tag: str) -> None:
         if tag in ("script", "style"):
             self._skip = max(0, self._skip - 1)
             return
-        if tag == "a" and self._url:
-            self._flush()
         if self._in_snippet and tag in ("td", "div", "p", "a"):
+            # Блок сниппета закрыт. Он не привязан к `_url`: у полной версии
+            # поисковика описание лежит отдельной ссылкой уже после
+            # заголовка, и `_url` к этому моменту пуст.
             self._in_snippet = 0
+            self._snippet_done = True
+            return
+        # `</a>` у ссылки **на заголовок** результата ничего не завершает.
+        # Описание лежит в следующей ссылке и достаётся весь разумета раньше заголовка.
+        # Закрывать на этом моменте означение подает пустым, а описание отдается следующему результату — агент получал перепутанные описания.
+        # Результат закрывается на начале следующей ссылки и в `close()`.
 
     def handle_data(self, data: str) -> None:
         if self._skip or not data.strip():

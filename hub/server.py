@@ -270,7 +270,9 @@ class Handler(BaseHTTPRequestHandler):
         # ref не задан — пингуется весь реестр. Раньше интерфейс слал ref
         # всегда, и «Пинг» проверял одну модель вместо всех.
         ref = body.get("ref") or None
-        result = self.api.worker.ping(ref)
+        # Список ‒ для кнопки «Пинг недоступных»: без него сервер проверял весь реестр.
+        refs = [str(x) for x in (body.get("refs") or []) if x] or None
+        result = self.api.worker.ping(ref, refs=refs)
         if not result.get("ok", True):
             return result
         return {"ok": True, "pinged": result.get("pinged", 0),

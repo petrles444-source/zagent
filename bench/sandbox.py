@@ -292,6 +292,19 @@ def _sandbox_env(root: Path) -> dict[str, str]:
         "TMPDIR": str(root),
         "TEMP": str(root),
         "TMP": str(root),
+        # Windows требует эти переменные даже при заданном `PATH`: оболочка
+        # и утилиты ищут системные каталоги через `SystemRoot`, а `cmd`
+        # запускается через `ComSpec`. Без них запуск может пройти (процесс
+        # нашёлся в System32), а команда внутри — упасть с невнятной ошибкой
+        # или молча вести себя иначе, и проверка прошла бы не по той причине,
+        # по которой на самом деле.
+        "SystemRoot": os.environ.get("SystemRoot",
+                                     os.environ.get("SYSTEMROOT", r"C:\Windows")),
+        "SYSTEMROOT": os.environ.get("SystemRoot",
+                                     os.environ.get("SYSTEMROOT", r"C:\Windows")),
+        "windir": os.environ.get("SystemRoot",
+                                 os.environ.get("SYSTEMROOT", r"C:\Windows")),
+        "ComSpec": os.environ.get("ComSpec", r"C:\Windows\System32\cmd.exe"),
         # pytest не должен падать из-за отсутствия сети.
         "NO_PROXY": "*",
     }

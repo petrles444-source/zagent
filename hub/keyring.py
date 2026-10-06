@@ -165,6 +165,17 @@ class KeyRing:
             self.spent[key] = stamps
             if rpm:
                 self.rpm_default = int(rpm)
+            # Свой расход уменьшает и известный остаток из заголовков.
+            # Иначе провайдер, присылающий остаток не на каждый ответ (или
+            # один раз за сессию), давал бы вечное «48 осталось»: кольцо
+            # считало бы по нему, части выдавались бы на несуществующую
+            # квоту, и предостережение «ноль не то же самое, что неизвестно»
+            # перестало бы работать в ту же секунду.
+            row = self.quota.get(key)
+            if row is not None:
+                left = row.get("requests_remaining")
+                if isinstance(left, (int, float)) and left > 0:
+                    row["requests_remaining"] = left - 1
 
     def rpm_of(self, key: str) -> int:
         """Лимит в минуту для аккаунта. 0 — неизвестен."""
@@ -370,12 +381,21 @@ class KeyRing:
                 or "нет баланса" in text or "пополните" in text):
             self.penalize(key, seconds=EMPTY_ACCOUNT, why="нет баланса")
             return
-        if "401" in text or "unauthorized" in text or "invalid" in text:
+        if "401" in text or "unauthorized" in text:
             # Ключ отозван или введён с ошибкой. Ждать бессмысленно.
             self.penalize(key, seconds=MAX_QUARANTINE, why="401")
             return
         if "429" in text or "rate limit" in text or "лимит" in text:
             self.penalize(key, why="429")
+            return
+        # Раньше сюда попадало и `if "invalid" in text`, и это была самая
+        # дорогая ошибка в модуле: любая 400 вида
+        # `invalid_request_error: max_tokens too large`, любой 404 или 500 с
+        # словом «invalid» отправлял **рабочий** аккаунт в карантин на семь
+        # суток, а в интерфейсе причиной значилось «401». Подстрока в тексте
+        # ошибки ничего не значит: смысл в коде ответа, который в этот слой
+        # не доходит, — поэтому спорные случаи оставляются как есть, а не
+        # угадываются.
 
 
 class KeyRegistry:
@@ -433,12 +453,19 @@ class KeyRegistry:
         key = ring.next_key()
         if key:
             return key
-        # Все ключи в карантине — берём лучший из худших, чтобы дать провайдеру
-        # шанс: вдруг лимит уже снят, а мы его считаем не истёкшим.
+        # Все ключи в карантине. Возвращается `None`, а не «лучший из худших»:
+        # выдача заведомо выбитого аккаунта означала, что каждый хоп тратит
+        # запрос на ключ, который заведомо вернёт 429, — то есть ровно то,
+        # ради чего карантин и нужен. Контракт `KeyRing.next_key` прямо
+        # обещает `None`, когда доступных ключей нет, и вызывающий код
+        # (`failover.py`) умеет с этим случаем: он пишет «все ключи
+        # провайдера в карантине по лимиту» и перестаёт крутиться.
         stats = ring.stats()
         if not stats["total"]:
             return None
-        return ring.keys[self._least_used(ring)]
+        if stats["available"] > 0:
+            return ring.next_key()
+        return None
 
     def _least_used(self, ring: KeyRing) -> int:
         with ring._lock:

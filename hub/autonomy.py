@@ -243,6 +243,21 @@ class Guard:
         if self.autonomy is Autonomy.STRICT:
             return True
         if self.autonomy is Autonomy.NORMAL:
+            # `shell` из правил убран **намеренно**, и это не смягчение.
+            #
+            # В `DESTRUCTIVE_OPS` команда значит «разрушительна», и по списку
+            # выходило, что обычный режим спрашивает перед каждой командой —
+            # включая `git status`. На любой реальной задаче это превращается
+            # в диалог из десятков одинаковых вопросов, то есть режим просто
+            # непригоден; а «спрашивать всё подряд» — это уже `STRICT`.
+            #
+            # Для команды точная проверка уже есть: список опасных разбирается
+            # **до** выполнения (`_dangerous_shell` в `hub/agent.py`), и
+            # `rm -rf`, `format`, `git reset --hard` спрашиваются всегда, кроме
+            # YOLO. Список опасных команд работает точнее, чем вопрос перед
+            # всем подряд, поэтому он и остаётся единственным для `shell`.
+            if operation == "shell":
+                return False
             return operation in DESTRUCTIVE_OPS or operation in MUTATING_OPS
         # PLAN: подтверждается план целиком, отдельные операции — нет.
         return False

@@ -1450,6 +1450,20 @@ async function api(path, body) {
   });
   try { return await r.json(); } catch { return {error:'плохой ответ сервера'}; }
 }
+// Данные для обработчика кладутся в data-атрибут, а не внутрь onclick.
+//
+// `esc()` для этого недостаточно, и это не мелочь: апостроф в esc()
+// превращается в `&#39;`, а HTML-парсер декодирует сущности **до** компиляции
+// JavaScript — то есть `&#39;` снова становится `'` и рвёт строку. Перевод
+// строки esc() не трогает вовсе, а содержимое файла и текст инструкции
+// многострочные. Итог был один: кнопки «копировать» не работали ни разу, а
+// имя файла с апострофом ломало разметку.
+//
+// Через атрибут значение доходит целым: браузер сам декодирует сущности при
+// разборе, и в JS попадает ровно то, что было в исходнике.
+function copyAttr(el, what) { copy(el.getAttribute('data-copy') || '', what); }
+function argAttr(el) { return el.getAttribute('data-arg') || ''; }
+
 async function copy(text, what) {
   try { await navigator.clipboard.writeText(text); toast('Скопировано: ' + what); }
   catch { // буфер может быть недоступен без https
@@ -1533,8 +1547,14 @@ async function dirPath(handle) {
   const parts = [];
   let node = handle;
   while (node) { parts.unshift(node.name); node = node.parent; }
-  // Первый элемент — корень («Диск C:» или «home»), его не показываем.
-  return parts.slice(1).join('\\');
+  // Имя диска уходит вместе с остальным путём: для `C:\Users\HP\x`
+  // возвращалось `Users\HP\x`, сервер резолвил это относительно своей
+  // рабочей папки, пути не находил и предлагал **создать** его — то
+  // есть внутри проекта вырастало мусорное дерево. Корни вида «Диск C:»
+  // и «home» при этом отбрасываются: они не часть пути.
+  const trimmed = parts[0].startsWith('Диск') || parts[0] === 'home'
+    ? parts.slice(1) : parts;
+  return trimmed.join('\\');
 }
 
 // Подтверждение с пояснением. Возвращает true/false.
@@ -2615,7 +2635,7 @@ async function loadGuide(target) {
       </dl>
       <pre>${esc(e.instruction)}</pre>
       <div class="row tight" style="padding:0 10px 8px">
-        <button class="btn sm pri" onclick="copy('${esc(e.instruction)}','инструкция')">копировать</button>
+        <button class="btn sm pri" data-copy="${esc(e.instruction)}" onclick="copyAttr(this,'инструкция')">копировать</button>
         <button class="btn sm" onclick="copyModels('${esc(e.gateway)}')">только модели</button>
       </div>
     </div>`;
@@ -2756,7 +2776,7 @@ function showFile(r) {
       <div class="spacer"></div>
       ${r.web_url ? `<a class="btn sm" href="${esc(r.web_url)}" target="_blank"
          rel="noopener" title="\u043e\u0442\u043a\u0440\u044b\u0442\u044c \u0432 \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0435 \u0432\u043e \u0432\u043d\u0443\u0442\u0440\u0435\u043d\u043d\u0435\u043c \u0432\u043a\u043b\u0430\u0434\u043a\u0435">\u2197</a>` : ''}
-      <button class="btn sm" onclick="copy('${esc(r.content || r.data_url || '')}','\u0441\u043e\u0434\u0435\u0440\u0436\u0438\u043c\u043e\u0435')">\u043a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u0442\u044c</button>
+      <button class="btn sm" data-copy="${esc(r.content || r.data_url || '')}" onclick="copyAttr(this,'\u0441\u043e\u0434\u0435\u0440\u0436\u0438\u043c\u043e\u0435')">\u043a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u0442\u044c</button>
     </div>`;
 
   if (r.kind === 'image') {
@@ -3149,7 +3169,9 @@ async function pingUnavailable() {
   });
   if (!dead.length) { toast('Все доступные модели отвечают'); return; }
   busy('pingBtn', true, 'недоступные');
-  const r = await api('/api/ping', {});
+  // Список недоступных уходит на сервер, а не используется только для подсчёта: `api('/api/ping', {})` без ref пингует **весь** реестр.
+  // Кнопка обещала перепроверить недоступные, а проверяла все и рапортовала «из N недоступных».
+  const r = await api('/api/ping', {refs: dead.map(x => x.ref)});
   $('sendInfo').textContent = '';
   busy('pingBtn', false);
   if (!r.ok) { toast(r.error || 'пинг не начался'); return; }
@@ -3715,7 +3737,12 @@ async function refresh() {
     GEO.running = !!S.region.running;
     if (S.region.progress) GEO.progress = S.region.progress;
     if (S.region.log) GEO.log = S.region.log;
-    if (S.region.summary && (S.region.summary.measured || 0) > 0) GEO.directDone = true;
+    // Прямым считается замер без VPN, а не любой: `measured` рос от
+    // замера с VPN, и интерфейс показывал «замер без VPN сделан»,
+    // разблокируя второй шаг при первом непроведённом.
+    const direct = (S.region.summary.samples || [])
+      .some(x => x && x.mode === 'direct');
+    if (direct) GEO.directDone = true;
   }
   const s = selState();
   if (s.mode) $('modeSel').value = s.mode;

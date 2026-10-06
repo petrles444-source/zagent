@@ -23,7 +23,15 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable
 
-from hub.autonomy import AccessLevel, Autonomy, Escalation, Guard
+from hub.autonomy import (
+    DESTRUCTIVE_OPS,
+    MUTATING_OPS,
+    AccessLevel,
+    Autonomy,
+    Escalation,
+    Guard,
+    inspect_shell,
+)
 from hub.failover import AutoCaller, FailoverError
 from hub.keyring import gateway_key
 from hub.select import Mode, Selector
@@ -599,6 +607,13 @@ class Agent:
         self.checkpoint: dict[str, Any] = {}
         #: Ожидающий запрос на выход за границу воркспейса (None — не ждём).
         self.pending_permission: dict[str, Any] | None = None
+        #: Ожидающее подтверждение по режиму автономии:
+        #: {"operation": str, "target": str, "tool": str} либо None.
+        self.pending_confirmation: dict[str, Any] | None = None
+        #: Операции, которые пользователь отклонил: {(операция, путь)}.
+        #: Отказ запоминается, иначе модель спрашивает снова и снова,
+        #: пока не кончатся шаги.
+        self.refused: set[tuple[str, str]] = set()
         #: Сколько раз мы требовали от модели вызвать инструмент вместо отказа.
         self.boundary_nudges: int = 0
         #: Сколько раз возвращали модели требование формата вызова.
@@ -718,6 +733,21 @@ class Agent:
             # Без него восстановление теряло вопрос, и answer_question()
             # выходил сразу: пользователь отвечал, а ответ никуда не попадал.
             "pending_question": self.pending_question,
+            # Ответ на вопрос о доступе приходит отдельным запросом и
+            # продолжает задачу **с чекпоинта**. Значит, и ждущий запрос,
+            # и то, на что человек уже ответил, должны пережить перезапуск.
+            #
+            # Без этого подтверждение по режиму автономии терялось: человек
+            # жал «Разрешить», задача перезапускалась, `pending_confirmation`
+            # был пуст, `guard.confirm` не вызывался, и агент задавал тот же
+            # вопрос снова — до конца шагов. Отказ вёл к тому же, только
+            # вопрос менялся на «запрещено» по кругу.
+            "pending_permission": self.pending_permission,
+            "pending_confirmation": self.pending_confirmation,
+            "refused": [list(pair) for pair in self.refused],
+            # Разрешения, данные ранее: `guard` при восстановлении создаётся
+            # заново, и без этого список пустел.
+            "confirmed": sorted(self.guard.confirmed),
         }
 
     def restore_checkpoint(self, data: dict[str, Any]) -> bool:
@@ -739,6 +769,18 @@ class Agent:
         # Значение может быть None — так и должно быть, если вопроса не было.
         pending = data.get("pending_question")
         self.pending_question = pending if isinstance(pending, str) and pending else None
+
+        # Запрос на разрешение и уже вынесенные решения. Ответ приходит
+        # отдельным запросом и продолжает задачу с этого чекпоинта, поэтому
+        # без них разрешение терялось и вопрос повторялся до конца шагов.
+        waiting = data.get("pending_permission")
+        self.pending_permission = waiting if isinstance(waiting, dict) else None
+        confirm = data.get("pending_confirmation")
+        self.pending_confirmation = confirm if isinstance(confirm, dict) else None
+        self.refused = {(str(pair[0]), str(pair[1]))
+                        for pair in (data.get("refused") or [])
+                        if isinstance(pair, (list, tuple)) and len(pair) == 2}
+        self.guard.confirmed = {str(x) for x in (data.get("confirmed") or [])}
         return True
 
     def answer_question(self, answer: str) -> None:
@@ -832,6 +874,11 @@ class Agent:
         elapsed = int((time.perf_counter() - started) * 1000)
         if cancelled:
             self.phase = Phase.FAILED
+        elif self.pending_question is not None or self.pending_permission:
+            # Пауза с ожиданием ответа — не сбой. Фаза переписывалась в
+            # FAILED, и интерфейс показывал задачу как сломанную в момент,
+            # когда она просто ждёт человека.
+            self.phase = Phase.ASKING_USER
         else:
             self.phase = Phase.DONE if self.finished else Phase.FAILED
 
@@ -1052,19 +1099,41 @@ class Agent:
             for path in written:
                 touched.add(path)
 
+        # Проверка сделанного — до остановки. Раньше `return "stop"` стоял
+        # здесь, и если в одной пачке вызовов первый что-то записал, а
+        # второй потребовал разрешения, проверка не выполнялась вовсе: пути
+        # уже попали в локальный `touched` и на следующем заходе в него не
+        # возвращались. Восстановить проверку было уже нечем.
         if self.pending_question is not None:
+            if touched and self.config.verify_writes:
+                await self._verify_all(touched)
             return "stop"
 
         if touched and self.config.verify_writes:
             await self._verify_all(touched)
 
-        if self.verifications and any(not v["ok"] for v in self.verifications):
+        # Проверяются отчёты, полученные **на этом** шаге, а не все за задачу.
+        # Список копился от самого начала, и одна неудачная проверка в начале
+        # держала агента в цикле «проверка не прошла, исправь» до конца шагов:
+        # файл к третьему шагу был уже верным, проверка проходила, а условие
+        # всё равно смотрело на старую неудачу.
+        fresh = [v for v in self.verifications[-len(touched):]] if touched else []
+        if any(not v["ok"] for v in fresh):
             # Не отдаём управление модели, пока записанное не подтверждено.
             self.messages.append({
                 "role": "user",
                 "content": "Проверка записи не прошла. Исправь проблему и сообщи результат.",
             })
             return "continue"
+
+        # Счётчики «подряд» сбрасываются здесь. Оба считали события за всю
+        # задачу, а не подряд: `FORMAT_NUDGE_LIMIT` и `MAX_BOUNDARY_NUDGES`
+        # по именам и по комментариям означают «сколько раз подряд». Модель,
+        # которая три раза за сорок шагов (с интервалом в десять) ответила
+        # почти-вызовом, упиралась в лимит и убивала задачу с «не смогла
+        # вызвать инструмент» — хотя каждый раз нормально из неё выходила.
+        self.format_retries = 0
+        self.boundary_nudges = 0
 
         self._trim_history()
         self.messages.append({
@@ -1085,14 +1154,24 @@ class Agent:
 
         system = self.messages[0]
         task = self.messages[1] if len(self.messages) > 1 else None
-        tail = self.messages[-(limit - 2):]
+        # `-(limit - 2)` при `limit == 2` даёт `-(0)`, то есть **весь**
+        # список: история не обрезалась, а размножалась (системный промпт и
+        # задача попадали и отдельно, и в хвост). Нижняя граница — единица.
+        keep = max(1, limit - 2)
+        tail = self.messages[-keep:]
+        # Хвост не должен начинаться с system/task: иначе они дублируются.
+        tail = [m for m in tail if m is not system and m is not task]
 
         rebuilt = [system]
         if task is not None:
             rebuilt.append(task)
+        # Счётчик считается до того, как хвост добавлен, — иначе в нём
+        # участвовали бы уже два служебных сообщения и число выходило
+        # на единицу-два меньше настоящего.
+        dropped = len(self.messages) - len(rebuilt) - len(tail)
         rebuilt.append({
             "role": "user",
-            "content": f"[{len(self.messages) - len(rebuilt) - 1} ранних сообщений "
+            "content": f"[{dropped} ранних сообщений "
                        "свёрнуто для экономии контекста]",
         })
         rebuilt.extend(tail)
@@ -1121,6 +1200,92 @@ class Agent:
         args = call.get("args") or {}
         if not isinstance(args, dict):
             args = {}
+
+        operation = _operation_of(name)
+        # Опасная команда спрашивается всегда, кроме YOLO. Список
+        # `DANGEROUS_SHELL` разбирался и попадал в `meta` результата, и на
+        # этом всё: `rm -rf`, `format`, `git reset --hard` выполнялись при
+        # полном доступе без вопроса. Список, который ничего не проверяет, —
+        # это украшение, а не защита.
+        dangerous = _dangerous_shell(name, args)
+
+        # Подтверждение по режиму автономии. `needs_confirmation` и `confirm`
+        # вызывались только из тестов, то есть `Autonomy.NORMAL` и
+        # `Autonomy.STRICT` не делали ровно ничего: в системный промпт модели
+        # писалось «режим автономии: с подтверждением», а подтверждения не
+        # было. Теперь оно есть.
+        #
+        # Гейт стоит **до** выполнения. Стоял он после — инструмент уже
+        # отрабатывал, шаг уже попадал в след со словами «выполнено», и
+        # вопрос «разрешить?» приходил последним: к этому моменту файл был
+        # записан, а команда — запущена. Подтверждение, на которое нельзя
+        # повлиять, это не подтверждение.
+        #
+        # Подтверждённое запоминается в `guard.confirmed`, поэтому одна
+        # кнопка «разрешить» покрывает дальнейшую работу с тем же путём и
+        # не превращает режим в диалог на каждый шаг.
+        #
+        # YOLO отменяет и список опасных команд. Иначе «делай сам» означал бы
+        # «делай сам, кроме `rm -rf`» — то есть режим, обещающий не спрашивать,
+        # спрашивал, и пользователь это уже видел. YOLO означает «не
+        # спрашивать»; то, что он разрешает опасное, — его собственный смысл.
+        yolo = self.guard.autonomy is Autonomy.YOLO
+        target = str(args.get("path") or "")
+        ask = dangerous or self.guard.needs_confirmation(operation, target)
+
+        # Часть роя подтверждений не спрашивает: разрешение на её работу —
+        # это утверждённый план, в котором перечислено, что именно она
+        # пишет. Без этого каждая запись части задавала бы вопрос, на который
+        # отвечать некому: `SwarmRun` ждёт части через `gather`, вопрос
+        # задачи не закрывает ответ на вопрос части, и рой вставал бы на
+        # первой же записи — то есть режим, который только что стал
+        # работать, ломал сам рой.
+        if self.part:
+            yolo = True
+
+        # Отказ помнится. Без этого модель, получив отказ, пробует тот же
+        # вызов снова: гейт спрашивает, человек снова жмёт «Отклонить», и
+        # так до конца шагов. Здесь инструмент не выполняется вовсе, а модели
+        # прямо говорят, что запрещено.
+        if not yolo and (operation, target) in self.refused:
+            self.messages.append({
+                "role": "user",
+                "content": (f"Инструмент «{name}» запрещён: пользователь "
+                            f"отклонил операцию «{operation}»"
+                            f"{' для ' + target if target else ''}. "
+                            "Повторно просить не буду — этот вызов "
+                            "больше не будет выполнен. Найди другой способ "
+                            "или честно скажи, что так нельзя."),
+            })
+            return []
+
+        if ask and not yolo and self.pending_question is None:
+            question = _confirmation_question(name, args, operation)
+            self.pending_confirmation = {"operation": operation,
+                                         "target": target,
+                                         "tool": name}
+            self.pending_permission = {
+                "operation": name,
+                "path": target,
+                "args": args,
+                "question": question,
+            }
+            self.pending_question = question
+            self.phase = Phase.ASKING_USER
+            self.messages.append({
+                "role": "user",
+                "content": (f"Инструмент «{name}» ждёт подтверждения: "
+                            f"{question}"),
+            })
+            # Событие `permission`, а не `question`: у него в интерфейсе уже
+            # есть кнопки «Разрешить / Отклонить» и подтверждённый ответ.
+            # Обычный вопрос приходит текстом и не различает «да» и «нет».
+            await self._emit({"type": "permission",
+                              "operation": name,
+                              "path": target,
+                              "question": question,
+                              "dangerous": dangerous})
+            return []
 
         self.phase = Phase.USING_TOOL
         # Инструменты синхронные, а мы внутри event loop воркера. Прямой вызов
@@ -1217,6 +1382,14 @@ class Agent:
     async def grant_permission(self, path: str) -> None:
         """Пользователь разрешил выход за границу воркспейса на этот путь."""
         self.guard.grant_path(path)
+        # Разрешение по режиму автономии запоминается здесь же. Без этого
+        # гейт спрашивает про тот же файл при каждой попытке: разрешение
+        # было, но никто его не записал — и задача упиралась в один вопрос
+        # до конца шагов.
+        if self.pending_confirmation is not None:
+            self.guard.confirm(self.pending_confirmation["operation"],
+                               self.pending_confirmation["target"])
+            self.pending_confirmation = None
         self.pending_permission = None
         self.pending_question = None
         self.phase = Phase.THINKING
@@ -1236,6 +1409,12 @@ class Agent:
         способ и не просить этот путь снова.
         """
         self.guard.deny_path(path)
+        # Отказ по режиму автономии запоминается, иначе модель долбится в
+        # один и тот же вопрос до конца шагов.
+        if self.pending_confirmation is not None:
+            self.refused.add((self.pending_confirmation["operation"],
+                              self.pending_confirmation["target"]))
+            self.pending_confirmation = None
         self.pending_permission = None
         self.pending_question = None
         self.phase = Phase.THINKING
@@ -1656,3 +1835,47 @@ __all__ = [
 #: Асинхронный помощник для режима questions на уровне модуля.
 async def consult_models(agent: Agent, question: str, *, models: int = 3) -> list[dict[str, Any]]:
     return await agent.consult(question, models=models)
+
+
+def _operation_of(tool: str) -> str:
+    """Как операция называется в правилах автономии.
+
+    Сопоставление по названию инструмента: правила оперируют словами
+    «удалить», «изменить», «команда», а инструменты названы `write_file`,
+    `delete_file`, `run_shell`. Пока эти слова нигде не соединялись,
+    правила автономии не с чем было работать, а режимы `normal` и `strict`
+    выглядели включёнными и ничего не делали.
+    """
+    if tool == "run_shell":
+        return "shell"
+    if tool in ("read_file", "list_dir", "search", "glob", "browser_open"):
+        return "read"
+    for operation in sorted(DESTRUCTIVE_OPS | MUTATING_OPS):
+        if operation in tool:
+            return operation
+    return tool
+
+
+def _dangerous_shell(tool: str, args: dict[str, Any]) -> str:
+    """Опасная команда из списка — или пусто.
+
+    Проверяется **до** выполнения. Раньше `inspect_shell` разбирал команду,
+    а его результат возвращался в `meta` уже после того, как команда
+    отработала: `rm -rf`, `format` и `git reset --hard` выполнялись при
+    полном доступе без вопроса, а список опасных команд был украшением.
+    """
+    if tool != "run_shell":
+        return ""
+    command = str(args.get("command") or "")
+    if not command:
+        return ""
+    found = inspect_shell(command).get("markers") or []
+    return ", ".join(str(m) for m in found)
+
+
+def _confirmation_question(tool: str, args: dict[str, Any],
+                           operation: str) -> str:
+    """Вопрос о подтверждении: что именно собираются сделать."""
+    target = args.get("path") or args.get("command") or args.get("url") or ""
+    return (f"Инструмент «{tool}» (операция «{operation}») требует "
+            f"подтверждения: {str(target)[:200]}. Разрешить?")

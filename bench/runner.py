@@ -190,9 +190,16 @@ def make_zagent_runner(config: BenchConfig) -> "AgentRunner":
 
         # Песочница становится и рабочим каталогом, и физической границей:
         # make_guard берёт base_dir как корень воркспейса.
+        #
+        # Автономия — `YOLO`, а не `NORMAL`, и это не «чтобы не мешало».
+        # Стенд автоматический: ответа на вопрос ждать некому, и агент,
+        # задавший вопрос, останавливался намертво. Раньше это не проявлялось
+        # только потому, что режим `NORMAL` не делал ровно ничего — вопросы
+        # были объявлены, но не задавались. Стоило включить подтверждение
+        # по-настоящему, и каждый замер на стенде зависал на первой записи.
         agent_config = AgentConfig(
             access=AccessLevel(config.access),
-            autonomy=Autonomy.NORMAL,
+            autonomy=Autonomy.YOLO,
             base_dir=str(sandbox.root),
             max_steps=config.max_steps,
         )
