@@ -248,8 +248,20 @@ def test_внутренние_адреса_отвергаются() -> None:
             check_url(url)
 
 
+@pytest.mark.network
 def test_схема_дописывается() -> None:
-    assert check_url("example.com/a") == "https://example.com/a"
+    """Адрес без схемы должен достроиться до https.
+
+    Проверка ходит в DNS, потому что разбор адреса неотделим от разрешения
+    имени: именно на этом стоит защита от чтения внутренней сети. Поэтому при
+    сбое сети она пропускается явно, а не падает и не выглядит ошибкой кода.
+    """
+    try:
+        assert check_url("example.com/a") == "https://example.com/a"
+    except WebError as exc:
+        if "разрешить" not in str(exc).lower():
+            raise
+        pytest.skip(f"сеть недоступна, проверка достройки схемы пропущена: {exc}")
 
 
 def test_неизвестный_узел_понятная_ошибка() -> None:
