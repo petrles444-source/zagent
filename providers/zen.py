@@ -7,7 +7,7 @@ from typing import Any
 
 import httpx
 
-from providers.base import Messages, Provider, error_result, ok_result
+from providers.base import Messages, Provider, error_result, host_of, ok_result
 
 #: таймаут по умолчанию, сек (ТЗ, раздел 7)
 DEFAULT_TIMEOUT = 30.0
@@ -98,14 +98,19 @@ class ZenProvider(Provider):
             )
         except httpx.TimeoutException:
             return error_result(f"Таймаут модели {model_id}", duration_ms=_ms(started))
-        except httpx.HTTPError as exc:
-            return error_result(f"Сеть недоступна: {exc}", duration_ms=_ms(started))
-        except OSError as exc:
+        except httpx.HTTPError:
+            # Текст исключения не пишем: httpx повторяет URL запроса.
+            # Правило то же, что в openai_compat.chat, — иначе ошибка из
+            # одного провайдера утекает, а из другого нет.
+            return error_result(f"Сеть недоступна ({host_of(self.base_url)})",
+                                duration_ms=_ms(started))
+        except OSError:
             # Сеть недоступна целиком: DNS не resolved, соединение refused,
             # сокет упал. `httpx.HTTPError` это не покрывает, а ловить
             # Exception здесь нельзя — под ним прячется опечатка в коде
             # провайдера, и она молча превращается в «сеть недоступна».
-            return error_result(f"Сеть недоступна: {exc}", duration_ms=_ms(started))
+            return error_result(f"Сеть недоступна ({host_of(self.base_url)})",
+                                duration_ms=_ms(started))
 
         duration_ms = _ms(started)
         status = response.status_code

@@ -19,11 +19,26 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Any, Sequence
+from urllib.parse import urlparse
 
 Messages = Sequence[dict[str, Any]]
 
 # Ключи нормализованного результата (всегда присутствуют все).
 RESULT_KEYS = ("text", "tokens_in", "tokens_out", "duration_ms", "status", "raw", "error")
+
+
+def host_of(url: str) -> str:
+    """Только хост из адреса шлюза, без схемы, пути и параметров.
+
+    Нужно для текста ошибки: у части шлюзов ключ живёт в query-строке
+    `base_url`, а текст исключения httpx этот адрес повторяет. Ошибка
+    уходит в журнал событий и на экран — то есть ключ оказался бы в UI.
+    Поэтому в сообщения попадает только имя хоста.
+    """
+    try:
+        return urlparse(str(url or "")).netloc or "?"
+    except ValueError:
+        return "?"
 
 
 def ok_result(

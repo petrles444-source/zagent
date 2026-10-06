@@ -8,12 +8,11 @@
 from __future__ import annotations
 
 import time
-from urllib.parse import urlparse
 from typing import Any
 
 import httpx
 
-from providers.base import Messages, Provider, error_result, ok_result
+from providers.base import Messages, Provider, error_result, host_of, ok_result
 
 DEFAULT_TIMEOUT = 45.0
 
@@ -116,7 +115,7 @@ class OpenAICompatProvider(Provider):
             # оказался бы на экране.
             return error_result(
                 f"Сеть недоступна: {type(exc).__name__} "
-                f"({_host_of(self.base_url)})",
+                f"({host_of(self.base_url)})",
                 duration_ms=_ms(started),
             )
 
@@ -186,7 +185,12 @@ class OpenAICompatProvider(Provider):
                 f"{self.base_url}/models", headers=self._headers(), timeout=self.timeout
             )
         except Exception as exc:
-            return {"ok": False, "error": f"{type(exc).__name__}: {exc}", "ids": []}
+            # То же правило, что и в chat(): текст исключения httpx
+            # повторяет URL, а у части шлюзов ключ живёт в query-строке.
+            # Ошибка уходит в registry.errors, то есть в интерфейс и CLI.
+            return {"ok": False,
+                    "error": f"{type(exc).__name__} ({host_of(self.base_url)})",
+                    "ids": []}
 
         if response.status_code != 200:
             return {"ok": False, "error": f"HTTP {response.status_code}", "ids": [], "status": response.status_code}
@@ -329,18 +333,6 @@ def _limit_value(raw: Any) -> Any:
     # Отрицательный остаток встречается у некоторых: значит «перерасход»,
     # и считать его нулём нельзя — так потеряется сам факт исчерпания.
     return value
-
-
-def _host_of(url: str) -> str:
-    """Только хост из адреса шлюза, без схемы, пути и параметров.
-
-    Нужно для текста ошибки: полный URL у некоторых шлюзов содержит ключ в
-    query-строке, а текст ошибки попадает в журнал событий и на экран.
-    """
-    try:
-        return urlparse(str(url or "")).netloc or "?"
-    except ValueError:
-        return "?"
 
 
 def _snippet(text: str, limit: int = 200) -> str:
