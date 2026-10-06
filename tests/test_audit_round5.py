@@ -28,7 +28,6 @@ import pytest
 
 from hub.bus import gather_chats, log_usage, usage_record
 from hub.health import format_reports
-from hub.router import Router
 from providers.base import Provider, ok_result
 from providers.zen import ZenProvider, _extract_text
 
@@ -252,33 +251,7 @@ class _FakeClient:
         self.is_closed = True
 
 
-# ============================================= Router: словарь меток и мусор
-
-
-def test_запись_модели_без_id_не_роняет_конструктор() -> None:
-    """Плохой конфиг — не повод ронять Router.
-
-    `hub/config.py` отсекает запись без id на своей границе, но Router
-    используется и напрямую (tools/, тесты), где этого фильтра нет.
-    Словарь меток, собранный как `m["id"]`, падал с KeyError.
-    """
-    router = Router({"coder": ["a"]}, [{"label": "без id"}, {"id": "b"}])
-
-    assert router.label("b") == "b"
-    assert router.label("мусор") == "мусор"
-
-
-def test_метки_берутся_из_словаря() -> None:
-    router = Router({"coder": ["a"]}, [{"id": "a", "label": "Модель А"},
-                                       {"id": "b"}])
-
-    assert router.label("a") == "Модель А"
-    # Без своей метки модель называется собой — как и раньше.
-    assert router.label("b") == "b"
-    assert router.label("нет-такой") == "нет-такой"
-
-
-# ================================== отвергнутые пункты: проверка, что зря
+# ============== отвергнутые пункты: проверка, что зря
 
 
 def test_формат_отчётов_уже_защищён_от_пустого_списка() -> None:
@@ -290,23 +263,28 @@ def test_формат_отчётов_уже_защищён_от_пустого_�
     assert format_reports([]) == "Нет моделей для проверки."
 
 
-def test_маршрутизатор_не_участвует_в_рабочей_сборке() -> None:
-    """`hub/router.py` не импортируется нигде, кроме тестов.
+def test_маршрутизатор_удалён_а_не_молча_мёртв() -> None:
+    """`hub/router.py` удалён 07.10.2026 — по решению пользователя.
 
-    Рабочий код ходит через `hub/failover.py` и `hub/select.py`. Значит
-    оптимизация `label()` и валидация цепочек правят мёртвый модуль:
-    правки верны по существу, но на поведение программы не влияют, и
-    тратить на них внимание раньше, чем на рабочий путь, опасно.
+    Он не импортировался рабочим кодом: выбор моделей идёт через
+    `hub/failover.py` и `hub/select.py`. Модуль выглядел частью системы
+    (есть `RouterError`, есть тесты, есть `config/agents.json`), но ни
+    одна задача через него не проходила. Рядом с ним лежали
+    `load_agents` и `config/agents.json`, которые не читал никто вообще.
+
+    Проверка стоит здесь, а не удалена вместе с модулем: если кто-то снова
+    потянет `hub.router`, тест напомнит, что такого пути нет и что
+    выбор моделей живёт в другом месте. Обратное тоже верно — пока файл
+    не вернётся осознанно, «анализ кода» не должен на него опираться.
     """
-    users: list[str] = []
-    for path in ROOT.rglob("*.py"):
-        text = str(path)
-        if ".venv" in text or f"{ROOT / 'tests'}" in text or f"{ROOT / 'tmp'}" in text:
-            continue
-        if path.name.startswith("test_"):
-            continue
-        src = path.read_text(encoding="utf-8", errors="replace")
-        if "hub.router" in src:
-            users.append(str(path.relative_to(ROOT)))
+    assert not (ROOT / "hub" / "router.py").exists(), \
+        "hub/router.py вернулся: выбор моделей идёт через hub/select.py"
+    assert not (ROOT / "config" / "agents.json").exists(), \
+        "config/agents.json вернулся: его никто не читал"
 
-    assert users == [], f"маршрутизатор всё-таки используется: {users}"
+    # Живой путь выбора моделей на месте — это важнее, чем отсутствие
+    # мёртвого файла.
+    import hub.select
+    import hub.failover
+    assert hasattr(hub.select, "Selector")
+    assert hasattr(hub.failover, "AutoCaller")

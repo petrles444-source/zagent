@@ -647,42 +647,82 @@ WINDOWS_BUILTINS = frozenset({
 #: cp1252 — последняя, поэтому код 866 не конфликтует.
 _CONSOLE_CODECS = ("cp866", "cp1251")
 
+#: Номера кодовых страниц для имён выше.
+_CODEPAGE_IDS = {"cp866": 866, "cp1251": 1251}
 
-def _console_encoding() -> str:
-    """Кодировка вывода консоли Windows.
 
-    Берётся у системы, а не задаётся константой: OEM-кодовая страница зависит
-    от настроек машины, и на другой Windows она будет другой.
+def _codepage_encoding(get_cp: str) -> str:
+    """Кодовая страница Windows по номеру из системы.
+
+    Берётся у системы, а не задаётся константой: обе кодовые страницы
+    зависят от настроек машины, и на другой Windows они будут другими.
     """
     if not sys.platform.startswith("win"):
         return "utf-8"
     try:
         import ctypes
 
-        oem = int(ctypes.windll.kernel32.GetOEMCP())
+        code = int(getattr(ctypes.windll.kernel32, get_cp)())
     except (OSError, AttributeError, ValueError):
-        oem = 0
+        code = 0
     for name in _CONSOLE_CODECS:
-        if oem == {"cp866": 866, "cp1251": 1251}.get(name):
+        if code == _CODEPAGE_IDS[name]:
             return name
     return "utf-8"
 
 
-def _decode_output(raw: bytes | None, console_encoding: str) -> str:
+def _oem_encoding() -> str:
+    """OEM-кодовая страница: так пишет сам cmd.exe.
+
+    Именно cmd, а не вся консоль: `echo` через `cmd /c` уходит в OEM.
+    На русской Windows это 866.
+    """
+    return _codepage_encoding("GetOEMCP")
+
+
+def _ansi_encoding() -> str:
+    """ANSI-кодовая страница: так пишет программа, запущенная без консоли.
+
+    Здесь и была причина порчи русского текста. Программа, которой мы
+    передаём трубу, консоли не видит и берёт локаль кодировки системы —
+    это ANSI (на русской Windows 1251). А мы разбирали её вывод как OEM
+    (866), и обе однобайтовые таблицы принимают любые байты, поэтому
+    ошибки не было видно: вместо русского приходило 'щ-ъарт√ъхь'.
+
+    Ни cmd, ни оболочка сюда не относятся — для них OEM.
+    """
+    return _codepage_encoding("GetACP")
+
+
+def _decode_output(raw: bytes | None, *encodings: str) -> str:
     """Разобрать вывод команды, не испортив русский текст.
 
     Кодировки у команд разные, и угадать по одной нельзя: ``cmd /c echo`` на
-    русской Windows пишет в OEM-866, а Python, запущенный из неё же, — в UTF-8.
-    Поэтому сначала пробуем UTF-8 строгим разбором: если байты в неё
-    складываются, значит писали в UTF-8. Не сложились — перед нами однобайтовая
-    кодовая страница, и тогда берём ту, что назвала система.
+    русской Windows пишет в OEM-866, программа, запущенная без консоли, — в
+    ANSI-1251, а Python с включённой UTF-8-локализацией — в UTF-8.
+
+    Порядок проб такой. Сначала UTF-8 строгим разбором: если байты в неё
+    складываются, значит писали в UTF-8, и ломать нечего. Не сложились —
+    перед нами однобайтовая кодовая страница, и дальше важно, какой именно:
+    обе таблицы принимают любые байты, поэтому ошибиться можно молча и
+    получить мусор вместо русского текста. Поэтому кодировки передаются
+    списком в порядке ожидания, а не одной строкой.
+
+    Последний круг — latin-1: он не падает никогда, и «какой-то текст» лучше
+    исключения, из-за которого пропала бы вся остальная работа команды.
     """
     if not raw:
         return ""
     try:
         return raw.decode("utf-8")
     except UnicodeDecodeError:
-        return raw.decode(console_encoding, errors="replace")
+        pass
+    for name in encodings:
+        try:
+            return raw.decode(name)
+        except (UnicodeDecodeError, LookupError):
+            continue
+    return raw.decode("latin-1")
 
 
 def _split_command(command: str) -> tuple[str, list[str]]:
@@ -747,11 +787,23 @@ def run_shell(command: str, *, timeout: float = 120.0, cwd: str | Path | None = 
          # границ этот же случай обрабатывал, то есть перенаправление было
          # задумано и просто не поддержано.
          or bool(re.search(r"\d?>{1,2}\s*\S", command)))
-    # cmd.exe пишет в OEM-кодировке консоли (на русской Windows — 866), а не в
-    # UTF-8, и при чтении как utf-8 русский текст превращался в иероглифы.
-    # Сами байты разбирает _decode_output: он сначала пробует UTF-8, потому что
-    # утилиты наподобие Python пишут именно в неё.
-    encoding = _console_encoding() if is_windows else "utf-8"
+    # Кодировка вывода зависит от того, КАК команда запущена, а не только от
+    # системы. Через cmd (shell=True, `cmd /c`, встроенная команда) текст
+    # пишется в OEM-кодовую страницу. Программа, запущенная напрямую, консоли
+    # не видит и пишет в ANSI — это и есть путь `python -c`, `git log`,
+    # `pytest`. На русской Windows это 866 и 1251, обе таблицы однобайтовые и
+    # принимают любые байты, так что ошибиться можно молча: русский текст
+    # превратится в мусор, и агент прочитает не то, что напечатали.
+    #
+    # Раньше обе ветки разбирались как OEM, и любая русская надпись из
+    # программы приходила абракадаброй.
+    head, tail = ("", []) if shell else _split_command(command)
+    via_cmd = bool(shell) or (is_windows and head.lower() in WINDOWS_BUILTINS)
+    if is_windows:
+        oem, ansi = _oem_encoding(), _ansi_encoding()
+        encodings = (oem, ansi) if via_cmd else (ansi, oem)
+    else:
+        encodings = ("utf-8",)
 
     try:
         if shell:
@@ -763,7 +815,6 @@ def run_shell(command: str, *, timeout: float = 120.0, cwd: str | Path | None = 
                 cwd=str(cwd) if cwd else None,
             )
         else:
-            head, tail = _split_command(command)
             if is_windows and not shutil.which(head):
                 # 7-Zip и часть утилит Windows живут как cmd-скрипты.
                 head = f"{head}.exe" if shutil.which(f"{head}.exe") else head
@@ -785,8 +836,8 @@ def run_shell(command: str, *, timeout: float = 120.0, cwd: str | Path | None = 
                     cwd=str(cwd) if cwd else None,
                 )
         code = completed.returncode
-        out = _decode_output(completed.stdout, encoding)
-        err = _decode_output(completed.stderr, encoding)
+        out = _decode_output(completed.stdout, *encodings)
+        err = _decode_output(completed.stderr, *encodings)
     except subprocess.TimeoutExpired:
         return ToolResult(False, error=f"Команда не завершилась за {timeout:.0f} с",
                           duration_ms=_ms(started))

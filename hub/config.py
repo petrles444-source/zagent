@@ -14,7 +14,6 @@ from typing import Any
 
 CONFIG_DIRNAME = "config"
 MODELS_FILE = "models.json"
-AGENTS_FILE = "agents.json"
 GATEWAYS_FILE = "gateways.json"
 SECRETS_FILE = "secrets.local.json"
 
@@ -84,27 +83,6 @@ def load_models(root: str | Path | None = None) -> dict[str, Any]:
         models.append({"id": model_id, "label": str(item.get("label") or model_id).strip()})
 
     return {"base_url": base_url, "models": models}
-
-
-def load_agents(root: str | Path | None = None) -> dict[str, list[str]]:
-    """Прочитать config/agents.json: роль -> fallback-цепочка моделей."""
-    path = config_dir(root) / AGENTS_FILE
-    data = _read_json(path)
-
-    agents: dict[str, list[str]] = {}
-    for role, chain in data.items():
-        if not isinstance(chain, list) or not chain:
-            raise ConfigError(f"В {path} у роли '{role}' должен быть непустой список моделей")
-        clean: list[str] = []
-        for item in chain:
-            model_id = str(item or "").strip()
-            if not model_id:
-                raise ConfigError(f"В {path} у роли '{role}' есть пустой id модели")
-            clean.append(model_id)
-        agents[str(role)] = clean
-    if not agents:
-        raise ConfigError(f"В {path} не описано ни одной роли")
-    return agents
 
 
 def load_secrets(root: str | Path | None = None) -> dict[str, Any]:

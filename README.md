@@ -7,7 +7,10 @@
 - `config/routing.json` — маршрутизация провайдеров и моделей
 - `config/routing.json.example` — пример маршрутизации
 - `config/models.json.example` — пример списка моделей
-- `config/agents.json.example` — пример назначения моделей ролям
+
+Роли моделей (`config/agents.json`) и роутер по ролям удалены 07.10.2026:
+выбор моделей давно идёт через `hub/select.py` и `hub/failover.py`, и
+`agents.json` не читал никто.
 
 ## Провайдеры
 
