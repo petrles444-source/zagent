@@ -407,6 +407,12 @@ tr.on { background:color-mix(in srgb,var(--accent) 10%,transparent); }
 /* Аккаунт упирается в лимит минуты. Предупреждение, а не отказ: работы он
    не потерял, но новую часть ему выдавать уже нельзя. */
 .kmark.tight { color:var(--accent); font-weight:700; }
+/* Подпись лимита у шлюза. Без неё четыре метки подряд читаются как одна:
+   метки одинаковые, и расстояние между ними ничего не сообщает. */
+.krpm {
+  color:var(--dim); font-size:10.5px; white-space:nowrap;
+  border:1px solid var(--edge); border-radius:4px; padding:0 4px;
+}
 .kfree {
   color:var(--dim); font-family:var(--mono); font-size:11px;
   font-variant-numeric:tabular-nums;
@@ -3169,10 +3175,21 @@ function renderKeyPower() {
         + glyph + '</span>';
     }).join('');
     const more = listed.length > 12 ? ` +${listed.length - 12}` : '';
+    // Сколько аккаунтов заведено — выводится числом, а не только метками.
+    // Четыре ключа, показанные одной строкой точек, читаются как «один»:
+    // метки одинаковые и расстояние между ними ничего не значит. Именно так
+    // и вышло «у NVIDIA один ключ», когда их было четыре.
+    const rpmTotal = (g.keys || []).filter(k => k.rpm_limit).length;
+    const rpmNote = rpmTotal
+      ? `<span class="krpm" title="${rpmTotal} аккаунтов, лимит ${esc(
+          (g.keys || []).find(k => k.rpm_limit)?.rpm_limit || '?')} запросов в минуту на аккаунт">`
+        + `${esc((g.keys || []).find(k => k.rpm_limit)?.rpm_limit || '?')}/мин</span>`
+      : '';
     return `<div class="krow">
         <span class="kgw">${esc(label)}</span>
         <span class="kmarks">${marks}${more}</span>
-        <span class="kfree">${g.available}/${g.total}</span>
+        ${rpmNote}
+        <span class="kfree" title="${g.available} свободно из ${g.total}">${g.available}/${g.total}</span>
       </div>`;
   }).join('') + '</div>';
 

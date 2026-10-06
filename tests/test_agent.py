@@ -235,9 +235,11 @@ def build_selector(**kw) -> Selector:
 
 def test_selector_auto_picks_tier_one() -> None:
     selector = build_selector()
-    assert selector.next_model() == "llm7/minimax-m2.7", (
-        "gpt-oss помечены как не умеющие вызывать инструменты (замер 0 из 4), "
-        "и переключаться на них нельзя"
+    ref = selector.next_model()
+    assert ref in ("groq/openai/gpt-oss-120b", "llm7/minimax-m2.7"), (
+        "gpt-oss-120b отмечена как рабочая по замеру на настоящей задаче "
+        "06.10.2026 (вызвала write_file, создала файл), поэтому её "
+        "нельзя исключать; gpt-oss-20b исключена — она инструмент не вызвала"
     )
 
 
@@ -246,11 +248,25 @@ def test_selector_не_берёт_модели_без_инструментов()
 
     Такая модель не выдаст вызов, и задача выглядела бы сделанной: агент
     описал словами то, чего не сделал, и цикл завершился успехом.
+
+    Список моделей, которые нельзя выбирать, берётся из config/tiers.json,
+    а не выписывается здесь: пометки про инструменты меняются по мере
+    замеров, и копия их в проверке осталась бы правдой ровно до первого же
+    нового замера.
     """
+    from hub.tiers import TierBook
+
+    book = TierBook.load(Path(__file__).resolve().parent.parent)
+    forbidden = {f"{s.gateway}/{s.model}" for s in book.specs() if not s.tools}
+    assert forbidden, "в tiers.json должно быть хоть одно поле без инструментов"
+
     selector = build_selector()
-    for _ in range(3):
-        ref = selector.next_model()
-        assert "gpt-oss" not in str(ref), ref
+    for _ in range(4):
+        ref = str(selector.next_model())
+        for bad in forbidden:
+            assert ref != bad and not ref.endswith(bad.split("/", 1)[1]), (
+                f"выбрана модель без инструментов: {ref}"
+            )
 
 
 def test_selector_record_ok_clears_cooldown() -> None:

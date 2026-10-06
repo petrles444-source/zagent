@@ -286,10 +286,15 @@ def test_gateway_key_берёт_по_кругу() -> None:
 
 def test_метка_не_выводит_ключ() -> None:
     """Ключ попадает в журналы и отчёты — там ему не место."""
-    secret = "sk-or-v1-udalennye-dlya-istorii-znacheniya"
+    # Ключ здесь — правдоподобный по длине и виду, но не настоящий: в тесте
+    # рабочий ключ не нужен, а настоящий в публичном репозитории опасен. Второй
+    # момент важнее: длинный литерал в тесте — это то место, куда легко
+    # вставляется ключ из буфера обмена, не заметив, и он уезжает в гит.
+    secret = ("sk-or-v1-udalennye-dlya-istorii-znacheniya"
+              "0123456789abcdef0123456789abcdef")
     label = fingerprint(secret)
     assert secret not in label
-    assert label.endswith("a189")
+    assert label.endswith("cdef")
     assert len(label) < 12
 
 

@@ -22,7 +22,11 @@ sys.path.insert(0, str(ROOT))
 from hub.connect import build_connect_info, build_guide, reveal_key  # noqa: E402
 from hub.tools import mask_secret  # noqa: E402
 
-SECRET = "sk-or-v1-udalennye-dlya-istorii-znacheniya"
+# Правдоподобный по длине и виду, но не настоящий ключ. Эти проверки
+# убеждаются, что ключ не показывается наружу, поэтому подставлять рабочий
+# не нужно, а в публичном репозитории он был бы опасен.
+SECRET = ("sk-or-v1-udalennye-dlya-istorii-znacheniya"
+          "0123456789abcdef0123456789abcdef")
 
 
 def registry_with(gateways: list[dict], models: list[tuple[str, str]] = None):
@@ -54,7 +58,7 @@ def test_маска_не_раскрывает_ключ() -> None:
     masked = mask_secret(SECRET)
     assert SECRET not in masked
     assert masked.startswith("sk-or")
-    assert masked.endswith("a189")
+    assert masked.endswith(SECRET[-4:])
 
 
 def test_маска_короткого_ключа() -> None:

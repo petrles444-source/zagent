@@ -5,19 +5,25 @@
       "gateway": "openrouter",
       "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
       "tier": 1,
-      "notes": "550B MoE, контекст 1M. Самая крупная бесплатная модель в каталоге."
+      "notes": "550B MoE, контекст 1M. Самая крупная бесплатная модель в каталоге.",
+      "works": true,
+      "measured_ms": 3600
     },
     {
       "gateway": "openrouter",
       "model": "nvidia/nemotron-3-super-120b-a12b:free",
       "tier": 1,
-      "notes": "120B MoE, быстрая, стабильно отвечает. Лучший дефолт для кодовых задач."
+      "notes": "120B MoE, быстрая, стабильно отвечает. Лучший дефолт для кодовых задач.",
+      "works": true,
+      "measured_ms": 2000
     },
     {
       "gateway": "openrouter",
       "model": "nvidia/nemotron-3.5-lightning:free",
       "tier": 2,
-      "notes": "1M контекста, быстрая, иногда протухает на длинных ответах."
+      "notes": "1M контекста, быстрая, иногда протухает на длинных ответах.",
+      "works": true,
+      "measured_ms": 28700
     },
     {
       "gateway": "openrouter",
@@ -29,20 +35,26 @@
       "gateway": "openrouter",
       "model": "cohere/north-mini-code:free",
       "tier": 2,
-      "notes": "Специализированная кодовая модель."
+      "notes": "Специализированная кодовая модель.",
+      "works": true,
+      "measured_ms": 4000
     },
     {
       "gateway": "openrouter",
       "model": "poolside/laguna-s-2.1:free",
       "tier": 3,
-      "notes": "Кодовая модель poolside."
+      "notes": "Кодовая модель poolside.",
+      "works": true,
+      "measured_ms": 4100
     },
     {
       "gateway": "openrouter",
       "model": "dots-studio/dots-3-note-preview:free",
       "tier": 3,
       "vision": true,
-      "notes": "512K контекста, vision."
+      "notes": "512K контекста, vision.",
+      "works": true,
+      "measured_ms": 9200
     },
     {
       "gateway": "openrouter",
@@ -63,25 +75,32 @@
       "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
       "tier": 3,
       "vision": true,
-      "notes": "Omni: vision + audio, reasoning."
+      "notes": "Omni: vision + audio, reasoning.",
+      "works": true,
+      "measured_ms": 4100
     },
     {
       "gateway": "openrouter",
       "model": "inclusionai/ling-3.0-flash-sante:free",
       "tier": 4,
-      "notes": "Flash-модель, быстрая."
+      "notes": "Flash-модель, быстрая.",
+      "works": true,
+      "measured_ms": 4100
     },
     {
       "gateway": "openrouter",
       "model": "liquid/lfm-2.5-2.6b:free",
       "tier": 5,
-      "notes": "2.6B — самая слабая, только как последний резерв."
+      "notes": "Замер 06.10.2026 на настоящей задаче: инструмент не вызвала.",
+      "tools": false
     },
     {
       "gateway": "openrouter",
       "model": "apodex/apodex-1.1-mini:free",
       "tier": 5,
-      "notes": "Mini."
+      "notes": "Mini.",
+      "works": true,
+      "measured_ms": 18900
     },
     {
       "gateway": "z_ai",
@@ -203,53 +222,69 @@
       "gateway": "nvidia",
       "model": "nvidia/nemotron-3-super-120b-a12b",
       "tier": 1,
-      "notes": "120B MoE, 1.15 с по замеру. 3 из 4 задач на вызов инструмента. Быстрый дефолт."
+      "notes": "120B MoE, 1.15 с по замеру. 3 из 4 задач на вызов инструмента. Быстрый дефолт.",
+      "works": true,
+      "measured_ms": 1800
     },
     {
       "gateway": "nvidia",
       "model": "poolside/laguna-xs-2.1",
       "tier": 1,
-      "notes": "Модель для кода, 0.48 с по замеру, 3 из 4. Бывает временно недоступна."
+      "notes": "Модель для кода, 0.48 с по замеру, 3 из 4. Бывает временно недоступна.",
+      "works": true,
+      "measured_ms": 5600
     },
     {
       "gateway": "nvidia",
       "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
       "tier": 2,
-      "notes": "30B MoE, 1.07 с по замеру, 2 из 4."
+      "notes": "30B MoE, 1.07 с по замеру, 2 из 4.",
+      "works": true,
+      "measured_ms": 2700
     },
     {
       "gateway": "nvidia",
       "model": "openai/gpt-oss-20b",
       "tier": 3,
-      "notes": "3.25 с по замеру. Отвечает текстом, но вызов инструментов не выдаёт: 0 из 4. Оставлена ради отчёта.",
-      "tools": false
+      "notes": "3.25 с по замеру. Отвечает текстом, но вызов инструментов не выдаёт: 0 из 4. Оставлена ради отчёта. | Замер 06.10.2026 на настоящей задаче: выполнила, инструмент вызвала.",
+      "tools": true,
+      "works": true,
+      "measured_ms": 4600
     },
     {
       "gateway": "nvidia",
       "model": "meta/llama-3.2-11b-vision-instruct",
       "tier": 2,
       "vision": true,
-      "notes": "11B с картинкой, 0.44 с по замеру, 2 из 4. Быстрый зрящий."
+      "notes": "11B с картинкой, 0.44 с по замеру, 2 из 4. Быстрый зрящий.",
+      "works": true,
+      "measured_ms": 2300
     },
     {
       "gateway": "nvidia",
       "model": "meta/llama-3.2-90b-vision-instruct",
       "tier": 3,
       "vision": true,
-      "notes": "90B с картинкой, но 32.7 с по замеру — самый медленный ответ в реестре. Ранг 3, а не 1: умение видеть не окупает полминуты на каждом шаге. Используется, только когда картинка есть и ничего быстрого не осталось."
+      "notes": "90B с картинкой, но 32.7 с по замеру — самый медленный ответ в реестре. Ранг 3, а не 1: умение видеть не окупает полминуты на каждом шаге. Используется, только когда картинка есть и ничего быстрого не осталось.",
+      "works": true,
+      "measured_ms": 31600
     },
     {
       "gateway": "groq",
       "model": "qwen/qwen3.8-27b",
       "tier": 2,
-      "notes": "0.53 с по замеру. Быстрая и стабильная, но инструменты вызывает неровно."
+      "notes": "0.53 с по замеру. Быстрая и стабильная, но инструменты вызывает неровно.",
+      "works": true,
+      "measured_ms": 1000
     },
     {
       "gateway": "groq",
       "model": "openai/gpt-oss-120b",
       "tier": 3,
-      "notes": "0.50 с по замеру — самая быстрая из крупных. Вызов инструментов 0 из 4: не годится агентом, оставлена ради скорости на простых вопросах.",
-      "tools": false
+      "notes": "0.50 с по замеру — самая быстрая из крупных. Вызов инструментов 0 из 4: не годится агентом, оставлена ради скорости на простых вопросах. | Замер 06.10.2026 на настоящей задаче: выполнила, инструмент вызвала.",
+      "tools": true,
+      "works": true,
+      "measured_ms": 1400
     },
     {
       "gateway": "groq",
