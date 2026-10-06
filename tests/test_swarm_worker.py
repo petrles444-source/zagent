@@ -27,6 +27,7 @@ from hub.agent import Agent, AgentConfig, make_guard  # noqa: E402
 from hub.autonomy import AccessLevel, Autonomy  # noqa: E402
 from hub.keyring import KeyRing  # noqa: E402
 from hub.subagents import parse_parts  # noqa: E402
+from hub.subagents import denied_for_all, globs_for_all
 from hub.swarm_run import SwarmRun  # noqa: E402
 
 SPLIT = json.dumps({"parts": [
@@ -460,6 +461,50 @@ def test_финальная_сборка_ограничена_шагами(tmp_p
     assert config.max_steps == 20, "после сборки бюджет обязан вернуться"
 
 
+def test_взгляд_не_режет_бюджет_работающих_частей(tmp_path: Path) -> None:
+    """Конфиг у главного агента общий со всеми частями роя.
+
+    Промежуточный взгляд уменьшает лимит шагов главного агента, а `Agent.run()`
+    читает его в каждом шаге. Если бы менялся общий объект, все живые части в
+    этот момент получили бы лимит в два шага и оборвались на середине работы.
+    """
+    worker = _bench(tmp_path, 6)
+    parts = _parts(4)
+    config = _config(tmp_path, steps=20)
+    run_ = SwarmRun(worker=worker, agent=_agent(tmp_path, worker),
+                    config=config, parts=parts,
+                    task={"id": 1, "task": "t"}, task_context="t")
+
+    from hub.swarm_run import PARTIAL_STEPS
+
+    # У части должен быть свой конфиг, и он не должен быть тем же объектом.
+    denied = denied_for_all(parts, Path(config.base_dir))
+    globs = globs_for_all(parts)
+    agent = run_.make_agent(parts[0], run_.build_plan().workers[0], 0,
+                            denied, globs)
+    assert agent.config is not config
+    assert agent.config.max_steps == config.max_steps
+
+    seen: list[int] = []
+
+    async def behaviour() -> dict[str, Any]:
+        seen.append(run_.agent.config.max_steps)
+        return {"ok": True, "last": "посмотрел"}
+
+    run_.agent.run = behaviour  # type: ignore[assignment]
+    plan = run_.build_plan()
+    for slot, part in zip(plan.workers, parts):
+        slot.taken_by = part.name
+    run_.swarm.mark_done(parts[0].name, "готово")
+
+    asyncio.run(run_.partial_round())
+
+    assert seen == [PARTIAL_STEPS], seen
+    assert config.max_steps == 20, "бюджет задачи обязан остаться прежним"
+    assert agent.config.max_steps == 20, (
+        "часть не должна получить урезанный бюджет от промежуточного взгляда")
+
+
 def test_бюджет_сборки_не_увеличивается(tmp_path: Path) -> None:
     """Потолок не должен поднимать бюджет: у задачи он и так может быть мал."""
     from hub.worker import ASSEMBLY_STEPS, Worker
@@ -821,8 +866,9 @@ def test_промежуточный_взгляд_ограничен_шагами
     """Взгляд между делом не должен разойтись на полноценный заход по задаче."""
     worker = _bench(tmp_path, 6)
     parts = _parts(4)
+    config = _config(tmp_path, steps=3)
     run_ = SwarmRun(worker=worker, agent=_agent(tmp_path, worker),
-                    config=_config(tmp_path), parts=parts,
+                    config=config, parts=parts,
                     task={"id": 1, "task": "t"}, task_context="t")
     plan = run_.build_plan()
     for slot, part in zip(plan.workers, parts):
@@ -833,9 +879,11 @@ def test_промежуточный_взгляд_ограничен_шагами
 
     async def behaviour() -> dict[str, Any]:
         # Агент читает лимит в каждом шаге — проверим, что он увидел урезанный.
-        return {"ok": True, "last": str(run_.config.max_steps)}
+        return {"ok": True, "last": str(run_.agent.config.max_steps)}
 
     run_.agent.run = behaviour  # type: ignore[assignment]
     note = asyncio.run(run_.partial_round())
     assert note == str(PARTIAL_STEPS), note
-    assert run_.config.max_steps == 3, "после взгляда бюджет обязан вернуться"
+    assert run_.agent.config.max_steps == 3, "после взгляда бюджет обязан вернуться"
+    assert run_.config.max_steps == 3, (
+        "конфиг задачи не должен меняться: он общий с частями роя")

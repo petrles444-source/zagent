@@ -582,13 +582,26 @@ def test_read_missing_file_reports_error(tmp_path: Path) -> None:
     assert "не найден" in result.error.lower()
 
 
-def test_read_binary_file_asks_user(tmp_path: Path) -> None:
+def test_read_binary_file_skips_without_asking(tmp_path: Path) -> None:
+    """Двоичный файл не останавливает задачу.
+
+    Раньше здесь стояло `assert result.needs_user is True`: инструмент
+    запрашивал у человека вопрос («Сделать скриншот или прочитать
+    метаданные?») и работа вставала. На такой вопрос нельзя ответить —
+    прочитать PNG как текст нельзя, а делать скриншот ради одного файла среди
+    двадцати никто не станет. Практически это выглядело так: агент доходил до
+    первой картинки и ждал человека.
+
+    Теперь это обычный отказ с указанием, что делать: пропустить файл и
+    работать дальше.
+    """
     (tmp_path / "img.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
     result = read_file("img.png", base=tmp_path)
 
-    assert result.ok is False
-    assert result.needs_user is True
-    assert result.question
+    assert result.ok is False, "двоичный файл нельзя прочитать как текст"
+    assert result.needs_user is False, (
+        "задачу нельзя останавливать из-за одного файла")
+    assert "Пропусти" in result.error, result.error
 
 
 def test_edit_replaces_first_occurrence(tmp_path: Path) -> None:

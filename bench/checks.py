@@ -18,6 +18,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from .sandbox import _sandbox_env
+
 #: Сколько символов файла читать. Меньше — проверки «есть alt у картинок» и
 #: «есть @media» на больших файлах врали бы в минус.
 MAX_READ = 2_000_000
@@ -287,9 +289,17 @@ def check_contains(root: Path, args: dict[str, Any]) -> tuple[bool, str, Any]:
     missing_all = [p for p in all_of if p not in body]
 
     if any_of:
+        # `any_of` и `all_of` вместе — это «хотя бы одно И все остальные».
+        # Раньше при заполненном `any_of` проверка сразу возвращалась, и
+        # `all_of` молча игнорировался: проверка в задании выглядела
+        # строже, чем была на самом деле, и балл начислялся за неполное
+        # условие.
         if not found_any:
             return False, f"нет ни одного из {any_of}", None
-        return True, f"найдено {found_any}", found_any
+        if missing_all:
+            return False, (f"есть {found_any}, но не хватает {missing_all}"),
+            found_any
+        return True, f"есть {found_any} и всё из {all_of}", found_any
     if missing_all:
         return False, f"не найдено {missing_all}", found_all
     return True, f"найдено всё из {all_of}", found_all
@@ -439,14 +449,14 @@ def _run(root: Path, args: dict[str, Any], *, what: str) -> tuple[bool, str, Any
         command = command.split()
     if not command:
         return False, "не задана команда", None
-    env = {
-        "PATH": "/usr/bin:/bin:/usr/local/bin",
-        "HOME": str(root),
-        "PYTHONDONTWRITEBYTECODE": "1",
-        "PYTHONIOENCODING": "utf-8",
-        # pytest не должен падать из-за отсутствия сети.
-        "NO_PROXY": "*",
-    }
+    # Окружение берётся у песочницы, а не собирается здесь. Свой список был
+    # POSIX: без SystemRoot, PATHEXT, TEMP и COMSPEC, с путями вида
+    # `/usr/bin` — на Windows подпроцесс не запускался вовсе, то есть
+    # проверки `tests_pass` и `command_succeeds` не могли проходить на
+    # основной платформе проекта. В Windows PATH нужен не только для поиска
+    # программ, но и для загрузки DLL, а System32 в нём отсутствовал —
+    # это уже учтено в sandbox, с объяснением.
+    env = _sandbox_env(root)
     try:
         proc = subprocess.run(
             [str(part) for part in command],

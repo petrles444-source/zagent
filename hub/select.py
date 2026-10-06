@@ -143,8 +143,15 @@ class Selector:
             self.chain = list(chain)
 
     def record(self, ref: str, status: str, *, error: str | None = None,
-               duration_ms: int = 0) -> None:
-        """Записать результат вызова и обновить карантин."""
+               duration_ms: int = 0, penalize: bool = True) -> None:
+        """Записать результат вызова и обновить карантин.
+
+        `penalize=False` — результат записывается, но карантин не ставится.
+        Нужен для случая «аккаунт исчерпан, а модель жива»: отказ относится
+        к ключу, а не к модели, и уводить её из ротации на `COOLDOWN` —
+        значит отказаться от неё надолго по причине, которая вот-вот
+        кончится сама.
+        """
         state = self.states.get(ref)
         if state is None:
             return
@@ -162,6 +169,12 @@ class Selector:
                 state.avg_ms = duration_ms if not state.avg_ms else (
                     state.avg_ms * 0.7 + duration_ms * 0.3
                 )
+            return
+
+        if not penalize:
+            # Отказ засчитан в счётчике, но карантина нет: модель остаётся
+            # доступной сейчас же.
+            state.cooldown_until = 0.0
             return
 
         state.fails += 1
@@ -245,7 +258,15 @@ class Selector:
             state = self.states.get(ref)
             if state is None:
                 continue
-            if not allow_cooldown and state.in_cooldown and state.last_status != "blocked":
+            # Без исключения для `blocked`. Раньше здесь стояло
+            # `and state.last_status != "blocked"`, и это отменяло карантин
+            # именно у заблокированных моделей: `COOLDOWN["blocked"]` равен
+            # часу, `usable()` и снимок состояния считали модель
+            # недоступной, а `next_model()` возвращал её на каждом шаге.
+            # Итог: один заведомо закрытый провайдером ключ стоил одного
+            # бесполезного запроса на каждом шаге каждой задачи, а в
+            # интерфейсе модель при этом показывалась как «в карантине».
+            if not allow_cooldown and state.in_cooldown:
                 continue
             return ref
         return None

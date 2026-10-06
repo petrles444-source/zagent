@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import base64
 import codecs
+import inspect
 import os
 import re
 import shutil
@@ -40,7 +41,101 @@ TEXT_SUFFIXES = {
     ".env", ".gitignore", ".dockerignore", ".lock",
 }
 
-BINARY_MARKERS = (b"\x00\x00\x00", b"PK\x03\x04", b"\xff\xd8\xff", b"GIF8")
+#: Подписи бинарных форматов. Проверяются **только в начале файла**.
+#:
+#: Именно в начале: настоящая картинка начинается с подписи, а та же подпись
+#: в середине текста — просто слово в комментарии. Раньше маркеры искались
+#: как подстроки во всём файле, и `b"GIF8"` находился в самом этом модуле:
+#: агент, читающий собственный исходник, получал «файл выглядит бинарным» —
+#: файл, который определяет поиск бинарников, объявлял бинарным сам себя.
+#: Проверено на проекте: из всех исходников ложно считывался один.
+BINARY_MARKERS = (b"PK\x03\x04", b"\xff\xd8\xff", b"GIF87a", b"GIF89a",
+                  b"\x89PNG\r\n\x1a\n", b"%PDF-", b"\x7fELF")
+
+
+def looks_binary(head: bytes) -> bool:
+    """Похож ли кусок файла на двоичный.
+
+    Решение принимается по содержимому, а не по имени: расширение врёт
+    регулярно, а содержимое врёт редко.
+
+    Три признака, в порядке возрастания строгости:
+
+    * **NUL-байты.** У текста их не бывает, у двоичного — почти всегда.
+      UTF-16 читается как `i\0m\0p\0`, то есть NUL через байт: такой файл
+      текстовый по смыслу, но нечитаемый как UTF-8, и оборачивать его надо
+      в перекодировку, а не отвергать.
+    * **Подпись формата в самом начале.** ZIP, JPEG, PNG, GIF, PDF, ELF.
+      Только в начале: та же подпись в середине — это слово в комментарии.
+    * **Не декодируется ни как UTF-8, ни как однобайтовая кодовая страница.**
+      Последний и самый честный признак: если текст прочитался без потерь
+      хоть одним из них, он текст, даже если в нём встретились странные
+      байты. Файл в windows-1251 декодируется с ошибками как UTF-8, но
+      читается прекрасно.
+    """
+    if not head:
+        return False
+    if b"\x00\x00\x00" in head:
+        return True
+    if head.startswith(BINARY_MARKERS):
+        return True
+    try:
+        head.decode("utf-8")
+    except UnicodeDecodeError:
+        # Не UTF-8 — но это ещё не значит «двоичный». Русский исходник,
+        # сохранённый в windows-1251 (а таких файлов на любой русской машине
+        # осталось немало), декодируется с ошибками и при этом читается
+        # perfectly: это текст. Пробуем однобайтовые кодовые страницы, и если
+        # сложилась хоть одна — перед нами текст в не-UTF-8.
+        if _decodes_as_legacy(head):
+            return False
+        return _is_mostly_undecodable(head)
+    return False
+
+
+def _decodes_as_legacy(head: bytes) -> bool:
+    """Складывается ли текст в одну из однобайтовых кодовых страниц.
+
+    Само по себе «складывается» бесполезно: в однобайтовой кодировке
+    раскладывается **любая** последовательность байтов, включая двоичный
+    мусор. Поэтому результат проверяется на правдоподобие: у текста почти
+    нет управляющих символов, а у мусора их сколько угодно.
+    """
+    for codec in _LEGACY_ENCODINGS:
+        try:
+            text = head.decode(codec)
+        except (UnicodeDecodeError, LookupError):
+            continue
+        if _looks_like_text(text):
+            return True
+    return False
+
+
+def _looks_like_text(text: str) -> bool:
+    """Правдоподобен ли текст: почти всё печатное, управляющих — минимум."""
+    if not text:
+        return False
+    odd = sum(1 for ch in text
+              if ord(ch) < 32 and ch not in "\t\r\n\f")
+    if odd:
+        # Допускается немного: у настоящего текста тоже встречаются
+        # непечатные символы, но не треть содержимого.
+        return odd <= len(text) * 0.02
+    return True
+
+
+def _is_mostly_undecodable(head: bytes) -> bool:
+    """Почти весь файл не декодируется — значит он и правда не текст."""
+    bad = 0
+    index = 0
+    while index < len(head):
+        try:
+            head[index:].decode("utf-8")
+            break
+        except UnicodeDecodeError as exc:
+            index += max(1, exc.end - exc.start)
+            bad += exc.end - exc.start
+    return bad > len(head) * 0.1
 
 #: Расширения, которые имеет смысл открывать в браузере. Остальное браузер
 #: не покажет: .py откроется как текст, а не как страница, и кнопка «открыть»
@@ -271,12 +366,17 @@ def read_file(path: str | Path, *, base: Path, offset: int = 0,
 
     with target.open("rb") as handle:
         head = handle.read(4096)
-        if any(marker in head for marker in BINARY_MARKERS):
+        if looks_binary(head):
+            # Здесь нечего спрашивать. Двоичный файл — это не препятствие
+            # задаче, а один пропущенный файл: агент читает остальное сам.
+            # Вопрос человеку останавливал всю работу из-за одного файла,
+            # и спрашивать было не о чем — спрашивающий не мог ответить
+            # «прочитай его как текст».
             return ToolResult(
                 False,
-                error="Файл выглядит бинарным. Используйте screenshot или опишите задачу текстом.",
-                needs_user=True,
-                question=f"Файл {target.name} бинарный. Сделать скриншот или прочитать метаданные?",
+                error=(f"{target.name} — двоичный файл, прочитать как текст "
+                       f"нельзя. Пропусти его и работай дальше; если он "
+                       f"нужен по смыслу задачи, скажи об этом в ответе."),
                 duration_ms=_ms(started),
             )
         handle.seek(0)
@@ -307,9 +407,22 @@ def write_file(path: str | Path, content: str, *, base: Path,
     target = _resolve(path, base)
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
-        mode = "a" if append else "w"
-        with target.open(mode, encoding="utf-8", newline="\n") as handle:
-            handle.write(content)
+        if append:
+            with target.open("a", encoding="utf-8", newline="\n") as handle:
+                handle.write(content)
+        else:
+            # Через `_write_atomic`, как `edit_file`. Прямая запись обрезает
+            # файл до записи содержимого: сбой питания или убитый процесс в этот
+            # момент оставляли пустой файл на месте прежнего. Агент перезаписывает
+            # файлы постоянно, и потерянный файл — это потерянная работа.
+            #
+            # Возвращается текст ошибки, а не исключение: сбой записи не должен
+            # выглядеть как сбой программы, иначе он уйдёт из `ToolResult` в
+            # обработчик, который к таким ошибкам не готов.
+            problem = _write_atomic(target, content)
+            if problem:
+                return ToolResult(False, error=problem,
+                                  duration_ms=_ms(started))
     except OSError as exc:
         return ToolResult(False, error=f"Не удалось записать {target}: {exc}",
                           duration_ms=_ms(started))
@@ -627,7 +740,13 @@ def run_shell(command: str, *, timeout: float = 120.0, cwd: str | Path | None = 
         cwd = base
 
     is_windows = sys.platform.startswith("win")
-    shell = bool(inspection["multiline"]) or ("&&" in command) or ("|" in command)
+    shell = (bool(inspection["multiline"]) or ("&&" in command) or ("|" in command)
+         # Перенаправление тоже требует оболочки: `git log > out.txt` без `&&`
+         # и `|` уходил в `subprocess` аргументами по отдельности, и git получал
+         # два лишних — команда падала. Разбор выходных путей для проверки
+         # границ этот же случай обрабатывал, то есть перенаправление было
+         # задумано и просто не поддержано.
+         or bool(re.search(r"\d?>{1,2}\s*\S", command)))
     # cmd.exe пишет в OEM-кодировке консоли (на русской Windows — 866), а не в
     # UTF-8, и при чтении как utf-8 русский текст превращался в иероглифы.
     # Сами байты разбирает _decode_output: он сначала пробует UTF-8, потому что
@@ -1098,6 +1217,21 @@ def available_tools(guard: Guard, *, web: bool = False) -> list[dict[str, Any]]:
                 "description": spec["description"],
             })
     return out
+
+
+def tool_arg_names(name: str) -> set[str]:
+    """Какие аргументы инструмента положено принимать.
+
+    Берётся из самой функции в реестре, а не из строки `signature`: строка нужна модели и может разойтись с кодом, а фильтр строится именно для того, чтобы не пропустить лишнее имя.
+    """
+    entry = TOOLS.get(name) or {}
+    fn = entry.get("fn")
+    if fn is None:
+        return set()
+    try:
+        return set(inspect.signature(fn).parameters)
+    except (TypeError, ValueError):
+        return set()
 
 
 def run_tool(name: str, guard: Guard, /, *args: Any, **kwargs: Any) -> ToolResult:

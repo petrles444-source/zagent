@@ -14,7 +14,7 @@ import asyncio
 import concurrent.futures
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable
 
@@ -648,7 +648,7 @@ class Worker:
             )
 
         agent = Agent(
-            self.selector, guard, config,
+            self.selector, guard, replace(config),
             on_event=lambda event: self._on_agent_event(task["id"], event),
         )
         agent.set_task(task["task"])
@@ -1432,12 +1432,16 @@ class Worker:
                         temperature=0, max_tokens=400,
                     )
                 duration = int(result.get("duration_ms") or 0)
+                # Ветви обязаны быть в таком порядке, и перепутаны они были:
+                # при ошибке провайдера модель отмечалась как отвечающая, а
+                # при успешном ответе — как «недостижима», и проверка
+                # адекватности не выполнялась вовсе: любой успешный ответ
+                # заканчивался `continue` до `evaluate`. Тот же код в
+                # `web.py` написан верно — расхождение и выдало ошибку.
                 if result.get("error"):
                     # Ошибка одного аккаунта не должна уводить модель из
                     # реестра: остальные ключи шлюза ещё свободны.
                     note_gateway_error(gateway, check_key, str(result["error"]))
-                else:
-                    note_gateway_ok(gateway, check_key)
                     reports[model.ref] = {
                         "ref": model.ref, "score": 0.0, "verdict": "unreachable",
                         "latency_ms": duration, "sample": "",
@@ -1445,6 +1449,7 @@ class Worker:
                                     "detail": str(result["error"]), "score": 0.0}],
                     }
                     continue
+                note_gateway_ok(gateway, check_key)
                 answer = str(result.get("text") or result.get("reasoning") or "")
                 reports[model.ref] = evaluate(
                     model.ref, answer, question=user, token=token,

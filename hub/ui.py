@@ -1020,6 +1020,7 @@ th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase
     <button class="ptab" data-p="access" onclick="ltab('access')">Доступ</button>
     <button class="ptab" data-p="space" onclick="ltab('space')">Папка и сессии</button>
     <button class="ptab" data-p="status" onclick="ltab('status')">Статус</button>
+    <button class="ptab" data-p="queue" onclick="ltab('queue')">Очередь</button>
   </div>
   <div class="pbody">
 
@@ -1213,7 +1214,12 @@ th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase
       <div id="sanityOut"></div>
     </div>
 
-    <!-- вкладка ОЧЕРЕДЬ -->
+    <!-- Вкладка ОЧЕРЕДЬ. Кнопка-вкладка у неё была, а разметка — нет:
+         `.psec` скрыт, пока на секции нет `.on`, а `ltab()` ставит `.on` только
+         по имени нажатой вкладки. Секция без вкладки не открывалась никогда,
+         и вместе с ней были недостижимы кнопки «одобрить план» и «ответить»,
+         которые `renderTasks()` рисует именно здесь: задача в статусе
+         `asking` висела до перезапуска. -->
     <div class="psec" id="p-queue">
       <div id="taskList"></div>
     </div>
@@ -2415,11 +2421,29 @@ function fold(what) {
   if (icon) icon.textContent = open ? '\u25be' : '\u25b8';
 }
 
-function copyKey(gw) {
-  const c = (GUIDE?.connections || []).find(x => x.gateway === gw);
-  if (c?.api_key) copy(c.api_key, 'api key ' + gw);
-  else toast('\u041a\u043b\u044e\u0447 \u043d\u0435 \u0437\u0430\u0434\u0430\u043d \u0434\u043b\u044f ' + gw +
-             '. \u0414\u043e\u0431\u0430\u0432\u044c\u0442\u0435 \u0432 config/secrets.local.json');
+// Полный ключ, а не маска. Сервер отдаёт ключи замаскированными
+// (`mask_secret()` в connect.py), и копировалась именно маска: в буфер
+// попадало `sk-or…a1b2`, а тост рапортовал об успехе. Полный ключ
+// запрашивается отдельным действием (`reveal_key`) именно для такого
+// случая, и раньше из интерфейса оно не вызывалось вовсе.
+async function copyKey(gw) {
+  try {
+    const r = await api('/api/connect', {reveal_key: true, gateway: gw});
+    // Сервер на ошибку отдаёт `ok: false`, а не `error`: иначе молчаливое
+    // «ключ не показан» выглядело бы как успешное копирование.
+    if (!r.ok || r.error) {
+      toast('Не получилось показать ключ: ' + (r.error || 'неизвестная причина'));
+      return;
+    }
+    const key = r.api_key || '';
+    if (!key || key.includes('\u2026')) {
+      toast('Сервер вернул замаскированный ключ \u2014 скопировать нечего.');
+      return;
+    }
+    copy(key, 'api key ' + gw);
+  } catch (e) {
+    toast('Не получилось показать ключ: ' + (e && e.message ? e.message : e));
+  }
 }
 
 // ---------- темы ----------

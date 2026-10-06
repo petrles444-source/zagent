@@ -273,11 +273,18 @@ def _error_message(data: Any) -> str:
 #: Заголовки квоты у разных провайдеров называются по-разному, но смысл
 #: один: сколько ещё осталось и сколько всего. Приводим к общим именам.
 _LIMIT_FIELDS = {
-    "requests_remaining": ("x-ratelimit-remaining-requests",
-                           "x-ratelimit-remaining-request-tokens"),
+    # Только заголовок про запросы. Заголовок про *токены запросов*
+    # (`x-ratelimit-remaining-request-tokens`) сюда раньше попадал, и его
+    # значение — миллионы токенов — записывалось в `requests_remaining`, то
+    # есть в «осталось запросов». Из этого дальше читались и остаток в
+    # интерфейсе, и решение о том, хватит ли аккаунта на часть задачи:
+    # оба предостерегали, что ноль не то же самое, что неизвестно, и оба
+    # переставали работать.
+    "requests_remaining": ("x-ratelimit-remaining-requests",),
     "requests_limit": ("x-ratelimit-limit-requests",
                        "ratelimit-limit-requests"),
-    "tokens_remaining": ("x-ratelimit-remaining-tokens",),
+    "tokens_remaining": ("x-ratelimit-remaining-tokens",
+                         "x-ratelimit-remaining-request-tokens"),
     "tokens_limit": ("x-ratelimit-limit-tokens",),
     "reset_after": ("x-ratelimit-reset-requests", "x-ratelimit-reset-tokens"),
     "reset_at": ("x-ratelimit-reset", "ratelimit-reset"),

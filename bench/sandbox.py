@@ -218,17 +218,7 @@ class Sandbox:
         Окружение собирается с нуля: системные переменные не должны утекать в
         проверку, иначе результат зависит от машины, а не от работы агента.
         """
-        env = {
-            "PATH": _sandbox_path(),
-            "HOME": str(self.root),
-            "USERPROFILE": str(self.root),
-            "PYTHONDONTWRITEBYTECODE": "1",
-            "PYTHONIOENCODING": "utf-8",
-            "LANG": "C.UTF-8",
-            "TMPDIR": str(self.root),
-            "TEMP": str(self.root),
-            "TMP": str(self.root),
-        }
+        env = _sandbox_env(self.root)
         started = time.monotonic()
         timed_out = False
         try:
@@ -277,6 +267,34 @@ def python() -> str:
         "Scripts" if sys.platform == "win32" else "bin"
     ) / ("python.exe" if sys.platform == "win32" else "python")
     return str(candidate) if candidate.exists() else sys.executable
+
+
+def _sandbox_env(root: Path) -> dict[str, str]:
+    """Окружение для команды внутри песочницы.
+
+    Собрано с нуля: системные переменные не должны утекать в проверку, иначе
+    результат зависит от машины, а не от работы агента. Но «с нуля» не
+    значит «выдумано»: системные каталоги берутся у самой системы, иначе на
+    Windows подпроцесс не запустится вовсе.
+
+    Общее для всех запусков: и `Sandbox.run`, и `checks._run` (проверки
+    `tests_pass` и `command_succeeds`). Раньше у них были два разных
+    окружения, и второе осталось POSIX — то есть эти две проверки не могли
+    проходить на Windows, а молча падали.
+    """
+    return {
+        "PATH": _sandbox_path(),
+        "HOME": str(root),
+        "USERPROFILE": str(root),
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONIOENCODING": "utf-8",
+        "LANG": "C.UTF-8",
+        "TMPDIR": str(root),
+        "TEMP": str(root),
+        "TMP": str(root),
+        # pytest не должен падать из-за отсутствия сети.
+        "NO_PROXY": "*",
+    }
 
 
 def _sandbox_path() -> str:

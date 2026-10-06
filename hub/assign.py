@@ -336,12 +336,22 @@ def assign_all(candidates: list[Candidate], parts: list[Any], *,
     # часть из двадцати шагов съедает заметно больше, чем часть из трёх.
     promised: dict[str, int] = {}
     for index in order:
-        left = [replace(c, spare=_left(c, promised.get(c.ref, 0)))
+        # Учёт ведётся по шлюзу, а не по ref. Остаток из заголовков — это
+        # остаток **аккаунта**, а один аккаунт обслуживает все модели своего
+        # шлюза. Раньше обещания считались по `ref`, и при двух и более
+        # моделях одного шлюза (у OpenRouter их десятки) каждая получала
+        # полный остаток: девять аккаунтов, провайдер сообщил 48 запросов,
+        # три части под 35 запросов уходили на три разные модели одного
+        # шлюза — и все три проходили проверку, хотя аккаунт кончался на
+        # полутора частях. Ровно то, от чего предостерегает этот модуль.
+        left = [replace(c, spare=_left(c, promised.get(c.gateway, 0)))
                 for c in candidates]
         got = assign(left, parts[index], need=need, taken=taken)
         out[index] = got
         if got is not None and got.admitted:
-            promised[got.ref] = promised.get(got.ref, 0) + need
+            gateway = next((c.gateway for c in candidates if c.ref == got.ref),
+                           got.ref)
+            promised[gateway] = promised.get(gateway, 0) + need
     return out
 
 

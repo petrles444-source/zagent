@@ -28,7 +28,13 @@ from hub.failover import AutoCaller, FailoverError
 from hub.keyring import gateway_key
 from hub.select import Mode, Selector
 from hub.tiers import TierBook
-from hub.tools import ToolResult, browser_url, run_tool, tool_catalog_for_prompt
+from hub.tools import (
+    ToolResult,
+    browser_url,
+    run_tool,
+    tool_arg_names,
+    tool_catalog_for_prompt,
+)
 
 #: Разделитель системного промпта.
 SYSTEM_HEADER = "Ты — автономный агент для работы с файлами."
@@ -1122,10 +1128,28 @@ class Agent:
         # и всё это время /api/ask, отмена задачи и ответы на вопросы висели в
         # очереди — интерфейс выглядел замершим. Уводим работу в поток.
         loop = asyncio.get_running_loop()
-        result = await loop.run_in_executor(
-            None,
-            lambda: run_tool(name, self.guard, base=self.workspace, **args),
-        )
+        # `base` не пропускается через `**args`. Модель отвечает за произвольный
+        # JSON и может прислать лишний аргумент: `run_tool(name, guard,
+        # base=self.workspace, **{"base": "."})` падает TypeError **до** входа в
+        # тело `run_tool`, то есть мимо всех проверок внутри и наружу — до
+        # `_execute`, где такая ошибка помечала задачу сломанной без шага,
+        # без события и без результата. Здесь лишние имена отбрасываются, а
+        # неожиданное исключение становится обычным отказом инструмента.
+        allowed = tool_arg_names(name)
+        call_args = ({k: v for k, v in args.items() if k in allowed}
+                     if allowed else dict(args))
+        try:
+            result = await loop.run_in_executor(
+                None,
+                lambda: run_tool(name, self.guard,
+                                 base=self.workspace, **call_args),
+            )
+        except Exception as exc:  # noqa: BLE001
+            result = ToolResult(
+                False,
+                error=f"{type(exc).__name__}: {exc}",
+                duration_ms=0,
+            )
 
         await self._step(
             Phase.USING_TOOL,
@@ -1164,7 +1188,15 @@ class Agent:
             })
             return checked
 
-        if result.needs_user and self.guard.escalation is not Escalation.OFF:
+        if (result.needs_user
+                # YOLO — это ровно «делай, не спрашивая». Условие стояло
+                # только на `escalation`, и автономия в нём не участвовала:
+                # при полном доступе и «делай всё» агент всё равно вставал и
+                # ждал ответа. Проверка `escalation` отвечает на другой
+                # вопрос — можно ли выходить за папку, — и подменяла собой
+                # этот.
+                and self.guard.autonomy is not Autonomy.YOLO
+                and self.guard.escalation is not Escalation.OFF):
             self.pending_question = result.question or (
                 f"Инструмент «{name}» не сработал: {result.error}. Продолжать?"
             )

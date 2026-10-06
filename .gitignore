@@ -73,6 +73,11 @@ reports/
 *.key
 config/secrets.local.json
 secrets.local.json
+# Реальные ключи в отдельном файле. В `.gitignore` его не было:
+# `git status` показывал `config/keys.json` как новый файл с настоящими ключами, и
+# `git add -A` отправил бы их в публичный репозиторий. Рядом — его пустая
+# форма `config/keys.json.example`, его как раз легат пушить.
+config/keys.json
 
 # Logs / data
 logs/

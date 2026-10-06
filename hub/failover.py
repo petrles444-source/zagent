@@ -282,7 +282,19 @@ class AutoCaller:
             # Модель ответила «лимит»: у этого шлюза есть другие аккаунты,
             # значит модель на самом деле жива. Не уводим её в карантин и
             # пробуем ту же модель ещё раз — с другим ключом.
+            #
+            # Два действия нужны, а стояло одно. `continue` без снятия отметки
+            # в `tried` вёл на *другую* модель (следующая итерация берёт
+            # `next_model(exclude=tried)`), а карантин при этом всё равно
+            # ставился — `record` вызывался выше по коду безусловно. То есть
+            # один исчерпанный аккаунт из девяти уводил живую модель в
+            # пяти­минутный карантин вместо поворота на соседний аккаунт, и
+            # хоп тратился впустую. Если других моделей нет, `next_model`
+            # отдавал `None` и вызывался отказ, хотя свободные ключи были.
             if status == "limited" and self._has_free_key(gateway):
+                tried.discard(ref)
+                self.selector.record(ref, status, error=result.get("error"),
+                                     duration_ms=duration_ms, penalize=False)
                 continue
 
             if self.selector.mode is Mode.MANUAL and self.manual_only:

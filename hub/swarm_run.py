@@ -254,8 +254,13 @@ class SwarmRun:
         caller.pinned = slot.ref
         caller.pinned_key = slot.key
 
+        # Конфиг у каждой части свой. Объект конфига общий, а `Agent.run()`
+        # читает `max_steps` в каждом шаге, и главный агент во время
+        # промежуточного взгляда уменьшает его на время своего прогона: все
+        # живые части в этот момент получали бы лимит в два шага и обрывались
+        # на середине работы. Копия стоит ничто и снимает класс ошибок целиком.
         part_agent = Agent(
-            self.worker.selector, guard, self.config,
+            self.worker.selector, guard, replace(self.config),
             on_event=lambda event: self._on_part_event(part.name, event),
             caller=PacedCaller(caller, self.pacer, account, slot.rpm),
         )
@@ -451,16 +456,22 @@ class SwarmRun:
     async def _run_briefly(self, limit: int) -> dict[str, Any]:
         """Прогнать агента ограниченным числом шагов.
 
-        Лимит ставится на конфиг и снимается сразу после: агент читает его в
-        каждом шаге, а менять настройку навсегда нельзя — после сборки у
-        главного агента должен остаться его обычный бюджет.
+        Лимит меняется у агента, а не у конфига задачи: конфиг общий со всеми
+        частями роя, а `Agent.run()` читает `max_steps` в каждом шаге, и
+        уменьшение общего объекта на время промежуточного взгляда обрывало бы
+        части, которые в этот момент работают. Части получают копию конфига
+        в `make_agent`, а здесь меняется только поле агента — оно своё у
+        каждого экземпляра.
         """
-        saved = self.config.max_steps
+        agent_config = getattr(self.agent, "config", None)
+        if agent_config is None:
+            return await self.agent.run()
+        saved = agent_config.max_steps
         try:
-            self.config.max_steps = min(saved, max(1, limit))
+            agent_config.max_steps = min(saved, max(1, limit))
             return await self.agent.run()
         finally:
-            self.config.max_steps = saved
+            agent_config.max_steps = saved
 
     async def supervise(self, denied: list[list[str]],
                         globs: list[list[str]]) -> None:

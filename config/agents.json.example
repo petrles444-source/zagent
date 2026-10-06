@@ -1,0 +1,17 @@
+{
+  "coder": [
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "qwen/qwen3.8-27b:free",
+    "cohere/north-mini-code:free"
+  ],
+  "architect": [
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "glm-4.7-flash"
+  ],
+  "reviewer": [
+    "glm-4.7-flash",
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "glm-4.6v-flash"
+  ]
+}
