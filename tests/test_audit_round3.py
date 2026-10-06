@@ -482,7 +482,7 @@ def test_сниппеты_не_приклеиваются_к_следующем�
 # ====================================================== стенд
 
 
-def test_проверка_стенда_запускает_процесс() -> None:
+def test_проверка_стенда_запускает_процесс(tmp_path: Path) -> None:
     """Окружение проверки собиралось как в POSIX: без `SystemRoot`, `TEMP` и
     прочих переменных, которых Windows требует для запуска процесса. То есть
     проверки `tests_pass` и `command_succeeds` не могли проходить на основной
@@ -490,17 +490,11 @@ def test_проверка_стенда_запускает_процесс() -> No
     from bench.checks import _run
     from bench.sandbox import _sandbox_env
 
-    env = _sandbox_env(Path(tempfile_root()))
+    env = _sandbox_env(tmp_path)
     assert "PATH" in env
     if sys.platform.startswith("win"):
         assert "SystemRoot" in env or "SYSTEMROOT" in env, sorted(env)
         assert "TEMP" in env, sorted(env)
-
-
-def tempfile_root() -> Path:
-    import tempfile
-
-    return Path(tempfile.mkdtemp())
 
 
 # ====================================================== интерфейс
