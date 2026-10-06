@@ -98,17 +98,65 @@ def test_non_chat_models_filtered() -> None:
 # ------------------------------------------------------------------ сборка
 
 
-def test_collect_merges_static_and_marks_missing_key() -> None:
+def test_collect_не_берёт_модели_шлюза_без_ключа() -> None:
+    """Шлюз, которому нужен ключ и у которого его нет, не отдаёт моделей.
+
+    Раньше статические модели добавлялись всем шлюзам подряд, а проверка
+    `has_key` стояла только на живом каталоге и до статики не доходила.
+    Живой прогон 07.10.2026: у `zen` не задана ZEN_API_KEY, но его модель
+    стояла в tiers.json и попадала в выбор. Селектор брал её по
+    приоритету, и задача падала за 24 мс, пока 39 свободных аккаунтов на
+    других шлюзах стояли без дела.
+
+    Шлюз, которому ключ не нужен вовсе (локальный, без авторизации),
+    остаётся в реестре: угадывать «наверное, ему тоже нужен» нельзя.
+    """
     import asyncio
 
     gateways = [
-        gw(id="keyed", free_models=["a:free"], needs_key=True, has_key=False, secret_key="k"),
-        gw(id="keyless", free_models=["b"], needs_key=False, catalog=["static"]),
+        gw(id="keyed", free_models=["a:free"], needs_key=True, has_key=False,
+           secret_key="k"),
+        gw(id="local", free_models=["b"], needs_key=False, catalog=["static"]),
     ]
     registry = asyncio.run(collect(gateways, check_price=False))
 
     refs = {m.ref for m in registry.models}
-    assert refs == {"keyed/a:free", "keyless/b"}
+    assert refs == {"local/b"}, f"шлюз без ключа снова попал в реестр: {refs}"
+    assert "keyed" in registry.errors, "причина пропуска не записана"
+    assert "ключ" in registry.errors["keyed"]
+
+
+def test_collect_пропускает_шлюз_с_переменной_но_без_ключа() -> None:
+    """`needs_key` в конфигурации может врать — проверяем и переменную.
+
+    У `zen` стоит `needs_key: false`, но ключ читается из ZEN_API_KEY, и
+    переменная не задана. Одного флага мало, иначе именно этот шлюз снова
+    окажется в выборе.
+    """
+    import asyncio
+
+    gateways = [
+        gw(id="zenish", free_models=["space-bunny-free"], needs_key=False,
+           env="ZEN_API_KEY", catalog=["static"]),
+        gw(id="local", free_models=["ok"], needs_key=False, catalog=["static"]),
+    ]
+    registry = asyncio.run(collect(gateways, check_price=False))
+
+    refs = {m.ref for m in registry.models}
+    assert refs == {"local/ok"}, f"шлюз без ключа снова попал в реестр: {refs}"
+
+
+def test_collect_берёт_шлюз_у_которого_ключ_есть() -> None:
+    """Проверка выше не должна выкидывать рабочие шлюзы."""
+    import asyncio
+
+    gateways = [
+        gw(id="good", free_models=["a:free"], needs_key=True, has_key=True,
+           api_key="sk-test", secret_key="k", catalog=["static"]),
+    ]
+    registry = asyncio.run(collect(gateways, check_price=False))
+
+    assert {m.ref for m in registry.models} == {"good/a:free"}
 
 
 def test_collect_dedupes_same_model() -> None:

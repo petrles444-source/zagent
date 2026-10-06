@@ -191,6 +191,39 @@ def models_from_static(gateway: dict[str, Any]) -> list[FreeModel]:
     return models
 
 
+def gateway_keys(gateway: dict[str, Any]) -> list[str]:
+    """Ключи шлюза из конфигурации, без обращения к кольцу."""
+    keys = gateway.get("api_keys") or []
+    if keys:
+        return [str(k) for k in keys if str(k or "").strip()]
+    single = str(gateway.get("api_key") or "").strip()
+    return [single] if single else []
+
+
+def needs_credential(gateway: dict[str, Any]) -> bool:
+    """Нужна ли шлюзу учётная запись для разговора с провайдером.
+
+    Ответ берётся не из одного флага `needs_key`: в конфигурации он стоит
+    у `zen` как `false`, хотя переменная `ZEN_API_KEY` у него задана и без
+    неё шлюз не отвечает. Ориентируемся на оба признака сразу: либо шлюз
+    сам просит ключ, либо у него названа переменная, из которой он его
+    читает. Шлюз без ключа и без переменной (локальный, без авторизации)
+    считаем рабочим — иначе мы бы выкидывали из реестра то, что работает.
+    """
+    return bool(gateway.get("needs_key") or gateway.get("env"))
+
+
+def usable_without_keys(gateway: dict[str, Any]) -> bool:
+    """Может ли шлюз говорить с провайдером вообще.
+
+    Ключ нужен не всегда, но если он нужен и его нет — шлюз нерабочий, и
+    любой его запрос провайдеру закончится отказом.
+    """
+    if not needs_credential(gateway):
+        return True
+    return bool(gateway_keys(gateway))
+
+
 async def collect(
     gateways: list[dict[str, Any]],
     *,
@@ -210,6 +243,20 @@ async def collect(
     clients: list[httpx.AsyncClient] = []
 
     for gateway in gateways:
+        # Шлюз без ключа не добавляет моделей в реестр.
+        #
+        # Живой прогон 07.10.2026: у `zen` не задана ZEN_API_KEY, но его модель
+        # `space-bunny-free` стояла в tiers.json и попадала в выбор. Селектор
+        # брал её первой по приоритету, и задача падала за 24 мс с текстом
+        # «все ключи провайдера в карантине по лимиту», пока 39 свободных
+        # аккаунтов на семи других шлюзах стояли без дела. Проверка `has_key`
+        # ниже относилась только к живому каталогу и до статических моделей
+        # не доходила.
+        if not usable_without_keys(gateway):
+            registry.errors[str(gateway.get("id"))] = (
+                "нет ключа — модели шлюза не используются"
+            )
+            continue
         registry.models.extend(models_from_static(gateway))
         catalog = set(gateway.get("catalog") or [])
         if "live" not in catalog:

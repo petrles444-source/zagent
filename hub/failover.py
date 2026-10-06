@@ -172,9 +172,19 @@ class AutoCaller:
                 if api_key:
                     REGISTRY.note_spent(gateway, api_key)
                 if not api_key:
+                    # Причина, по которой ключа не выдалось, разная, и
+                    # сказать «карантин» мимо неё — значит отправить человека
+                    # искать лимит там, где его нет. В нашем случае это стоило
+                    # прогона: у шлюза не было ни одного ключа, а сообщение
+                    # уверяло, что ключи есть и все выбиты по лимиту.
+                    ring = REGISTRY.ring(
+                        str(gateway.get("id")), REGISTRY.keys_of(gateway))
+                    total = int(ring.stats().get("total") or 0)
                     attempts.append(
                         Attempt(ref=ref, ok=False,
-                                error="все ключи провайдера в карантине по лимиту")
+                                error=("у шлюза нет ни одного ключа"
+                                       if total == 0 else
+                                       "все ключи провайдера в карантине по лимиту"))
                     )
                     break
                 provider = OpenAICompatProvider(
