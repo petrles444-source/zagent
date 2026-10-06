@@ -40,6 +40,14 @@ TIER_COST_S = 2.0
 #: заведомо быстрые и оборачивается минутой ожидания на первом шаге.
 UNKNOWN_LATENCY_S = 2.0
 
+#: Сколько «штрафных рангов» стоит полный провал модели (доля отказов = 1).
+#:
+#: Ненадёжность сопоставима по весу с провайдерским рангом, а не с
+#: задержкой: модель, не ответившая ни разу, уходит ниже двух соседних
+#: рангов, но остаётся в списке — выкидывать её целиком дело карантина,
+#: а выбор ранга — сообщать, что брать в первую очередь.
+UNRELIABLE_COST = 2.0
+
 
 @dataclass
 class ModelSpec:
@@ -179,6 +187,7 @@ def rank_models(
     require_tools: bool = False,
     prefer_speed: bool = False,
     latencies: dict[str, float] | None = None,
+    unreliable: dict[str, float] | None = None,
     speed_weight: float = TIER_COST_S,
 ) -> list[Any]:
     """Отсортировать модели по приоритету для режима auto.
@@ -188,6 +197,7 @@ def rank_models(
     require_tools: оставить только модели с вызовом инструментов.
     prefer_speed: скорость учитывается вдвое строже.
     latencies: ref -> задержка последнего ответа, в секундах.
+    unreliable: ref -> доля отказов по истории (0..1).
     speed_weight: сколько секунд задержки «стоят» одного шага ранга.
 
     **Скорость входит в ранг, а не только разбирает ничьи.**
@@ -205,8 +215,14 @@ def rank_models(
 
     Умение видеть — фильтр, а не достоинство. Если задача с картинкой,
     vision-модели остаются, но не лезут в начало списка, где им не место.
+
+    Надёжность входит в ранг тем же слагаемым, что и ранг провайдера.
+    Раньше история отказов на выбор не влияла вовсе: `ok_count` писался в
+    базу, а читал никто, и модель, отдающая лимит через раз, стояла наравне
+    со стабильной — каждый хоп начинался с её пробного запроса.
     """
     latencies = latencies or {}
+    unreliable = unreliable or {}
     kept: list[Any] = []
 
     for model in models:
@@ -230,6 +246,7 @@ def rank_models(
     def score(model: Any) -> tuple[float, str]:
         tier = tierbook.tier_of(model.gateway_id, model.model_id)
         weight = speed_weight / (2.0 if prefer_speed else 1.0)
-        return (tier + latency_of(model) / weight, model.model_id)
+        penalty = unreliable.get(model.ref, 0.0) * UNRELIABLE_COST
+        return (tier + latency_of(model) / weight + penalty, model.model_id)
 
     return sorted(kept, key=score)

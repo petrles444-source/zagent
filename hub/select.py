@@ -44,6 +44,11 @@ class ModelState:
     fails: int = 0
     ok_count: int = 0
     avg_ms: float = 0.0
+    #: Доля успешных вызовов (0..1), экспоненциальное среднее по истории.
+    #: -1 — данных ещё нет: модель не вызывалась, и судить о ней нечем.
+    #: Нужна для выбора: `fails` обнуляется при первом же успехе, и модель,
+    #: отдающая 429 через раз, по нему выглядит здоровой.
+    success_rate: float = -1.0
 
     @property
     def in_cooldown(self) -> bool:
@@ -77,6 +82,7 @@ class ModelState:
             "fails": self.fails,
             "ok_count": self.ok_count,
             "avg_ms": int(self.avg_ms),
+            "success_rate": round(self.success_rate, 3),
         }
 
 
@@ -92,6 +98,27 @@ COOLDOWN = {
 
 #: Потолок отката при повторных отказах.
 MAX_COOLDOWN_S = 3600.0
+
+
+def _note_outcome(state: ModelState, ok: bool) -> None:
+    """Обновить долю успешных вызовов модели.
+
+    Экспоненциальное среднее, а не полная доля: у `ok_count` нет пары
+    «сколько раз падала» — `fails` обнуляется при первом же успехе, и
+    модель с пятидесятипроцентной выдачей по нему выглядит здоровой.
+    Среднее помнит недавнее и не позволяет одной старой серии испортить
+    оценку работающей модели.
+
+    Первый вызов вглубь не считается: одно наблюдение — не приговор.
+    Новичок, у которого не ответил провайдер, получает половину нормы,
+    а не ноль, иначе новая модель начинала бы жизнь внизу списка и
+    возвращалась наверх несколькими успехами подряд.
+    """
+    outcome = 1.0 if ok else 0.0
+    if state.success_rate < 0:
+        state.success_rate = 0.5 + (outcome - 0.5) * 0.5
+        return
+    state.success_rate = state.success_rate * 0.7 + outcome * 0.3
 
 
 class Selector:
@@ -164,6 +191,7 @@ class Selector:
             state.fails = 0
             state.ok_count += 1
             state.cooldown_until = 0.0
+            _note_outcome(state, True)
             if duration_ms > 0:
                 # Экспоненциальное среднее — не даёт одному выбросу испортить оценку.
                 state.avg_ms = duration_ms if not state.avg_ms else (
@@ -174,9 +202,15 @@ class Selector:
         if not penalize:
             # Отказ засчитан в счётчике, но карантина нет: модель остаётся
             # доступной сейчас же.
+            #
+            # И надёжность при этом не портится — причина отказа не в модели.
+            # Ответ «429» означает, что кончился аккаунт, а не что модель
+            # плохая: через минуту она ответит, и штраф за чужой лимит
+            # держал бы её внизу без всякой вины.
             state.cooldown_until = 0.0
             return
 
+        _note_outcome(state, False)
         state.fails += 1
         base = COOLDOWN.get(status, 60.0)
         # Чем чаще падает, тем длиннее откат. Потолок — час: блокировка провайдера
@@ -185,6 +219,24 @@ class Selector:
         state.cooldown_until = now + backoff
 
     # --------------------------------------------------------------- выбор
+
+    def unreliable(self) -> dict[str, float]:
+        """Насколько модель ненадёжна по истории: ref -> 0..1.
+
+        Ноль — всё отвечает; единица — не ответила ни разу. Модели без
+        данных в список не попадает: судить о той, что ни разу не звали,
+        не о чем, а занимать её место понижением нельзя.
+
+        Нужно селектору ранжирования: раньше ранг зависел только от
+        провайдерского приоритета и задержки, и модель, у которой лимит
+        кончается через раз, стояла наравне со стабильной.
+        """
+        out: dict[str, float] = {}
+        for ref, state in self.states.items():
+            if state.success_rate < 0:
+                continue
+            out[ref] = max(0.0, min(1.0, 1.0 - state.success_rate))
+        return out
 
     def all_ordered(self) -> list[str]:
         """Все известные модели по приоритету — независимо от режима.
@@ -204,6 +256,7 @@ class Selector:
             require_vision=self.require_vision,
             prefer_speed=self.prefer_speed,
             latencies=latencies,
+            unreliable=self.unreliable(),
         )
         return [m.ref for m in ranked]
 
@@ -235,6 +288,7 @@ class Selector:
             require_tools=True,
             prefer_speed=self.prefer_speed,
             latencies=latencies,
+            unreliable=self.unreliable(),
         )
         refs = [m.ref for m in ranked]
         if self.avoid_vpn and self.vpn_only:

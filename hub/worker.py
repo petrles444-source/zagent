@@ -410,6 +410,11 @@ class Worker:
             target.fails = int(state.get("fails") or 0)
             target.ok_count = int(state.get("ok_count") or 0)
             target.avg_ms = float(state.get("avg_ms") or 0)
+            saved_rate = state.get("success_rate")
+            # -1 — данных нет. Сбрасывать в 0 нельзя: это выглядело бы как
+            # «модель не ответила ни разу», и после каждого перезапуска
+            # все модели начинали бы с позора.
+            target.success_rate = -1.0 if saved_rate is None else float(saved_rate)
 
         # Пинги старше 6 часов не показываем как актуальные.
         self.probes = self.store.load_probes(max_age=6 * 3600)
@@ -998,6 +1003,7 @@ class Worker:
                         step["model"], state.last_status, error=state.last_error,
                         cooldown_until=state.cooldown_until, fails=state.fails,
                         ok_count=state.ok_count, avg_ms=state.avg_ms,
+                        success_rate=state.success_rate,
                     )
 
     def _session_of_task(self, task_id: int) -> str | None:

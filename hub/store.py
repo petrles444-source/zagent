@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS models (
     fails          INTEGER NOT NULL DEFAULT 0,
     ok_count       INTEGER NOT NULL DEFAULT 0,
     avg_ms         REAL NOT NULL DEFAULT 0,
+    success_rate   REAL NOT NULL DEFAULT -1,
     updated_at     REAL NOT NULL DEFAULT 0
 );
 
@@ -125,6 +126,10 @@ CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_id, id);
 #: Формат: (таблица, колонка, определение).
 MIGRATIONS: tuple[tuple[str, str, str], ...] = (
     ("tasks", "session_id", "TEXT"),
+    # Доля успешных вызовов модели. -1 — данных ещё нет: без этого
+    # обновление поднимало бы старую базу с колонкой 0, и все модели
+    # выглядели бы безнадёжными ровно до первого ответа.
+    ("models", "success_rate", "REAL NOT NULL DEFAULT -1"),
 )
 
 
@@ -207,6 +212,7 @@ class Store:
                 int(state.fails),
                 int(state.ok_count),
                 float(state.avg_ms),
+                float(getattr(state, "success_rate", -1.0)),
                 now,
             )
             for state in states.values()
@@ -214,12 +220,14 @@ class Store:
         with self._lock:
             self._conn.executemany(
                 """INSERT INTO models (ref, gateway, model, tier, status, error,
-                                       cooldown_until, fails, ok_count, avg_ms, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                       cooldown_until, fails, ok_count, avg_ms,
+                                       success_rate, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(ref) DO UPDATE SET
                        status=excluded.status, error=excluded.error,
                        cooldown_until=excluded.cooldown_until, fails=excluded.fails,
                        ok_count=excluded.ok_count, avg_ms=excluded.avg_ms,
+                       success_rate=excluded.success_rate,
                        updated_at=excluded.updated_at""",
                 rows,
             )
@@ -235,24 +243,29 @@ class Store:
                 "fails": row["fails"],
                 "ok_count": row["ok_count"],
                 "avg_ms": row["avg_ms"],
+                "success_rate": row["success_rate"],
             }
             for row in self._query("SELECT * FROM models")
         }
 
     def touch_models(self, ref: str, status: str, *, error: str | None = None,
                      cooldown_until: float = 0.0, fails: int = 0,
-                     ok_count: int = 0, avg_ms: float = 0.0) -> None:
+                     ok_count: int = 0, avg_ms: float = 0.0,
+                     success_rate: float = -1.0) -> None:
         """Обновить одну модель, не трогая остальные."""
         self._exec(
             """INSERT INTO models (ref, gateway, model, tier, status, error,
-                                  cooldown_until, fails, ok_count, avg_ms, updated_at)
-               VALUES (?, '', '', 5, ?, ?, ?, ?, ?, ?, ?)
+                                  cooldown_until, fails, ok_count, avg_ms,
+                                  success_rate, updated_at)
+               VALUES (?, '', '', 5, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(ref) DO UPDATE SET
                    status=excluded.status, error=excluded.error,
                    cooldown_until=excluded.cooldown_until, fails=excluded.fails,
                    ok_count=excluded.ok_count, avg_ms=excluded.avg_ms,
+                   success_rate=excluded.success_rate,
                    updated_at=excluded.updated_at""",
-            (ref, status, error, cooldown_until, fails, ok_count, avg_ms, time.time()),
+            (ref, status, error, cooldown_until, fails, ok_count, avg_ms,
+             success_rate, time.time()),
         )
 
     # ------------------------------------------------------------- пинги/sanity
