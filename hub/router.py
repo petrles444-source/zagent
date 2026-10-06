@@ -26,9 +26,19 @@ class Router:
     ) -> None:
         self.agents = {str(role): list(chain) for role, chain in agents.items()}
         self.models = list(models or [])
-        # Кеш для быстрого поиска меток моделей (O(1) вместо O(n))
+        # Метки в словаре: `label()` зовётся на каждый ответ, линейный
+        # перебор вырос бы вместе с числом моделей.
+        #
+        # Ключ обязателен, но не `m["id"]`: запись без id — это плохой
+        # конфиг, а не повод ронять конструктор. `hub/config.py` такой
+        # случай отсекает на своей границе, а Router используется ещё и
+        # напрямую (tools/, тесты), где этого фильтра нет. Раньше
+        # `label()` переживала запись без id, вернула бы сам id — и
+        # словарь должен вести себя так же.
         self._model_labels: dict[str, str] = {
-            m["id"]: m.get("label") or m["id"] for m in self.models
+            str(m.get("id") or ""): str(m.get("label") or m.get("id") or "")
+            for m in self.models
+            if m.get("id")
         }
 
     @property
@@ -47,7 +57,6 @@ class Router:
 
     def label(self, model_id: str) -> str:
         """Метка модели из models.json (или сам id)."""
-        # Используем кеш для O(1) поиска вместо O(n)
         return self._model_labels.get(model_id, model_id)
 
     async def ask(

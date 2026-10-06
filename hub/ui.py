@@ -2042,8 +2042,9 @@ function trailHtml(item) {
 function rowHtml(row) {
   const n = row.n;
   if (row.kind === 'call') {
+    const f = row.file || '';
     return `<div class="trailRow">
-      <div class="trailHead">${n}. вызов ${esc(row.tool || '')}</div>
+      <div class="trailHead">${n}. вызов ${esc(row.tool || '')}${f ? ' · ' + esc(f) : ''}</div>
       <pre class="trailPre">${esc(JSON.stringify(row.args || {}).slice(0, 1200))}</pre>
       ${row.result ? longText(JSON.stringify(row.result), 'ответ инструмента') : ''}
     </div>`;
@@ -2132,7 +2133,10 @@ function onSubEvent(e) {
   }
   if (e.type === 'tool') {
     ensureSub(sub, null);
-    pushRow(sub, {kind: 'call', tool: e.tool, args: e.args, result: e.result});
+    const f = e.file || e.path || '';
+    const toolRow = {kind: 'call', tool: e.tool, args: e.args, result: e.result};
+    if (f) toolRow.file = f;
+    pushRow(sub, toolRow);
     subLiveStat(sub);
     return true;
   }
@@ -3594,7 +3598,9 @@ function handleEvent(e, replay) {
               kind: s.ok ? 'assistant' : 'sys'});
     } else {
       $('msgs').insertAdjacentHTML('beforeend',
-        `<div class="toolline ${s.ok?'':'bad'}"><span class="nm">${esc(s.tool||s.phase)}</span>
+        `<div class="toolline ${s.ok?'':'bad'}"><span class="nm">${esc(s.tool||s.phase)}${
+          (s.file || s.path || s.tool_target || '') ? ' · ' + esc(s.file || s.path || s.tool_target) : ''
+        }</span>
          <span class="tx">${esc(s.text)}</span></div>`);
       $('msgs').scrollTop = $('msgs').scrollHeight;
     }

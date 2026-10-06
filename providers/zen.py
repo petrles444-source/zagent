@@ -37,7 +37,7 @@ class ZenProvider(Provider):
     ) -> None:
         self.base_url = (base_url or "").rstrip("/")
         self.api_key = (api_key or "").strip()
-        self.timeout = float(timeout)
+        self.timeout = _check_timeout(timeout)
         self._client = client
         self._owns_client = client is None
 
@@ -100,7 +100,11 @@ class ZenProvider(Provider):
             return error_result(f"Таймаут модели {model_id}", duration_ms=_ms(started))
         except httpx.HTTPError as exc:
             return error_result(f"Сеть недоступна: {exc}", duration_ms=_ms(started))
-        except Exception as exc:  # защитная сетка: наружу не выпускаем ничего
+        except OSError as exc:
+            # Сеть недоступна целиком: DNS не resolved, соединение refused,
+            # сокет упал. `httpx.HTTPError` это не покрывает, а ловить
+            # Exception здесь нельзя — под ним прячется опечатка в коде
+            # провайдера, и она молча превращается в «сеть недоступна».
             return error_result(f"Сеть недоступна: {exc}", duration_ms=_ms(started))
 
         duration_ms = _ms(started)
@@ -151,12 +155,36 @@ def _ms(started: float) -> int:
     return int((time.perf_counter() - started) * 1000)
 
 
+def _check_timeout(timeout: float) -> float:
+    """Проверить таймаут на границе провайдера.
+
+    httpx трактует таймаут <= 0 как «истечь мгновенно», и ошибка приходит
+    уже изнутри сетевого слоя — с текстом, по которому не понять, что
+    не так. Здесь она превращается в сообщение про саму настройку.
+    """
+    try:
+        value = float(timeout)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"timeout должен быть числом, получено {timeout!r}") from exc
+    if value <= 0:
+        raise ValueError(f"timeout должен быть положительным, получено {value}")
+    return value
+
+
 def _extract_text(data: dict[str, Any]) -> str:
-    """Достать текст ответа из OpenAI-совместимого тела."""
+    """Достать текст ответа из OpenAI-совместимого тела.
+
+    Шлюз — чужой код, и `choices[0]` у него может оказаться не словарём или
+    вовсе `null`: тело ответа тогда разбирается ниже по `.get`, и
+    AttributeError уходил наружу вместо нормального «пустой ответ модели».
+    """
     choices = data.get("choices") or []
-    if not choices:
+    first = choices[0] if choices else None
+    if not isinstance(first, dict):
         return ""
-    message = choices[0].get("message") or {}
+    message = first.get("message")
+    if not isinstance(message, dict):
+        return ""
     content = message.get("content")
     if isinstance(content, str):
         return content

@@ -41,6 +41,13 @@ async def gather_chats(
     for model_id, item in zip(model_ids, raw):
         if isinstance(item, BaseException):
             results.append(error_result(f"Внутренняя ошибка: {item}"))
+        elif not isinstance(item, dict):
+            # Провайдер нарушил контракт и вернул не словарь. Раньше такое
+            # молча уходило в выдачу, и первый же `result.get(...)` падал с
+            # AttributeError уже в другом месте — виноватым оказывался
+            # вызывающий, а не сломанный провайдер.
+            results.append(error_result(
+                f"Некорректный результат от провайдера: {type(item).__name__}"))
         else:
             results.append(item)
     return results
@@ -77,13 +84,17 @@ def log_usage(record: dict[str, Any], root: str | Path | None = None) -> None:
     """Дописать событие в logs/usage.jsonl (одна строка = одно событие).
 
     Ошибка записи не должна ломать вызов модели — предупреждаем в stderr.
+    Ловится не только `OSError`: `json.dumps` падает с `TypeError` на любом
+    несериализуемом значении (объект, сет,.bytes), и раньше такая ошибка
+    вылетала из журнала и роняла вызов модели, ради которого писалась
+    строчка. Журнал — не то место, где задача должна падать.
     """
     path = usage_path(root)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-    except OSError as exc:
+    except (OSError, TypeError, ValueError) as exc:
         print(f"Предупреждение: не удалось записать {path}: {exc}", file=sys.stderr)
 
 

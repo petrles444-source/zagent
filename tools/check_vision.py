@@ -75,11 +75,74 @@ async def check(client, gateway, model_id):
     ch = d.get("choices") or []
     msg = (ch[0].get("message") or {}) if ch else {}
     txt = str(msg.get("content") or msg.get("reasoning") or "").strip()
-    return model_id, "vision", txt[:90]
+
+    # Вердикт — от ответа, а не от кода 200.
+    #
+    # Раньше любой ответ с кодом 200 означал «vision». Модель, которая
+    # изображение проигнорировала и написала «не могу видеть картинки»,
+    # попадала в список умеющих видеть — и дальше селектор отправлял ей
+    # задачи с картинками по несуществующей способности. Проверка, которая
+    # не проверяет, хуже отсутствия проверки: она даёт уверенный неверный
+    # ответ.
+    verdict = judge(txt)
+    return model_id, verdict, txt[:90]
+
+
+#: Отказ вместо ответа. Модель может честно сказать, что не видит, — и это
+#: полезнее, чем угадать, но слово «не вижу» в тексте само по себе не
+#: приговор, поэтому проверяется осмысленно.
+REFUSALS = ("не могу вид", "не вижу", "no image", "cannot see", "can't see",
+            "не поддержива", "not support", "unable to", "no vision")
+
+
+def judge(text: str) -> str:
+    """`vision`, `unsure` или `no` — по тому, что модель написала.
+
+    Эвристика, и это сказано прямо: картинка собрана так, что синих пикселей
+    `BLUE_TOTAL` из `SIZE * SIZE`, то есть верная доля около 0.40. Ответ
+    принимается в коридоре, а не в точке: честная модель считает
+    приблизительно и пишет «0.4», «40%», «около 40 процентов».
+
+    Коридор узкий — 0.30…0.48. Шире он был бы нечестным: угадавший наугад
+    попадает в любой разумный коридор с заметной вероятностью, и тогда
+    проверка сообщала бы уверенность, которой у неё нет.
+
+    Ответ вне коридора, но близко к нему, — это `unsure`, а не `no`: скорее
+    всего модель посчитала неудачно, но сказать «не умеет видеть» на
+    основании одной попытки нельзя. Такие строки видно в отчёте, и решает
+    человек.
+    """
+    lowered = text.lower()
+    if any(word in lowered for word in REFUSALS):
+        return "no"
+    number = first_number(text)
+    if number is None:
+        return "no"
+    if number > 1.0 and number <= 100.0:
+        number /= 100.0          # «40%» и «40 процентов»
+    if 0.30 <= number <= 0.48:
+        return "vision"
+    if 0.15 <= number <= 0.75:
+        return "unsure"
+    return "no"
+
+
+def first_number(text: str) -> float | None:
+    """Первое число в ответе: `0.4`, `40%`, «около 40 процентов»."""
+    import re
+
+    match = re.search(r"\d+(?:[.,]\d+)?", text.replace(",", "."))
+    if not match:
+        return None
+    try:
+        return float(match.group(0))
+    except ValueError:
+        return None
 
 
 async def main():
     root = pathlib.Path(".")
+    tally: dict[str, int] = {}
     gateways = load_gateways(root, env={})
     registry = await collect(gateways, root=root, check_price=False)
 
@@ -100,9 +163,19 @@ async def main():
         for m in candidates:
             g = by_id[m.gateway_id]
             mid, status, detail = await check(client, g, m.model_id)
-            mark = "VISION" if status == "vision" else "  ---  "
+            mark = {"vision": "VISION", "no": "  no  ", "unsure": " ???? ",
+                    "err": "  err  "}[status]
             print(f"[{mark}] {m.ref:<62} {detail}", flush=True)
+            tally[status] = tally.get(status, 0) + 1
             await asyncio.sleep(2.5)
+
+    if tally:
+        print(f"\nумеют видеть: {tally.get('vision', 0)}, "
+              f"неясно: {tally.get('unsure', 0)}, "
+              f"нет: {tally.get('no', 0)}, ошибок: {tally.get('err', 0)}")
+        print("«????» — ответ рядом с верным, но не в коридоре: скорее всего "
+              "модель посчитала неудачно. Смотреть глазами, а не считать "
+              "уверенностью.")
 
 
 def httpx_client():
@@ -110,4 +183,8 @@ def httpx_client():
     return httpx.AsyncClient(follow_redirects=True)
 
 
-asyncio.run(main())
+#: Запуск под `__main__`, а не на верхнем уровне: иначе `import` запускал бы
+#: проверку по всем моделям. Из-за этого разбор ответа нельзя было закрыть
+#: тестом — а именно он и решает, кого считать умеющим видеть.
+if __name__ == "__main__":
+    asyncio.run(main())

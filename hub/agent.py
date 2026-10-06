@@ -285,6 +285,41 @@ FORMAT_NUDGE_LIMIT = 2
 #: история на пятидесятом шаге — это мегабайты текста в браузере.
 TRACE_LIMIT = 120
 
+#: Сколько символов результата чтения отдаётся модели за раз.
+#:
+#: Живой прогон 06.10.2026: при 4000 символах модель видела ~100 строк из
+#: 1663-строчного `hub/agent.py`, не знала, что остальное берётся `offset`,
+#: и перечитывала тот же кусок до исчерпания шагов. Больше символов — меньше
+#: шагов на файл, а шаги здесь дороже токенов: лимит их убивает задачу.
+BRIEF_LIMIT = 8000
+
+#: Сколько раз подряд разрешён один и тот же вызов инструмента.
+#:
+#: Третий раз подряд — признак заклинившего цикла: результата новый вызов не
+#: даёт, а шаг и токены сжигает. Пятый — цикл не лечится нуджем, пора
+#: останавливаться и отдавать итог по уже сделанному.
+REPEAT_NUDGE = 2
+REPEAT_STOP = 4
+
+#: Операции, после которых повторное чтение перестаёт быть циклом: файл
+#: изменился, и смотреть его снова — уже не дубль, а проверка. В список не
+#: входит обычная команда — иначе связка «прочитал, запустил тесты, прочитал»
+#: засчитывалась бы за изменения, которых не было.
+RESET_REPEAT_OPS = MUTATING_OPS | DESTRUCTIVE_OPS
+
+#: Сколько раз подряд можно требовать итоговый ответ вместо новых вызовов.
+#: Один раз — даём модели шанс ответить словами. Дальше отчёт собираем сами:
+#: пустой «сбой» хуже любого частичного ответа.
+WRAP_UP_TRIES = 1
+
+#: Бюджет токенов на шаг цикла.
+#:
+#: Жёсткие 60 000 на задачу кончились на четвёртом чтении файла. Бюджет
+#: должен расти вместе с лимитом шагов: сорок шагов по ~10 000 токенов — это
+#: нормальный объём работы, а не перерасход. Предел остаётся страховкой от
+#: бесконечного цикла, а не рабочим ограничителем.
+TOKEN_BUDGET_PER_STEP = 10_000
+
 
 def parse_tool_calls(text: str) -> list[dict[str, Any]]:
     """Достать JSON-вызовы инструментов из ответа модели.
@@ -300,6 +335,22 @@ def looks_like_tool_call(text: str) -> bool:
     if not text:
         return False
     return bool(_LOOSE_CALL.search(text))
+
+
+def _calls_signature(calls: list[dict[str, Any]]) -> str:
+    """Подпись пачки вызовов: одно и то же действие даёт одну и ту же строку.
+
+    Пути и аргументы участвуют обязательно: `read_file a.py` и
+    `read_file b.py` — разные вызовы, и считать их одним циклом нельзя.
+    Порядок тоже участвует, потому что другой порядок — другой шаг работы.
+    """
+    parts = []
+    for call in calls:
+        args = call.get("args")
+        if isinstance(args, dict):
+            args = json.dumps(args, sort_keys=True, ensure_ascii=False)
+        parts.append(f"{call.get('tool')}:{args}")
+    return "\n".join(parts)
 
 
 def _parse_calls(text: str) -> tuple[list[dict[str, Any]], list[str]]:
@@ -436,8 +487,56 @@ def _json_error(raw: str, exc: json.JSONDecodeError) -> str:
     return f"{exc.msg} в позиции {exc.pos}: {snippet}"
 
 
+#: Признаки задачи-обхода: их нет — блок не добавляется и обычные задачи
+#: не платят за чужие инструкции. Проверяются по подстрокам в нижнем
+#: регистре, поэтому написание вроде «АУДИТ всего проекта» тоже ловится.
+BIG_TASK_MARKERS = (
+    "аудит", "весь проект", "всего проекта", "всем проектом", "по всему проекту",
+    "всю папку", "всей папки", "вся папка", "всю директор",
+    "все файлы", "всех файлов", "всеми файлами", "каждый файл", "каждого файла",
+    "прочитай все", "прочитай весь", "изучи все", "изучи весь",
+    "найди баги", "найди ошибки", "поищи баги", "ищи баги", "поиск багов",
+    "проверь весь", "проверь все", "обзор кода", "ревью кода", "code review",
+    "обход", "всю кодовую", "весь код",
+)
+
+
+def big_task_guide(task: str) -> str:
+    """Встроенная под капотом инструкция для большой задачи-обхода.
+
+    Без неё модель берёт первый попавшийся файл и читает его до исчерпания
+    шагов: живой прогон 06.10.2026 на «аудите всего проекта» закончился тем,
+    что один `hub/agent.py` прочитали шесть раз, а отчёт так и не собрали.
+
+    Инструкция — про порядок и экономию шагов, а не про содержание работы:
+    что именно искать, модель решает сама.
+    """
+    low = (task or "").lower()
+    if not any(marker in low for marker in BIG_TASK_MARKERS):
+        return ""
+    return "\n".join([
+        "",
+        "БОЛЬШАЯ ЗАДАЧА — ПОРЯДОК РАБОТЫ:",
+        "- Первый шаг — охват, а не чтение: list_dir по корню и по основным "
+        "папкам. Только потом составляй очередь файлов.",
+        "- Обходи файлы по одному в порядке приоритета (ядро, затем тесты и "
+        "конфиги, затем остальное). Один файл — один шаг.",
+        "- Один и тот же файл повторно не читай. Длинный файл бери окнами "
+        "через offset, который указан в конце предыдущего результата.",
+        "- Ищи через search_text, а не чтением файлов подряд: нужное за один "
+        "вызов вместо двадцати.",
+        "- Замечания записывай в отчёт-файл через write_file по мере работы, а "
+        "не держи в голове: история диалога обрезается, файл остаётся.",
+        "- Останавливайся, когда данных для ответа достаточно, а не когда "
+        "кончатся шаги.",
+        "- В конце отдай итог одним сообщением: что проверено, что найдено "
+        "(файл: строка — доказательство), что не успел.",
+    ])
+
+
 def build_system_prompt(guard: Guard, config: AgentConfig, *, workspace: str,
-                        self_edit: bool = False, web_research: bool = False) -> str:
+                        self_edit: bool = False, web_research: bool = False,
+                        guide: str = "") -> str:
     """Системный промпт агента."""
     parts = [
         SYSTEM_HEADER,
@@ -565,6 +664,10 @@ def build_system_prompt(guard: Guard, config: AgentConfig, *, workspace: str,
         )
 
     parts.append("\n" + tool_catalog_for_prompt(guard, web=web_research))
+    # Порядок работы идёт последним: инструкция, утонувшая в каталоге
+    # инструментов, на длинном контексте не читается.
+    if guide:
+        parts.append(guide)
     return "\n".join(parts)
 
 
@@ -620,6 +723,21 @@ class Agent:
         self.format_retries: int = 0
         #: Учёт токенов по задаче: {"tokens": int, "warnings": list[str]}
         self.step_budget: dict[str, Any] = {"tokens": 0, "warnings": []}
+        #: Бюджет исчерпан: новые вызовы инструментов не выполняются,
+        #: модели возвращается требование итогового отчёта.
+        self.budget_exceeded = False
+        #: Сколько раз каждый вызов уже выполнялся без изменений между ними.
+        #: Пустой словарь — зацикливания нет.
+        self.repeat_counts: dict[str, int] = {}
+        #: Сколько раз уже требовали итоговый ответ вместо новых вызовов.
+        self.wrap_up: int = 0
+        #: По какой причине работа была остановлена принудительно
+        #: («бюджет…», «один и тот же вызов…», «лимит шагов…»). Пусто —
+        #: задача дошла до конца сама.
+        self.stop_reason: str = ""
+        #: Текст задачи. Нужен, чтобы пересобрать системный промпт под
+        #: ту же задачу, а не под пустую строку.
+        self.task_text: str = ""
         #: Проверки после записи: {"path": str, "ok": bool, "detail": str}
         self.verifications: list[dict[str, Any]] = []
         #: Что агент создал за задачу: пути относительно рабочей директории.
@@ -657,22 +775,22 @@ class Agent:
     async def _step(self, phase: Phase, text: str, **kw: Any) -> Step:
         step = Step(index=len(self.steps) + 1, phase=phase.value, text=text, **kw)
         self.steps.append(step)
-        # `sub` во всех шагах: по журналу должно быть видно, чей это шаг.
-        # Без этого шаги субагента и главного агента неразличимы, а они
-        # выполняются одновременно.
-        await self._emit({"type": "step", "step": step.to_dict(), "sub": self.part})
+        await self._emit({
+            "type": "step",
+            "step": step.to_dict(),
+            "sub": self.part,
+            "tokens": self.step_budget.get("tokens", 0),
+            "budget_limit": self._budget_limit(),
+        })
         return step
 
     # -------------------------------------------------------------- запуск
 
     def set_task(self, task: str) -> None:
         """Поставить задачу и сбросить состояние цикла."""
+        self.task_text = task
         self.messages = [
-            {"role": "system", "content": build_system_prompt(
-                self.guard, self.config, workspace=str(self.workspace),
-                self_edit=self.self_edit,
-                web_research=self.web_research,
-            )},
+            {"role": "system", "content": self._system_prompt()},
             {"role": "user", "content": task},
         ]
         self.checkpoint = {
@@ -680,6 +798,15 @@ class Agent:
             "step": 0,
         }
         self._reset_cycle()
+
+    def _system_prompt(self) -> str:
+        """Собрать системный промпт под текущий режим и текущую задачу."""
+        return build_system_prompt(
+            self.guard, self.config, workspace=str(self.workspace),
+            self_edit=self.self_edit,
+            web_research=self.web_research,
+            guide=big_task_guide(self.task_text),
+        )
 
     def rebuild_system_prompt(self) -> None:
         """Пересобрать системный промпт под текущий режим.
@@ -693,11 +820,7 @@ class Agent:
             return
         self.messages[0] = {
             "role": "system",
-            "content": build_system_prompt(
-                self.guard, self.config, workspace=str(self.workspace),
-                self_edit=self.self_edit,
-                web_research=self.web_research,
-            ),
+            "content": self._system_prompt(),
         }
 
     def _reset_cycle(self) -> None:
@@ -711,6 +834,13 @@ class Agent:
         self.plan_approved = False
         self.finished = False
         self.step_budget = {"tokens": 0, "warnings": []}
+        # Остановки по бюджету и по зацикливанию относятся к текущему циклу.
+        # Оставшееся от прошлой задачи значение остановило бы новую на первом
+        # же шаге — задача не сделала бы ничего и умерла бы молча.
+        self.budget_exceeded = False
+        self.repeat_counts = {}
+        self.wrap_up = 0
+        self.stop_reason = ""
         # Проверки относятся к текущему циклу: оставшиеся от прошлого прохода
         # значения делали одну плохую запись причиной провала всей задачи.
         self.verifications = []
@@ -846,6 +976,111 @@ class Agent:
         })
         return "continue"
 
+    # ------------------------------------------------- остановка и итог
+
+    async def _wrap_up(self, reason: str, *, model: str | None,
+                       duration_ms: int = 0) -> str:
+        """Остановить новые вызовы и требовать итоговый ответ.
+
+        Первая попытка — модель отвечает словами сама; это нормальный путь.
+        Вторая — если она снова зовёт инструменты, отчёт собираем мы. Дальше
+        крутить бессмысленно: и так было ясно, что выхода через вызовы нет.
+        """
+        self.wrap_up += 1
+        self.stop_reason = reason
+        if self.wrap_up > WRAP_UP_TRIES:
+            await self._finish_report(reason, model=model, duration_ms=duration_ms)
+            return "stop"
+
+        message = (
+            f"Остановись. Причина: {reason}. Новых вызовов инструментов больше "
+            "не делай — прямо сейчас дай итоговый ответ по уже сделанному: что "
+            "проверил, что нашёл (с файлами и строками), что осталось. Если "
+            "данных не хватает — так и скажи, но отвечай текстом."
+        )
+        self.messages.append({"role": "user", "content": message})
+        await self._step(Phase.THINKING, message, model=model,
+                         duration_ms=duration_ms)
+        await self._emit({"type": "wrap_up", "reason": reason, "sub": self.part})
+        return "continue"
+
+    async def _finish_report(self, reason: str, *, model: str | None = None,
+                             duration_ms: int = 0) -> None:
+        """Отдать отчёт из следа, когда модель ответить не смогла.
+
+        Пустой «сбой» без единого слова — худший исход: работа не видна, а
+        причина остановки теряется в событии. Поэтому текст пишется всегда.
+
+        `finished` остаётся ложным намеренно: это отчёт, собранный нами, а не
+        ответ модели. Статус «сделано» на нём был бы ложным успехом — рой по
+        такому статусу считал бы часть выполненной и не передал бы её дальше.
+        """
+        text = self._report_from_steps(reason)
+        self.messages.append({"role": "assistant", "content": text})
+        await self._step(Phase.THINKING, text, model=model,
+                         duration_ms=duration_ms)
+        self.finished = False
+        await self._emit({
+            "type": "failed",
+            "reason": reason,
+            "text": text,
+            "model": model,
+            "artifacts": list(self.artifacts),
+            "stopped_by": reason,
+        })
+
+    def _report_from_steps(self, reason: str) -> str:
+        """Собрать итог из следа: вызовы, созданные файлы, последние записи."""
+        lines = [f"Работа остановлена: {reason}."]
+        tools = [s.tool for s in self.steps if s.tool]
+        if tools:
+            lines.append("Выполненные вызовы: "
+                         + ", ".join(dict.fromkeys(tools)) + ".")
+        names = [a.get("path", "") for a in self.artifacts
+                 if isinstance(a, dict) and a.get("path")]
+        if names:
+            lines.append("Создано: " + ", ".join(names) + ".")
+        notes = [s.text for s in self.steps if s.ok and s.text and not s.tool]
+        if notes:
+            lines.append("Ход работы: " + " / ".join(notes[-3:]))
+        lines.append("Полный итог не собран: " + reason + ".")
+        return "\n".join(lines)
+
+    async def _final_answer(self, reason: str) -> None:
+        """Последний вызов модели, когда шаги кончились: итог вместо «сбоя».
+
+        Делается вне цикла и без вызовов инструментов — модель либо отвечает
+        словами, либо молчит; во втором случае отчёт собираем из следа.
+        Возвращается всегда: человек должен получить хоть какое-то объяснение
+        вместо голого статуса «failed».
+        """
+        self.messages.append({
+            "role": "user",
+            "content": (
+                f"Причина остановки: {reason}. Инструменты не вызывай — дай "
+                "итоговый ответ по уже сделанному: что проверил, что нашёл "
+                "(с файлами и строками), что осталось."
+            ),
+        })
+        self.stop_reason = reason
+        result = await self._complete()
+        text = str(result.get("text") or "").strip()
+        calls, _ = _parse_calls(text) if text else ([], [])
+        if result.get("error") or calls or not text:
+            await self._finish_report(reason, model=result.get("model"))
+            return
+        self.messages.append({"role": "assistant", "content": text})
+        await self._step(Phase.THINKING, text, model=result.get("model"),
+                         duration_ms=int(result.get("duration_ms") or 0))
+        self.finished = True
+        await self._emit({
+            "type": "done",
+            "text": text,
+            "model": result.get("model"),
+            "artifacts": list(self.artifacts),
+            "stopped_by": reason,
+        })
+
     async def run(self, task: str | None = None) -> dict[str, Any]:
         """Прогнать цикл до завершения, отказа или лимита шагов."""
         if task is not None:
@@ -856,6 +1091,7 @@ class Agent:
         started = time.perf_counter()
         self.phase = Phase.THINKING
         cancelled = False
+        stopped = False
 
         while len(self.steps) < self.config.max_steps and not self.finished:
             if self.should_cancel():
@@ -869,7 +1105,22 @@ class Agent:
             outcome = await self._one_step()
             self.save_checkpoint()
             if outcome == "stop":
+                stopped = True
                 break
+
+        # Лимит шагов — не «сбой без ответа». Цикл кончился сам, то есть
+        # работа шла, а просто не уложилась: даём модели сказать итог, а если
+        # и это не выходит — собираем отчёт из следа. Задачи, остановленные
+        # явно (формат, пустой ответ, отказ), сюда не попадают: там ответ был
+        # и его содержание — честный отказ.
+        if (not cancelled and not stopped and not self.finished
+                and self.pending_question is None
+                and self.pending_permission is None
+                and self.pending_confirmation is None):
+            await self._final_answer(
+                f"лимит шагов исчерпан ({self.config.max_steps})"
+            )
+            self.save_checkpoint()
 
         elapsed = int((time.perf_counter() - started) * 1000)
         if cancelled:
@@ -893,7 +1144,12 @@ class Agent:
             "last": self.steps[-1].text if self.steps else "",
             "cancelled": cancelled,
             "tokens": self.step_budget.get("tokens", 0),
+            "budget_limit": self._budget_limit(),
             "budget_warnings": self.step_budget.get("warnings", []),
+            # По какой причине работа остановлена принудительно. Пусто —
+            # задача дошла до конца сама; по этому полю видно, что именно
+            # (бюджет, зацикливание, лимит шагов) оборвало работу.
+            "stopped_by": self.stop_reason,
             "verifications": list(self.verifications),
             "checkpoint": self.checkpoint,
             "selector": self.selector.stats(),
@@ -1073,6 +1329,7 @@ class Agent:
             # реального действия, а если она упирается — поднимаем запрос сами.
             handled = await self._handle_boundary_refusal(final)
             if handled:
+                self.finished = True
                 return "stop" if self.pending_permission is not None else "continue"
 
             await self._step(Phase.THINKING, final, model=model, duration_ms=duration)
@@ -1089,6 +1346,44 @@ class Agent:
             return "stop"
 
         self.messages.append({"role": "assistant", "content": combined})
+
+        # Остановки, которым выполнение вызовов подчиняется. Бюджет и
+        # зацикливание проверяются до запуска инструментов: именно эти два
+        # случая в живом прогоне 06.10.2026 сжигали шаги впустую и
+        # заканчивали задачу «сбоем» без единого слова по делу.
+        if self.budget_exceeded:
+            return await self._wrap_up(
+                f"бюджет задачи исчерпан ({self.step_budget.get('tokens', 0)} "
+                f"из {self._budget_limit()} токенов)",
+                model=model, duration_ms=duration,
+            )
+
+        # Один и тот же вызов, который ничего не меняет. Счётчик сбрасывают
+        # изменения файлов: чтение после записи — это проверка, а не цикл.
+        if any(_operation_of(str(c.get("tool") or "")) in RESET_REPEAT_OPS
+               for c in calls):
+            self.repeat_counts.clear()
+        else:
+            count = self.repeat_counts.get(_calls_signature(calls), 0) + 1
+            self.repeat_counts[_calls_signature(calls)] = count
+            if count > REPEAT_STOP:
+                return await self._wrap_up(
+                    f"один и тот же вызов повторён {count} раз подряд "
+                    "и не продвигает работу",
+                    model=model, duration_ms=duration,
+                )
+            if count > REPEAT_NUDGE:
+                message = (
+                    f"Этот вызов уже выполнялся {count} раз — содержимое не "
+                    "изменилось, шаг и токены сгорели зря. Не повторяй его: "
+                    "если нужна другая часть файла, бери offset, указанный в "
+                    "конце предыдущего результата; если всё нужное прочитано — "
+                    "переходи к следующему файлу или дай итоговый ответ."
+                )
+                self.messages.append({"role": "user", "content": message})
+                await self._step(Phase.THINKING, message, model=model,
+                                 duration_ms=duration)
+                return "continue"
 
         # Группируем вызовы по файлам, чтобы проверять каждый файл один раз.
         touched: set[str] = set()
@@ -1326,6 +1621,8 @@ class Agent:
             error=result.error,
         )
         await self._emit({"type": "tool", "tool": name, "args": args,
+                          "path": target,
+                          "file": target,
                           "result": _tool_result_brief(result),
                           "sub": self.part})
         self._trace_tool(name, args, _tool_result_brief(result))
@@ -1574,14 +1871,32 @@ class Agent:
         if len(self.trace) > TRACE_LIMIT:
             del self.trace[: len(self.trace) - TRACE_LIMIT]
 
+    def _budget_limit(self) -> int:
+        """Предел токенов на задачу: жёсткий бюджет или норма на шаг.
+
+        Жёсткие 60 000 кончились на четвёртом чтении файла, и задача умирала
+        там, где работа только начиналась. Норма на шаг растёт вместе с
+        лимитом шагов — бюджет перестаёт быть рабочим ограничителем и
+        остаётся страховкой от бесконечного цикла. Ноль по-прежнему значит
+        «бюджета нет».
+        """
+        configured = int(self.config.token_budget or 0)
+        if configured <= 0:
+            return 0
+        return max(configured, self.config.max_steps * TOKEN_BUDGET_PER_STEP)
+
     def _account_tokens(self, result: dict[str, Any]) -> None:
-        """Учесть потраченные токены и предупредить о перерасходе."""
+        """Учесть потраченные токены и, если лимит взят, остановить чтение."""
         used = int(result.get("tokens_in") or 0) + int(result.get("tokens_out") or 0)
         budget = self.step_budget
         budget["tokens"] = int(budget.get("tokens", 0)) + used
 
-        limit = self.config.token_budget
+        limit = self._budget_limit()
         if limit and budget["tokens"] > limit:
+            # Флаг ставится всегда: он, а не текст предупреждения, останавливает
+            # новые вызовы инструментов. Раньше здесь было только сообщение в
+            # события, и модель читала файлы дальше, пока шаги не кончились.
+            self.budget_exceeded = True
             warning = (f"превышен бюджет задачи: {budget['tokens']} из {limit} токенов "
                        f"({result.get('model')})")
             if warning not in budget["warnings"]:
@@ -1746,6 +2061,61 @@ def verify_file(path: str | Path) -> dict[str, Any]:
     return result
 
 
+def _content_brief(data: dict[str, Any]) -> str:
+    """Содержимое файла плюс точная подсказка, как читать дальше.
+
+    Модель получает файл окном. Без подсказки окно выглядит концом файла, и
+    она перечитывает те же строки с `offset=0`: живой прогон 06.10.2026 —
+    `hub/agent.py` прочитан шесть раз подряд, шаги и бюджет сгорели на одном
+    файле. Подсказка даёт ровно тот вызов, который двигает окно вперёд.
+    """
+    content = str(data.get("content") or "")
+    head = content[:BRIEF_LIMIT]
+    offset = int(data.get("offset") or 0)
+    total = int(data.get("lines") or 0)
+    cut = len(content) > len(head)
+    truncated = bool(data.get("truncated"))
+
+    if not content:
+        return "(пусто)"
+    if not cut and not truncated:
+        return head
+
+    if cut:
+        # Окно обрезано посреди файла: доедет только то, что стоит до первого
+        # неполного переноса, иначе хвост строки потеряется.
+        shown = head.count("\n")
+        next_offset = offset + shown
+    else:
+        # Всё окно показано, но файла дальше: следующий начинается со строки
+        # после последней полной.
+        shown = len(content.splitlines())
+        next_offset = offset + shown
+
+    if shown == 0:
+        # Одна строка длиннее всего окна: сдвиг по строкам не поможет.
+        return head + (
+            "\n\n[Первая строка файла длиннее окна. Не перечитывай её целиком — "
+            "нужное место ищи через search_text с паттерном.]"
+        )
+
+    window = f"строки {offset + 1}–{offset + shown}"
+    if total:
+        window += f" из {total}"
+    # «Осталось символов» имеет смысл только когда ответ обрезали посередине:
+    # иначе модель читает «осталось 0» и решает, что дошла до конца файла.
+    if cut:
+        tail = f"\n\n[Показано {window}, осталось {len(content) - len(head)} символов."
+    else:
+        tail = f"\n\n[Показано {window} (всё запрошенное окно)."
+    if total and next_offset >= total:
+        tail += " Конец файла в этом запросе достигнут."
+    else:
+        tail += (f" Продолжение: read_file с offset={next_offset}. "
+                 "Один и тот же файл бери только с новым offset.")
+    return head + tail + "]"
+
+
 def _tool_result_brief(result: ToolResult) -> str:
     """Короткое описание результата инструмента для контекста модели."""
     if not result.ok:
@@ -1753,17 +2123,14 @@ def _tool_result_brief(result: ToolResult) -> str:
     data = result.data
     if isinstance(data, dict):
         if "content" in data:
-            content = str(data["content"])
-            head = content[:4000]
-            tail = f"\n... [{len(content) - 4000} символов скрыто]" if len(content) > 4000 else ""
-            return f"{head}{tail}"
+            return _content_brief(data)
         if "stdout" in data:
-            return (data.get("stdout") or "")[:4000] or "(пустой вывод)"
+            return (data.get("stdout") or "")[:BRIEF_LIMIT] or "(пустой вывод)"
         if "hits" in data:
             return json.dumps(data["hits"][:50], ensure_ascii=False)
         if "path" in data:
             return json.dumps(data, ensure_ascii=False)
-    return json.dumps(data, ensure_ascii=False)[:4000] if data is not None else "ок"
+    return json.dumps(data, ensure_ascii=False)[:BRIEF_LIMIT] if data is not None else "ок"
 
 
 def selector_from_registry(

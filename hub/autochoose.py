@@ -334,11 +334,14 @@ def apply_limits(decision: Decision, limits: Limits) -> Decision:
             decision.reason += "; лимит шагов мал для роя"
         return decision
 
-    cap = MAX_SUBAGENTS
-    if limits.free_accounts:
-        # Два аккаунта оставляем главному агенту: иначе он не сможет
-        # собрать результат, пока части ещё работают.
-        cap = max(0, min(cap, limits.free_accounts - 2))
+    # Два аккаунта оставляем главному агенту: иначе он не сможет собрать
+    # результат, пока части ещё работают.
+    #
+    # Условие `if limits.free_accounts:` здесь стояло и было ошибкой: при нуле
+    # аккаунтов ограничение не применялось вовсе, и классификатор получал
+    # право запустить до шести субагентов без единого аккаунта. Ноль — это
+    # не «ограничение неизвестно», а вполне конкретное число.
+    cap = max(0, min(MAX_SUBAGENTS, limits.free_accounts - 2))
     if decision.subagents > cap:
         decision.reason += f"; субагентов урезали до {cap} по числу аккаунтов"
         decision.subagents = cap

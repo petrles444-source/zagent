@@ -452,7 +452,14 @@ class RefBook:
         if not out_text:
             return 0.0
 
-        scores: list[float] = []
+        # Сходство и вес собираются в одном цикле и в одном порядке. Раньше сходство
+        # складывалось в один список, а вес — в другой, причём по всему
+        # словарю: пустой файл эталона пропускался в первом списке, но не во
+        # втором, и при пустом **первом** файле все веса съезжали на одну
+        # позицию. Большой исходник получал вес короткого README, и вердикт
+        # «использовал ли эталон» менялся не из-за кода, а из-за пустого
+        # файла в начале списка.
+        pairs: list[tuple[float, float]] = []
         for rel, path in ref_files.items():
             try:
                 ref_text = path.read_text(encoding="utf-8", errors="replace")
@@ -477,23 +484,21 @@ class RefBook:
                 best = max(best, matcher.ratio())
                 if best > 0.99:
                     break
-            scores.append(best)
+            try:
+                weight = max(1, path.stat().st_size)
+            except OSError:
+                weight = 1
+            pairs.append((best, weight))
 
-        if not scores:
+        if not pairs:
             return 0.0
         # Взвешенное среднее по длине: короткий README не должен уравновешивать
         # сходство по большому исходнику. Файл весит пропорционально объёму,
         # поэтому результат отражает, сколько кода на самом деле взято.
-        weights: list[float] = []
-        for score, path in zip(scores, ref_files.values()):
-            try:
-                weights.append(max(1, path.stat().st_size))
-            except OSError:
-                weights.append(1)
-        total = sum(weights)
+        total = sum(weight for _, weight in pairs)
         if not total:
             return 0.0
-        return round(sum(s * w for s, w in zip(scores, weights)) / total, 3)
+        return round(sum(score * weight for score, weight in pairs) / total, 3)
 
     # -------------------------------------------------- дизайн-системы
 

@@ -19,7 +19,7 @@ from typing import Any, Callable
 
 import httpx
 
-from hub.keyring import gateway_key
+from hub.keyring import REGISTRY, gateway_key
 from providers.openai_compat import OpenAICompatProvider, extract_model_ids
 
 #: Суффиксы/маркеры, по которым модель считается бесплатной в живом каталоге.
@@ -441,6 +441,16 @@ async def probe_models(
                     done += 1
                     report("model", model, status=outcome.get("status"),
                            duration_ms=outcome.get("duration_ms", 0))
+                    # Учёт квоты проб. Сканирование каталога — это десятки
+                    # запросов по каждому аккаунту, и кольцо обязано о них
+                    # знать: иначе агент стартует с остатком «48 осталось»,
+                    # полученным до сканирования, и упирается в 429 на середине
+                    # задачи, не понимая почему.
+                    limits = outcome.get("limits") or {}
+                    if limits:
+                        REGISTRY.note_quota(gateway, gateway_key(gateway),
+                                           limits)
+                    REGISTRY.note_spent(gateway, gateway_key(gateway))
                 if start + batch_size < len(group) and per_gateway_pause > 0:
                     report("pause", gateway=gateway_id, seconds=per_gateway_pause)
                     await asyncio.sleep(per_gateway_pause)
@@ -458,6 +468,13 @@ async def probe_models(
                             outcome["retried"] = True
                         results[model.ref] = outcome
                         report("model", model, status=outcome.get("status"), retried=True)
+                        # Повторы тоже тратят квоту — и их учёт обязан быть
+                        # таким же, как у основных проб.
+                        limits = outcome.get("limits") or {}
+                        if limits:
+                            REGISTRY.note_quota(gateway, gateway_key(gateway),
+                                               limits)
+                        REGISTRY.note_spent(gateway, gateway_key(gateway))
         finally:
             await client.aclose()
 
@@ -533,6 +550,12 @@ async def one_probe(
         "cost": result.get("cost"),
         "http": http,
         "sample": (text or reasoning)[:60],
+        # Остаток квоты из заголовков ответа. Проба идёт напрямую через
+        # `provider.chat`, минуя `failover`, где учёт и происходит, — и без
+        # этого поля полное сканирование каталога выжигало десятки запросов
+        # молча: кольцо считало по старому остатку, агент получал 429 на
+        # середине задачи, а причина была в сканировании час назад.
+        "limits": result.get("limits") or {},
     }
 
     if error is None:

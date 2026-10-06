@@ -37,6 +37,9 @@ class ConnectInfo:
     keyless: bool = False
     note: str = ""
     error: str | None = None
+    #: Сколько ключей у шлюза. Нужно интерфейсу, чтобы сказать «ключей
+    #: несколько», не показывая ни одного.
+    key_count: int = 0
 
     def to_dict(self, *, reveal: bool = False) -> dict[str, Any]:
         """Данные для интерфейса.
@@ -55,7 +58,7 @@ class ConnectInfo:
             "api_key": key if reveal else mask_secret(key),
             "key_masked": mask_secret(key),
             "key_hint": fingerprint(key),
-            "key_count": max(1, len(key)) if key else 0,
+            "key_count": self.key_count,
             "has_key": bool(key),
             "env_var": self.env_var,
             "models": self.models,
@@ -80,6 +83,13 @@ def build_connect_info(registry: Registry) -> list[ConnectInfo]:
         models = [m.model_id for m in registry.chat_models if m.gateway_id == gateway_id]
         needs_key = bool(gateway.get("needs_key"))
         has_key = bool(gateway.get("api_key"))
+        # Считаются все ключи шлюза, а не длина одного из них: поле так и
+        # называется. Раньше здесь стояло `max(1, len(key))`, и интерфейс
+        # показывал «ключей: 48» для ключа длиной в 48 символов.
+        key_count = len([k for k in (gateway.get("api_keys") or [])
+                         if str(k or "").strip()])
+        if not key_count and gateway.get("api_key"):
+            key_count = 1
 
         error = None
         if needs_key and not has_key:
@@ -100,6 +110,7 @@ def build_connect_info(registry: Registry) -> list[ConnectInfo]:
                 keyless=not needs_key,
                 note=str(gateway.get("notes") or ""),
                 error=error,
+                key_count=key_count,
             )
         )
 

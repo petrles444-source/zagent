@@ -725,6 +725,20 @@ class Handler(BaseHTTPRequestHandler):
             if parsed.path == "/api/tasks":
                 return self._json({"ok": True, "tasks": self.api.worker.store.list_tasks(
                     limit=int(query.get("limit", ["30"])[0]))})
+            # Отдельный GET по id: интерфейс иногда хочет открыть конкретную
+            # задачу, а списка может быть мало. Без него возвращается 404, хотя
+            # задача существует — живой прогон показал, что это бесполезное
+            # ограничение для UI.
+            if parsed.path.startswith("/api/tasks/"):
+                try:
+                    task_id_str = parsed.path.rsplit("/", 1)[-1]
+                    task_id = int(task_id_str)
+                except ValueError:
+                    return self._json({"ok": False, "error": "некорректный id задачи"}, 400)
+                task = self.api.worker.store.get_task(task_id)
+                if task is None:
+                    return self._json({"ok": False, "error": "задача не найдена"}, 404)
+                return self._json({"ok": True, "task": task})
             if parsed.path == "/api/permissions":
                 # Список неотвеченных запросов на выход за воркспейс.
                 # Через GET его удобно опрашивать, пока агент ждёт ответа.
