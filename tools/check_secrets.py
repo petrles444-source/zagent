@@ -35,18 +35,29 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-#: Узнаваемая форма ключей по провайдерам — та же, что применяет GitHub при
-#: проверке пуша. Длина завышена намеренно: под образец попадают и настоящие
-#: ключи, и тестовые заглушки, а их придётся разобрать глазами — это безопасно.
-#: Обратная ситуация опаснее: короткий образец пропустит ключ с лишним
-#: символом.
+#: Узнаваемая форма ключей по провайдерам. Образец шире, чем кажется нужным:
+#: подчёркивание внутри строки (`sk-or-v1-…_…`) и хвост в тридцать с лишним
+#: символ тоже останавливают пуш, хотя выглядят невинно. Длина завышена
+#: намеренно: под образец попадают и настоящие ключи, и тестовые заглушки, а
+#: их придётся разобрать глазами — это безопасно. Обратная ситуация опаснее:
+#: узкий образец пропустит ключ, который остановит пуш.
 SHAPES = {
-    "openrouter": r"sk-or-v1-[A-Za-z0-9]{40,}",
-    "groq": r"gsk_[A-Za-z0-9]{40,}",
-    "nvidia": r"nvapi-[A-Za-z0-9_-]{40,}",
-    "mistral": r"mstrl_[A-Za-z0-9]{24,}",
-    "cloudflare_token": r"cfut_[A-Za-z0-9_-]{24,}",
+    "openrouter": r"sk-or-v1-[A-Za-z0-9_-]{20,}",
+    "groq": r"gsk_[A-Za-z0-9_-]{20,}",
+    "nvidia": r"nvapi-[A-Za-z0-9_-]{20,}",
+    "mistral": r"mstrl_[A-Za-z0-9_-]{16,}",
+    "cloudflare_token": r"cfut_[A-Za-z0-9_-]{16,}",
     "z_ai": r"\b[0-9a-f]{32}\.[A-Za-z0-9]{24,}",
+}
+
+#: Образцы проверки со стороны GitHub. Ключ, удалённый из последнего коммита,
+#: для проверки формы никуда не делся: она смотрит на всю цепочку. Поэтому
+#: образцы строже наших — GitHub ищет по vendor-специфичным правилам, и
+#: наши подстановки под его набор не обязаны совпадать.
+GITHUB_SHAPES = {
+    "openrouter (как у GitHub)": r"sk-or-v1-[a-f0-9]{64}",
+    "groq (как у GitHub)": r"gsk_[a-zA-Z0-9]{52}",
+    "nvidia (как у GitHub)": r"nvapi-[a-zA-Z0-9_-]{64}",
 }
 
 #: Файлы, где ключ — часть проверки, а не утечка. Исключение узкое: если
@@ -124,6 +135,47 @@ def scan_exact(files: list[str], secrets: list[str]) -> list[tuple[str, str]]:
     return hits
 
 
+def scan_history(keys: list[str]) -> list[tuple[str, str, str]]:
+    """Проверить всю историю, а не только индекс.
+
+    Пуш отправляет все коммиты подряд, и проверка формы ключа на стороне
+    GitHub смотрит на каждый. Ключ в промежуточном коммите, удалённый из
+    следующего, для неё остаётся ключом — и пуш отклоняется целиком.
+
+    Два прохода: по образцам GitHub (находит то, что человеком написано
+    намеренно) и сверкой с настоящими ключами (находит то, что спрятано под
+    любым именем и выглядит как заглушка).
+    """
+    revs = subprocess.run(["git", "rev-list", "--all"], capture_output=True,
+                          text=True, encoding="utf-8").stdout.split()
+    hits: list[tuple[str, str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for rev in revs:
+        names = subprocess.run(
+            ["git", "ls-tree", "-r", "--name-only", rev],
+            capture_output=True, text=True, encoding="utf-8",
+            errors="ignore").stdout.splitlines()
+        for name in names:
+            if name in ALLOWED:
+                continue
+            blob = subprocess.run(["git", "show", f"{rev}:{name}"],
+                                  capture_output=True, text=True,
+                                  encoding="utf-8", errors="ignore").stdout
+            if not blob:
+                continue
+            for label, pattern in GITHUB_SHAPES.items():
+                if re.search(pattern, blob) and (rev, name) not in seen:
+                    seen.add((rev, name))
+                    hits.append((rev[:8], name, label))
+            for key in keys:
+                if key in blob:
+                    if (rev, name) not in seen:
+                        seen.add((rev, name))
+                        hits.append((rev[:8], name, "настоящий ключ"))
+                    break
+    return hits
+
+
 def main() -> int:
     files = indexed_files()
     print(f"Файлов в индексе: {len(files)}")
@@ -161,7 +213,16 @@ def main() -> int:
         print("   все похожие строки помечены как заглушки")
     print(f"   из них заглушек: {len(stubs)}")
 
-    return 1 if exact or real else 0
+    history = scan_history(secrets)
+    print("\n3. Вся история git (то, что уедет на сервер)")
+    if history:
+        print(f"   НАЙДЕНО: {len(history)}")
+        for rev, name, why in history[:20]:
+            print(f"     {rev}  {name}  ({why})")
+    else:
+        print("   чисто — пуш не будет отклонён")
+
+    return 1 if exact or real or history else 0
 
 
 if __name__ == "__main__":
