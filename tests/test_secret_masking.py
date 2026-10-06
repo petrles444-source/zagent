@@ -72,7 +72,7 @@ def test_маска_короткого_ключа() -> None:
 def test_маска_узнаётся_человеком() -> None:
     """Маска обязана позволять отличить свои девять ключей."""
     a = mask_secret(SECRET)
-    b = mask_secret("sk-or-v1-udalennye-dlya-istorii-znacheniya")
+    b = mask_secret("sk-or-v1-" + "0" * 29 + "_" + "1" * 29 + "b")
     assert a != b
 
 
