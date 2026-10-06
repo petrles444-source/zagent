@@ -130,7 +130,13 @@ def _agent(base: Path, worker: FakeWorker) -> Agent:
 
 def _parts(count: int = 3):
     data = json.loads(SPLIT)
-    data["parts"] = data["parts"][:count]
+    parts = data["parts"]
+    # Нужно столько, сколько просят: имена и файлы у части обязаны быть свои.
+    while len(parts) < count:
+        i = len(parts)
+        parts.append({"title": f"ещё {i}", "brief": f"сделай {i}",
+                      "files": [f"extra{i}.html"]})
+    data["parts"] = parts[:count]
     return parse_parts(json.dumps(data, ensure_ascii=False))
 
 
@@ -289,6 +295,126 @@ def test_темп_настроен_на_каждый_аккаунт(tmp_path: Pa
         assert run.pacer.bucket(account).rate_per_min == 40, account
 
 
+def test_часть_считается_сделанной_по_файлам(tmp_path: Path) -> None:
+    """Вердикт с диска, а не от модели.
+
+    Живой прогон 06.10.2026 вскрыл это: части создавали файлы, но не успевали
+    сказать «готово» — кончался лимит шагов на последнем ответе. По отчёту
+    они считались невыполненными, главный агент получал «НЕ СДЕЛАНО» по
+    всем частям, а подмена уводила на резерв тех, кто уже закончил.
+    """
+    from hub.swarm_run import files_ready
+
+    parts = parse_parts(json.dumps({"parts": [
+        {"title": "страница", "brief": "сделай", "files": ["page1.html"]},
+        {"title": "скрипты", "brief": "сделай", "files": ["src/*.js"]},
+    ]}, ensure_ascii=False))
+    assert files_ready(parts[0], tmp_path) == [], "пустая папка — не готово"
+
+    (tmp_path / "page1.html").write_text("<h1>Привет</h1>", encoding="utf-8")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.js").write_text("//", encoding="utf-8")
+    assert files_ready(parts[0], tmp_path) == ["page1.html"]
+    assert files_ready(parts[1], tmp_path) == ["src/app.js"]
+
+
+def test_пустой_файл_не_считается_работой(tmp_path: Path) -> None:
+    """Файл нулевой длины — это не результат: агент мог создать его и
+    бросить на середине."""
+    from hub.swarm_run import files_ready
+
+    parts = parse_parts(json.dumps({"parts": [
+        {"title": "страница", "brief": "сделай", "files": ["page1.html"]},
+    ]}, ensure_ascii=False))
+    (tmp_path / "page1.html").write_text("", encoding="utf-8")
+    assert files_ready(parts[0], tmp_path) == []
+
+
+def test_выполненная_часть_не_уходит_в_подмену(tmp_path: Path) -> None:
+    """Часть, написавшая свои файлы, не должна переезжать на резервный
+    аккаунт: работа уже сделана, второй заход её только испортит."""
+    worker = FakeWorker(tmp_path)
+    parts = _parts(2)
+    by_name = {p.name: p for p in parts}
+
+    def writes_then_no_finish(self: Agent, task: str) -> None:
+        part = by_name.get(self.part or "")
+        for rel in (part.files if part else ["нет.html"]):
+            (tmp_path / rel).write_text("<h1>ок</h1>", encoding="utf-8")
+
+        async def run() -> dict[str, Any]:
+            # Модель не сказала «готово»: лимит шагов кончился на ответе.
+            return {"ok": False, "last": "", "steps": 4, "tools_used": [],
+                    "models_used": ["a/модель"]}
+
+        self.run = run
+
+    import hub.agent as agent_mod
+    original = agent_mod.Agent.set_task
+    agent_mod.Agent.set_task = writes_then_no_finish
+    try:
+        run_, _ = _run(worker, tmp_path, parts)
+    finally:
+        agent_mod.Agent.set_task = original
+
+    assert run_["ok"] == 2, run_
+    assert "swarm_handoff" not in [e["type"] for e in worker.events], (
+        "готовая часть не должна подменяться")
+
+
+def test_причина_отказа_берётся_из_шагов(tmp_path: Path,
+                                   monkeypatch: pytest.MonkeyPatch) -> None:
+    """Основной путь `Agent.run()` не отдаёт ключ `error` вовсе.
+
+    Причина отказа живёт в шагах. Раньше рой читал только `outcome["error"]`,
+    всегда получал пустоту, решал, что отказа аккаунта не было, и подмена не
+    включалась ни разу — при живом прогоне это стоило трёх упавших частей.
+    """
+    worker = FakeWorker(tmp_path)
+
+    def bad_key(agent: Agent, task: str) -> None:
+        async def run() -> dict[str, Any]:
+            step = type("S", (), {"tool": None, "model": "a/модель",
+                                  "error": "401 неавторизован"})()
+            agent.steps.append(step)
+            # Ровно то, что отдаёт настоящий Agent.run().
+            return {"ok": False, "steps": 1, "last": "", "tools_used": [],
+                    "models_used": ["a/модель"]}
+
+        agent.run = run
+
+    monkeypatch.setattr(Agent, "set_task", bad_key)
+    run_, _ = _run(worker, tmp_path, _parts(1))
+    assert "swarm_handoff" in [e["type"] for e in worker.events], (
+        "отказ аккаунта обязан приводить к подмене")
+
+    note = next(e for e in worker.events if e["type"] == "swarm_handoff")
+    assert "401" in note["reason"], note["reason"]
+
+
+def test_причина_отказа_видна_в_результате_части(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Причина обязана попасть в отчёт: иначе в сводке «НЕ СДЕЛАНО» без
+    объяснения, а человек гадает."""
+    worker = FakeWorker(tmp_path)
+
+    def no_access(agent: Agent, task: str) -> None:
+        async def run() -> dict[str, Any]:
+            agent.steps.append(type("S", (), {
+                "tool": None, "model": "a/модель",
+                "error": "все ключи провайдера в карантине по лимиту"})())
+            return {"ok": False, "steps": 1, "last": "", "tools_used": [],
+                    "models_used": ["a/модель"]}
+
+        agent.run = run
+
+    monkeypatch.setattr(Agent, "set_task", no_access)
+    _run(worker, tmp_path, _parts(1))
+    failed = [e for e in worker.events if e["type"] == "swarm_part_failed"]
+    assert failed, worker.events
+    assert "карантине" in failed[0]["error"], failed[0]["error"]
+
+
 # =============================================================== сборка
 
 
@@ -312,11 +438,20 @@ def test_главный_агент_видит_невыполненные_час�
     assert parts[1].name in text
 
 
+def _bench(tmp_path: Path, keys: int = 6) -> FakeWorker:
+    """Воркер на нужное число аккаунтов: слотов столько, сколько частей,
+    иначе часть остаётся без слота и до промежуточного взгляда не доживает."""
+    worker = FakeWorker(tmp_path)
+    worker.keyring = _KeyRing(keys)
+    worker.gateways = [{"id": "a", "key_count": keys, "rpm_per_account": 40}]
+    return worker
+
+
 def test_главный_агент_получает_промежуточный_результат(
         tmp_path: Path, model_stub) -> None:
     """Главный агент не простаивает, пока части идут."""
-    worker = FakeWorker(tmp_path)
-    parts = _parts(2)
+    worker = _bench(tmp_path, 6)
+    parts = _parts(4)
     run_ = SwarmRun(worker=worker, agent=_agent(tmp_path, worker),
                     config=_config(tmp_path), parts=parts,
                     task={"id": 1, "task": "t"}, task_context="t")
@@ -338,3 +473,55 @@ def test_главный_агент_получает_промежуточный_�
     assert "первая готова" in seen[0], seen[0]
     assert parts[1].name in seen[0], "в сообщении должно быть и то, что в работе"
     assert "НУЖНО ЖДАТЬ" in seen[0], "главному оставлен выбор: ждать или нет"
+
+
+def test_перед_финальной_сборкой_взгляд_не_делается(tmp_path: Path,
+                                                 model_stub) -> None:
+    """Когда почти всё готово, взгляд не нужен: финальная сборка получит всё
+    и через минуту. Взгляд сейчас только тратит запросы — замер 06.10.2026
+    показал, что на коротких частях эти обходы дороже работы."""
+    worker = FakeWorker(tmp_path)
+    parts = _parts(3)
+    run_ = SwarmRun(worker=worker, agent=_agent(tmp_path, worker),
+                    config=_config(tmp_path), parts=parts,
+                    task={"id": 1, "task": "t"}, task_context="t")
+    plan = run_.build_plan()
+    for slot, part in zip(plan.workers, parts):
+        slot.taken_by = part.name
+    for part in parts[:-1]:
+        run_.swarm.mark_done(part.name, "готово")
+
+    ran: list[str] = []
+
+    async def behaviour() -> dict[str, Any]:
+        ran.append("да")
+        return {"ok": True, "last": ""}
+
+    run_.agent.run = behaviour  # type: ignore[assignment]
+    asyncio.run(run_.partial_round())
+    assert ran == [], "перед финальной сборкой промежуточный заход лишний"
+
+
+def test_промежуточный_взгляд_ограничен_шагами(tmp_path: Path,
+                                            model_stub) -> None:
+    """Взгляд между делом не должен разойтись на полноценный заход по задаче."""
+    worker = _bench(tmp_path, 6)
+    parts = _parts(4)
+    run_ = SwarmRun(worker=worker, agent=_agent(tmp_path, worker),
+                    config=_config(tmp_path), parts=parts,
+                    task={"id": 1, "task": "t"}, task_context="t")
+    plan = run_.build_plan()
+    for slot, part in zip(plan.workers, parts):
+        slot.taken_by = part.name
+    run_.swarm.mark_done(parts[0].name, "готово")
+
+    from hub.swarm_run import PARTIAL_STEPS
+
+    async def behaviour() -> dict[str, Any]:
+        # Агент читает лимит в каждом шаге — проверим, что он увидел урезанный.
+        return {"ok": True, "last": str(run_.config.max_steps)}
+
+    run_.agent.run = behaviour  # type: ignore[assignment]
+    note = asyncio.run(run_.partial_round())
+    assert note == str(PARTIAL_STEPS), note
+    assert run_.config.max_steps == 3, "после взгляда бюджет обязан вернуться"

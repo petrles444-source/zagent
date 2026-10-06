@@ -55,6 +55,21 @@ MAX_HANDOFF = 2
 #: слишком редко главный агент простаивает впустую.
 PARTIAL_EVERY_S = 45.0
 
+#: Шагов на промежуточный взгляд.
+#:
+#: Взгляд между делом, а не второй заход по задаче. Полный прогон агента
+#: стоил бы столько же запросов, сколько самая большая часть, и на коротких
+#: частях обход дороже самой работы: замер 06.10.2026 на шести страницах дал
+#: 183 с у роя против 61 с у обычного режима, и заметная доля ушла именно
+#: на промежуточные сборки.
+PARTIAL_STEPS = 2
+
+#: Пока столько частей в работе, промежуточный взгляд не делается.
+#:
+#: Скоро финальная сборка, а она получит всё. Взгляд сейчас не даст ничего,
+#: чего не будет через минуту, но запросы потратит.
+TAIL_PARTS = 2
+
 #: Минимальная пауза между двумя запусками частей, секунд. Разброс нужен,
 #: чтобы запросы разошлись по времени: пачка одинаковых запросов в одну
 #: миллисекунду — самый заметный признак автоматизации.
@@ -79,6 +94,10 @@ class Slot:
     #: Почему аккаунт выпал: видно в интерфейсе, иначе резерв выглядит
     #: беспричинным набором пустых мест.
     note: str = ""
+    #: Помечен как отказавший. Ставится снаружи — по живому отказу провайдера,
+    #: — и нужен для замера: сам тест не должен решать за систему, кого
+    #: считать отказавшим.
+    blocked: bool = False
 
     @property
     def free(self) -> bool:
@@ -96,8 +115,14 @@ class Slot:
             else self.ref
 
     def to_dict(self) -> dict[str, Any]:
-        return {"gateway": self.gateway, "ref": self.ref, "taken_by": self.taken_by,
-                "rpm": self.rpm, "note": self.note}
+        # Хвост ключа в интерфейсе обязателен: у рабочих и резервных слотов
+        # одного шлюза модель и шлюз совпадают, и без хвоста они выглядят
+        # одинаковыми. По хвосту же видно, что подмена ушла на другой
+        # аккаунт, а не на соседний слот того же шлюза.
+        return {"gateway": self.gateway, "ref": self.ref,
+                "taken_by": self.taken_by, "rpm": self.rpm,
+                "note": self.note,
+                "key_tail": self.key[-6:] if self.key else ""}
 
 
 @dataclass
@@ -136,7 +161,7 @@ def build_slots(selector: Any, gateways: list[dict], keyring: Any) -> list[Slot]
     близкая к началу списка. Модели без замера не берутся — поручать работу
     той, о чём ничего не известно, хуже, чем подождать.
     """
-    out: list[Slot] = []
+    rows: list[list[Slot]] = []
     states = getattr(selector, "states", {}) or {}
     tierbook = getattr(selector, "tierbook", None)
     seen: set[str] = set()
@@ -174,14 +199,49 @@ def build_slots(selector: Any, gateways: list[dict], keyring: Any) -> list[Slot]
         # модель на одном аккаунте всё равно одна в момент времени.
         chosen = sorted(best.values(), key=lambda s: (s.tier, s.avg_ms))[0]
 
+        made: list[Slot] = []
         for key in ring.available():
-            if key in seen:
+            # Аккаунт — это пара «шлюз, ключ», а не сам ключ. Один и тот же
+            # ключ на двух шлюзах — это два разных аккаунта с разными
+            # лимитами, и сверка по одному ключу молча выбрасывала бы второй.
+            pair = (gateway_id, key)
+            if pair in seen:
                 continue
-            seen.add(key)
-            out.append(Slot(gateway=gateway_id, key=key, ref=chosen.ref,
-                            model=chosen.model, tier=chosen.tier,
-                            avg_ms=chosen.avg_ms, vision=chosen.vision,
-                            tools=True, rpm=rpm))
+            seen.add(pair)
+            made.append(Slot(gateway=gateway_id, key=key, ref=chosen.ref,
+                             model=chosen.model, tier=chosen.tier,
+                             avg_ms=chosen.avg_ms, vision=chosen.vision,
+                             tools=True, rpm=rpm))
+        if made:
+            rows.append(made)
+    return _interleave(rows)
+
+
+def _interleave(rows: list[list[Slot]]) -> list[Slot]:
+    """Перемешать слоты по шлюзам, чтобы рой не встал на одного провайдера.
+
+    Порядок шлюзов в конфиге — это порядок объявления, а не готовность.
+    Если просто идти по нему, то шлюз с наибольшим числом ключей заберёт
+    почти все слоты, и части разойдутся по одному провайдеру. Дальше два
+    неприятных следствия, и оба серьёзные.
+
+    **Отказ одного провайдера убивает весь рой.** Части стоят на разных
+    аккаунтах одного шлюза — отказ у провайдера общий для всех, и подменять
+    нечем: резерв лежит там же.
+
+    **Весь расход уходит на провайдера с наименее известными лимитами.**
+    Именно у него чаще всего нет заголовков квоты, и рой идёт наугад.
+
+    Перебор по кругу даёт каждому шлюзу сопоставимую долю, а уже из неё
+    планирование возьмёт нужное число рабочих. Лишние слоты того же шлюза
+    остаются в резерве — они и должны быть резервом.
+    """
+    out: list[Slot] = []
+    depth = max((len(r) for r in rows), default=0)
+    for i in range(depth):
+        for row in rows:
+            if i < len(row):
+                out.append(row[i])
     return out
 
 
@@ -234,8 +294,17 @@ def make_plan(slots: list[Slot], parts: list[Any], *,
         slot.taken_by = part.name
 
     busy = sum(1 for s in plan.workers if not s.free)
-    plan.note = (f"занято {busy} аккаунтов из {len(slots)} свободных, "
-                 f"резерв {len(plan.reserve)}")
+    spare = len(plan.reserve)
+    if busy >= len(parts) and plan.unassigned == []:
+        # Все части получили аккаунт, а свободные остались незанятыми. Это не
+        # «плохо заполнено» и не недоделка: частей в задаче столько, сколько
+        # получилось, и выдумывать работу ради занятости мощности нельзя.
+        plan.note = (f"занято {busy} из {len(slots)} свободных аккаунтов, "
+                     f"резерв {spare} — задача дала {len(parts)} частей, "
+                     f"заняты все")
+    else:
+        plan.note = (f"занято {busy} из {len(slots)} свободных аккаунтов, "
+                     f"резерв {spare}")
     return plan
 
 

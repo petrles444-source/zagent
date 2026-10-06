@@ -281,6 +281,11 @@ class Worker:
             # станет известен лишь после того, как агент упрётся в лимит, а
             # к тому моменту часть работы уже потеряна.
             KEY_RING.apply_limits(self.gateways)
+            # Кольцо ключей доступно всем, а не только рою. Раньше оно
+            # подставлялось внутри `_run_herd`, и планировщик зависел от того,
+            # что режим роя уже начался: любой другой вызов планирования
+            # падал бы с AttributeError.
+            self.keyring = KEY_RING
             self.selector = selector_from_registry(
                 self.registry,
                 mode=self.store.get_meta("mode", "auto"),
@@ -1632,15 +1637,11 @@ class Worker:
         получает то, что готово, и делает то, что можно сделать без
         недостающих файлов.
         """
-        from hub.keyring import REGISTRY as RING
-        from hub.swarm_run import HERD_SYSTEM, SwarmRun, system_of
-        from hub.subagents import (
-            parse_parts as _parse_parts,
-        )
+        from hub.swarm_run import SwarmRun, herd_system, system_of
+        from hub.subagents import parse_parts as _parse_parts
 
         task_id = int(task["id"])
         text = str(task["task"])
-        self.keyring = RING
 
         # 1. Разбиение. Частей просят больше обычного: рою доступны все
         # свободные аккаунты, а не те, что осталось от прошлой задачи.
@@ -1651,7 +1652,7 @@ class Worker:
             decider = AutoCaller(self.selector, timeout=60.0, empty_retries=1)
         try:
             split = await decider.ask(
-                [{"role": "system", "content": HERD_SYSTEM},
+                [{"role": "system", "content": herd_system(want)},
                  {"role": "user", "content": text}],
                 temperature=0.0, max_tokens=2500)
             if not split.get("error"):
@@ -1699,6 +1700,8 @@ class Worker:
     async def _assemble(self, agent: Agent, config: AgentConfig, text: str,
                         run: Any, images: list[str] | None) -> dict[str, Any]:
         """Финальная сборка: полная сводка и ответ человеку."""
+        from hub.swarm_run import system_of
+
         swarm = run.swarm
         lines = []
         for name, got in (run.results or {}).items():

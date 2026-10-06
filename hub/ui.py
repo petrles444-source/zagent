@@ -302,6 +302,9 @@ pre.code {
 .herdSlot.busy { border-color:var(--accent); }
 .herdSlot.idle { border-style:dashed; color:var(--dim); }
 .hsRef { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:230px; }
+/* Хвост аккаунта приглушён: он нужен, чтобы различать слоты одного шлюза,
+   но важнее остальных сведений в строке не должен быть. */
+.hsKey { color:var(--dim); font-family:var(--mono, monospace); font-size:10px; }
 .hsOwner { color:var(--muted); white-space:nowrap; }
 
 /* Панель субагентов: карточка на часть, след разворачивается по клику. */
@@ -2146,9 +2149,14 @@ function renderHerdPlan(plan) {
   HERD.plan = plan || null;
   const box = herdBox();
   if (!plan) { box.innerHTML = ''; return; }
+  // Хвост аккаунта обязателен: у рабочих и резервных слотов одного шлюза
+  // модель и шлюз совпадают, и без хвоста они выглядят одинаковыми. По
+  // хвосту видно и что подмена ушла на другой аккаунт, а не на соседний
+  // слот того же шлюза.
   const rows = (list, cls) => list.map(s => `<div class="herdSlot ${cls}"
-      title="${esc(s.ref)}${s.note ? ' — ' + esc(s.note) : ''}">
+      title="${esc(s.ref)}${s.key_tail ? ' · аккаунт …' + esc(s.key_tail) : ''}${s.note ? ' — ' + esc(s.note) : ''}">
       <span class="hsRef">${esc(s.ref)}</span>
+      ${s.key_tail ? `<span class="hsKey">…${esc(s.key_tail)}</span>` : ''}
       <span class="hsOwner">${esc(s.taken_by || 'резерв')}</span>
     </div>`).join('');
   box.innerHTML = `<div class="herdGroup">рабочие</div>

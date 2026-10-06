@@ -17,7 +17,9 @@ from hub.failover import AutoCaller
 from hub.pacer import PacedCaller, Pacer
 from hub.swarm import (
     PARTIAL_EVERY_S,
+    PARTIAL_STEPS,
     STAGGER_S,
+    TAIL_PARTS,
     Plan,
     Slot,
     Swarm,
@@ -48,8 +50,7 @@ HERD_SYSTEM = (
     '"files": ["путь/папка"]}]}\n'
     "\n"
     "Правила:\n"
-    "- Частей столько, сколько в задаче действительно независимых кусков: "
-    "большая задача обычно распадается на 4–12 частей.\n"
+    "- ЧАСТЕЙ_СКОЛЬКО\n"
     "- Части не должны трогать одни и те же файлы. У каждой свои files.\n"
     "- Части не должны зависеть друг от друга. Порядок не соблюдается: "
     "все стартуют одновременно, поэтому части, которой нужен результат "
@@ -65,6 +66,32 @@ HERD_SYSTEM = (
 )
 
 
+def files_ready(part: Any, base: Path) -> list[str]:
+    """Какие файлы части появились на диске.
+
+    Часть объявляет свои файлы при разбиении — иногда точно (`index.html`),
+    иногда маской (`src/*.js`). И то и другое раскрывается на настоящем
+    диске: иначе пришлось бы верить модели на слово, а модель может написать
+    «готово» и ничего не создать.
+    """
+    out: list[str] = []
+    for raw in getattr(part, "files", None) or []:
+        rel = str(raw).strip().lstrip("./")
+        if not rel:
+            continue
+        target = base / rel
+        try:
+            if any(ch in rel for ch in "*?["):
+                out.extend(str(p.relative_to(base).as_posix())
+                           for p in sorted(base.glob(rel))
+                           if p.is_file())
+            elif target.is_file() and target.stat().st_size:
+                out.append(rel)
+        except (OSError, ValueError):
+            continue
+    return out
+
+
 def system_of(agent: Agent) -> str:
     """Системный промт агента.
 
@@ -78,6 +105,22 @@ def system_of(agent: Agent) -> str:
         if message.get("role") == "system":
             return str(message.get("content") or "")
     return ""
+
+
+def herd_system(want: int) -> str:
+    """Промт разбиения с настоящим числом частей.
+
+    Без числа модель берёт «4–12» из инструкции и обычно выдаёт три: три
+    страницы она видит, а тридцать аккаунтов — нет. Проблема не в том, что
+    три части получились плохими, а в том, что половина флота молчит без
+    причины. Число нужно сказать прямо.
+    """
+    return HERD_SYSTEM.replace(
+        "ЧАСТЕЙ_СКОЛЬКО",
+        f"Сейчас свободно аккаунтов под работу — выбирайте частей около {want}. "
+        f"Больше {want} всё равно не встанет в строй: лишние части будут ждать "
+        f"свободного аккаунта, а времени на это нет.",
+    )
 
 
 class SwarmRun:
@@ -195,16 +238,44 @@ class SwarmRun:
             ok = bool(outcome.get("ok"))
             text = str(outcome.get("last") or "")[:1500]
             error = str(outcome.get("error") or "")
-            tools = [s.tool for s in part_agent.steps if s.tool]
+            tools = [getattr(s, "tool", None) for s in part_agent.steps]
+            tools = [t for t in tools if t]
             models = sorted({s.model for s in part_agent.steps if s.model})
             steps = len(part_agent.steps)
+            # Причина отказа берётся из первого шага с ошибкой. Основной путь
+            # `Agent.run()` ключа `error` не отдаёт вовсе — причина живёт в
+            # шагах, — и без этого подмена не включалась никогда: решала,
+            # что отказа аккаунта не было. Берётся первый, а не последний:
+            # после первого отказа все следующие повторяют «все модели
+            # недоступны», и по последнему причина читалась бы как «агент
+            # сломался».
+            first_error = next((getattr(s, "error", None)
+                               for s in part_agent.steps
+                               if getattr(s, "error", None)), "")
+            if not error and first_error:
+                error = str(first_error)
         except Exception as exc:  # noqa: BLE001
             ok, text, error = False, "", f"{type(exc).__name__}: {exc}"
             tools, models, steps, elapsed = [], [], 0, 0
 
+        # Вердикт с диска, а не от модели. Часть, которая написала свои
+        # файлы, но не успела сказать «готово» (лимит шагов кончился на
+        # последнем ответе), сделала работу. Обратное тоже верно: модель
+        # может написать «готово» и ничего не создать.
+        #
+        # Без этого части, выполнившие задание, попадали в отчёт как
+        # невыполненные, главный агент получал «НЕ СДЕЛАНО» по всем частям,
+        # а подмена уводила на резервный аккаунт тех, кто уже закончил.
+        made = files_ready(part, self.base)
+        by_disk = bool(made) and not ok
+        if by_disk:
+            ok = True
+            error = ""
+
         return {"ok": ok, "summary": text, "error": error, "tools": tools,
                 "models": models, "steps": steps, "elapsed_ms": elapsed,
-                "slot": slot, "attempt": attempt}
+                "slot": slot, "attempt": attempt, "files": made,
+                "by_disk": by_disk}
 
     async def run_part(self, part: Any, index: int, slot: Slot,
                        denied: list[list[str]],
@@ -224,11 +295,13 @@ class SwarmRun:
                                         attempt=attempt)
             if result["ok"]:
                 break
-            reason = result["error"] or "работа не завершена"
-            # Отказ из-за лимита или сети — то, что подмена чинит.
-            # Отказ из-за самой модели подменой не лечится: другая модель на
-            # другом аккаунте даст тот же ответ.
-            if not _worth_handoff(reason):
+            # Причина сюда идёт как есть, без замены на слова. Подмена на
+            # «работа не завершена» означала бы, что самый частый отказ —
+            # оборванный на первом шаге запрос — никогда не подменялся: в
+            # тексте нет ни слова про аккаунт, и проверка решала, что дело
+            # в модели.
+            reason = str(result.get("error") or "")
+            if not _worth_handoff(reason, int(result.get("steps") or 0)):
                 break
             fresh = self.swarm.handoff(part.name, reason) if self.swarm else None
             if fresh is None:
@@ -268,6 +341,13 @@ class SwarmRun:
         Главный агент не простаивает: он получает сводку и делает то, что
         можно сделать без недостающих файлов. Решение «ждать остальное» за
         ним: если без них нельзя, он так и пишет.
+
+        Проход короткий и намеренно ограничен. Это взгляд «между делом», а
+        не второй заход по задаче: полный прогон агента здесь съедал бы
+        столько же запросов, сколько самая большая часть, и на коротких
+        частях обход дороже работы. Замер 06.10.2026 это показал: на шести
+        страницах рой ушёл в 183 с против 61 с у обычного режима, и треть
+        времени ушла именно на промежуточные сборки.
         """
         swarm = self.swarm
         if swarm is None:
@@ -275,27 +355,50 @@ class SwarmRun:
         ready = swarm.ready()
         if not ready:
             return ""
-        waiting = ", ".join(swarm.pending()) or "—"
+        waiting = list(swarm.pending())
+        if len(waiting) <= TAIL_PARTS:
+            # Скоро финальная сборка, и она получит всё. Промежуточный взгляд
+            # сейчас не нужен: он не даёт результата, которого не будет через
+            # минуту, но стоит запросов.
+            return ""
         self.agent.messages = [
             {"role": "system", "content": system_of(self.agent)},
             {"role": "user", "content": self.task_context},
             {"role": "user", "content":
                 "Часть работы уже готова:\n\n" + ready +
-                f"\n\nЕщё в работе: {waiting}."
-                "\n\nСделай то, что можно сделать прямо сейчас, не дожидаясь "
-                "остальных: общие файлы, проверка согласованности, то, что "
-                "не принадлежит ни одной части.\n"
+                f"\n\nЕщё в работе: {', '.join(waiting)}."
+                "\n\nСделай ОДНО действие прямо сейчас, не дожидаясь остальных: "
+                "общий файл, проверка согласованности, то, что не "
+                "принадлежит ни одной части. Одна попытка, не больше.\n"
                 "Если без недостающих файлов задачу закрыть нельзя, так и "
-                "напиши одной строкой: НУЖНО ЖДАТЬ. Иначе закончи то, что "
-                "сделал, и перечисли, что осталось за частями."},
+                "напиши одной строкой: НУЖНО ЖДАТЬ."},
         ]
         self.agent._reset_cycle()
-        await self.agent.run()
-        last = self.agent.steps[-1].text if self.agent.steps else ""
+        outcome = await self._run_briefly(PARTIAL_STEPS)
+        # Текст берётся из ответа агента, а не из последнего шага: ответ —
+        # это то, что агент сам считает своим ответом, и шаг мог закончиться
+        # вызовом инструмента без текста.
+        last = str((outcome or {}).get("last") or "")
+        if not last and self.agent.steps:
+            last = self.agent.steps[-1].text or ""
         self.emit({"type": "swarm_partial", "task_id": self.task_id,
-                   "done": list(swarm.done), "pending": swarm.pending(),
+                   "done": list(swarm.done), "pending": waiting,
                    "note": last[:300]})
         return last
+
+    async def _run_briefly(self, limit: int) -> dict[str, Any]:
+        """Прогнать агента ограниченным числом шагов.
+
+        Лимит ставится на конфиг и снимается сразу после: агент читает его в
+        каждом шаге, а менять настройку навсегда нельзя — после сборки у
+        главного агента должен остаться его обычный бюджет.
+        """
+        saved = self.config.max_steps
+        try:
+            self.config.max_steps = min(saved, max(1, limit))
+            return await self.agent.run()
+        finally:
+            self.config.max_steps = saved
 
     async def supervise(self, denied: list[list[str]],
                         globs: list[list[str]]) -> None:
@@ -338,7 +441,7 @@ class SwarmRun:
                 "reserve": len(plan.reserve)}
 
 
-def _worth_handoff(reason: str) -> bool:
+def _worth_handoff(reason: str, steps: int = 1) -> bool:
     """Стоит ли подменять аккаунт.
 
     Подмена чинит то, что связано с аккаунтом: кончился лимит, сеть, ключ
@@ -346,6 +449,16 @@ def _worth_handoff(reason: str) -> bool:
     не вызвала инструмент, ответ не распарсился, контекст не влез. Второе
     означало бы потратить резервный аккаунт на заведомо повторяющийся
     результат — и не осталось бы ничего на настоящую подмену.
+
+    Отдельно разобран обрыв без единого шага. Чаще всего это оборванный
+    запрос: сети нет, ключ отвергнут, провайдер не ответил. Никакого текста
+    об этом не остаётся, и по одному тексту такой отказ отличить нельзя —
+    а по числу шагов можно: шагов нет, значит и дела не было, а значит есть
+    что продолжать с нуля на другом аккаунте.
+
+    Часть, которая отработала шаги и просто не успела, подмены не
+    получает: новый аккаунт даст тот же самый лимит шагов и тот же самый
+    обрыв. Резерв на это тратить незачем.
     """
     text = (reason or "").lower()
     signs = ("429", "лимит", "rate limit", "карантин", "недоступн",
@@ -353,5 +466,10 @@ def _worth_handoff(reason: str) -> bool:
              "401", "403", "ключ отклонён", "connection", "прерван")
     if any(sign in text for sign in signs):
         return True
-    # Пустая причина при неудаче — обычно обрыв. Подменять есть смысл.
-    return not text.strip()
+    if steps <= 0:
+        # Ни одного шага: дело не в том, что модель сделала.
+        return True
+    if not text.strip():
+        # Причина неизвестна, но работа шла. Скорее всего кончились шаги.
+        return False
+    return False
