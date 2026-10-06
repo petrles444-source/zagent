@@ -118,6 +118,44 @@ PING_MAX_BACKGROUND = 12
 PING_PROMPT = "Ответь одним словом: ok"
 PING_MAX_TOKENS = 64
 
+#: Сколько раз задача может быть продолжена после исчерпания лимита.
+#:
+#: Живой прогон 06.10.2026: аудит проекта на 48k строк упирался в `max_steps`
+#: и объявлялся `failed`. Работа при этом не была сделана — просто никто не
+#: дал задаче добрать своё. Один-два продолжения превращают такой отказ в
+#: результат, а бесконечное число превратило бы в зацикливание: ровно та же
+#: болезнь, что чинилась в `hub/agent.py`.
+MAX_CONTINUATIONS = 2
+
+#: Сколько шагов добавляется на каждое продолжение.
+#:
+#: Продолжение получает не полный бюджет задачи, а добавку к тому, что уже
+#: сделано: иначе третья попытка с нуля стоила бы дороже всей работы.
+CONTINUATION_STEPS = 12
+
+#: Что сказать агенту при продолжении. Без этой строки он увидит в истории
+#: собственный промежуточный отчёт и на новые шаги просто повторит его —
+#: работа при этом не продвинулась ни на шаг, а выглядело бы как прогресс.
+CONTINUE_PROMPT = (
+    "Лимит шагов на эту попытку исчерпан, но работа не закончена. "
+    "Продолжи с того места, где остановился. Не пересказывай уже сделанное "
+    "и не повторяй промежуточный отчёт — он уже есть в истории: бери "
+    "следующий незаконченный кусок. Когда работа будет закончена, ответь "
+    "итогом: что сделано, что найдено, что осталось."
+)
+
+#: Сколько свободных аккаунтов нужно, чтобы работа шла нормально.
+#:
+#: Один аккаунт — это один запрос в единицу времени: пока части роя или
+#: субагенты ждут очереди друг за другом, время работы умножается на их
+#: число. Меньше двух — работать можно, но молча; человек должен узнать об
+#: этом раньше, чем потратит полчаса на задачу, которая шла вчетверо медленнее.
+MIN_FREE_ACCOUNTS = 2
+
+#: Как часто можно повторно просить ключи. Просьба без повторов засоряет
+#: переписку; каждый раз заново — тем более.
+KEY_ASK_INTERVAL_S = 300.0
+
 
 @dataclass
 class WorkerConfig:
@@ -220,6 +258,8 @@ class Worker:
         self.paused = False
         self.current_task_id: int | None = None
         self.last_error: str | None = None
+        #: Когда в последний раз просили добавить ключи. Ноль — ещё не просили.
+        self._last_keys_asked: float = 0.0
         #: Мягкая граница воркспейса: агент спрашивает перед выходом.
         self.soft_boundary: bool = bool(self.store.get_meta("soft_boundary", True))
         #: Сигнал, что event loop воркера создан и им можно пользоваться.
@@ -654,6 +694,20 @@ class Worker:
         agent.set_task(task["task"])
         self._agent = agent
 
+        # Продолжение после лимита шагов. Шаги добавляются до восстановления
+        # чекпоинта, потому что восстановление сбрасывает счётчик шагов цикла,
+        # а лимит остаётся тем же объектом конфигурации.
+        extra_steps = int(payload.get("extra_steps") or 0)
+        if extra_steps > 0:
+            agent.config.max_steps += extra_steps
+            agent.config.token_budget += extra_steps * 10_000
+            self.emit({
+                "type": "continuation_started",
+                "task_id": task["id"],
+                "attempt": int(payload.get("continuations") or 0),
+                "max_steps": agent.config.max_steps,
+            })
+
         if payload.get("images"):
             self._attach_images(agent, payload["images"])
         if payload.get("plan_only"):
@@ -676,6 +730,14 @@ class Worker:
                 "task_id": task["id"],
                 **decision.to_dict(),
             })
+
+        # Ключей может не хватить. Работа при этом идёт, просто запросы
+        # встают в очередь по одному, и без этой просьбы человек потратит
+        # полчаса на задачу, решив, что агент тупит. Потребность считается
+        # по тому, сколько работы реально пойдёт параллельно: одиночная
+        # задача много аккаунтов не требует, рою нужно заметно больше.
+        want_parallel = max(2, subagents + 2 if herd else min(subagents + 2, 3))
+        self._ask_for_keys(task, need=want_parallel)
 
         # Правка собственного кода zagent. Флаг живёт в задаче, а не во
         # воркспейсе: включается на одну задачу и умирает вместе с ней.
@@ -728,6 +790,12 @@ class Worker:
             # Отказ: запоминаем путь как запрещённый, чтобы агент не спросил
             # его повторно, и говорим ему искать другой способ.
             run(self.loop, agent.deny_permission(str(payload["deny_path"])))
+        if extra_steps > 0:
+            # Продолжение после лимита шагов: история заканчивается
+            # промежуточным отчётом, и без указания агент на новом лимите
+            # повторит его вместо того, чтобы продолжить. Отказ и разрешение
+            # выше важнее — они отвечают на вопрос, а не продолжают работу.
+            agent.messages.append({"role": "user", "content": CONTINUE_PROMPT})
         if payload.get("cancel") or self._take_cancel(task["id"]):
             # Отмена могла прийти, пока задача собиралась. Флаг из БД к этому
             # моменту уже сброшен, поэтому берём и его, и свою отметку.
@@ -851,6 +919,22 @@ class Worker:
             next_payload["checkpoint"] = result.get("checkpoint") or agent.checkpoint
         if permission_id is not None:
             next_payload["permission_id"] = permission_id
+
+        # Задача, которой не хватило шагов, не закончена — даже если модель
+        # успела произнести итог. Тот итог она произнесла под давлением
+        # «дай отчёт сейчас», и по нему видно, что работа не сделана.
+        #
+        # Поэтому проверка идёт перед терминальными статусами: `done` здесь
+        # означал бы «готово», а на деле это был бы обрыв на середине.
+        # Сначала показываем, что шаги кончились.
+        if status not in ("cancelled", "waiting_permission", "asking"):
+            result_with_checkpoint = {
+                **result,
+                "checkpoint": next_payload.get("checkpoint")
+                or getattr(agent, "checkpoint", None),
+            }
+            if self._requeue_for_more_steps(task, result_with_checkpoint, payload):
+                return
 
         self.store.update_task(
             task["id"],
@@ -1040,6 +1124,70 @@ class Worker:
         return {"ok": True, "soft_boundary": self.soft_boundary}
 
     # ---------------------------------------------------------------- ответы
+
+    def _requeue_for_more_steps(self, task: dict[str, Any], result: dict[str, Any],
+                               payload: dict[str, Any]) -> bool:
+        """Продолжить задачу, которой не хватило шагов. True — продолжили.
+
+        Живой прогон 06.10.2026: аудит проекта на 48k строк упирался в
+        `max_steps` и уходил в `failed` с отчётом «работа остановлена».
+        Работа при этом не была испорчена — её просто не дали закончить, и
+        человек получал отказ вместо результата.
+
+        Продолжение идёт с чекпоинта: агент возвращается в тот же диалог и
+        продолжает с того места, где кончились шаги, а не начинает заново.
+        Продолжений не больше `MAX_CONTINUATIONS` — иначе задача, которая не
+        влезает в лимит, будет крутиться вечно, то есть получит ровно тот
+        сбой, который здесь и чинится.
+        """
+        reason = str(result.get("stopped_by") or "")
+        if not reason:
+            return False
+        # Продолжать имеет смысл только работу, оборванную лимитом. Отказ по
+        # существу (нет доступа, ключ отвергнут, формат сломан) повторится
+        # ровно тот же, и второй запрос — уже лишняя трата квоты.
+        if "лимит шагов" not in reason:
+            return False
+        if result.get("cancelled"):
+            return False
+
+        done = int(payload.get("continuations") or 0)
+        if done >= MAX_CONTINUATIONS:
+            self.emit({
+                "type": "continuation_exhausted",
+                "task_id": task["id"],
+                "continuations": done,
+                "reason": reason,
+            })
+            return False
+
+        next_payload = dict(payload)
+        next_payload["continuations"] = done + 1
+        next_payload["extra_steps"] = CONTINUATION_STEPS * (done + 1)
+        next_payload["checkpoint"] = result.get("checkpoint") or {}
+        next_payload["cancel"] = False
+        self.store.update_task(
+            task["id"],
+            status="queued",
+            finished_at=None,
+            steps=int(result.get("steps") or 0),
+            duration_ms=int(result.get("duration_ms") or 0),
+            payload=next_payload,
+            # Прежний результат остаётся в базе как история попытки, но
+            # задача снова в очереди — значит, и статус должен быть
+            # «в очереди», а не «сбой».
+            error=None,
+        )
+        self.emit({
+            "type": "continuation",
+            "task_id": task["id"],
+            "attempt": done + 1,
+            "of": MAX_CONTINUATIONS,
+            "extra_steps": next_payload["extra_steps"],
+            "reason": reason,
+            "summary": str(result.get("last") or "")[:2000],
+        })
+        return True
 
     def answer(self, task_id: int, text: str, *, approve: bool = False) -> dict[str, Any]:
         """Ответить на вопрос агента по задаче.
@@ -1649,6 +1797,41 @@ class Worker:
         for stats in KEY_RING.snapshot().values():
             total += int(stats.get("available") or 0)
         return total
+
+    def _ask_for_keys(self, task: dict[str, Any], *, need: int) -> None:
+        """Попросить ключи, когда свободных аккаунтов не хватает.
+
+        Задача при этом не останавливается: один аккаунт работает, просто
+        медленно. Но человек должен узнать об этом до того, как потратит
+        полчаса на задачу, идущую вчетверо медленнее возможного, — иначе
+        вывод будет «агент тупит», а причина в том, что аккаунт один.
+
+        Повтор не чаще `KEY_ASK_INTERVAL_S`: одна и та же просьба в каждой
+        задаче засоряет переписку и учит человека не читать её.
+        """
+        free = self._free_accounts()
+        if free >= need:
+            return
+        now = time.time()
+        if now - self._last_keys_asked < KEY_ASK_INTERVAL_S:
+            return
+        self._last_keys_asked = now
+        empty = sorted(
+            gid for gid, stats in KEY_RING.snapshot().items()
+            if int(stats.get("available") or 0) == 0
+        )
+        self.emit({
+            "type": "keys_needed",
+            "task_id": task.get("id"),
+            "free": free,
+            "need": need,
+            "empty_gateways": empty,
+            "reason": (
+                f"Свободных аккаунтов {free}, а для нормальной работы нужно "
+                f"{need}. Задача пойдёт, но в {max(1, need // max(free, 1))} "
+                "раз(а) медленнее: запросы встают в очередь по одному."
+            ),
+        })
 
     async def _run_herd(self, task: dict[str, Any], agent: Agent,
                         config: AgentConfig, images: list[str] | None = None,
