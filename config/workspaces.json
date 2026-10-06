@@ -8,7 +8,7 @@
       "access": 3,
       "autonomy": "yolo",
       "escalation": "auto",
-      "max_steps": 40,
+      "max_steps": 150,
       "protected": [
         ".git",
         ".venv",

@@ -804,6 +804,11 @@ code.inl { font-family:var(--mono); font-size:11.5px; background:var(--panel2);
 .toolline .nm { font-family:var(--mono); color:var(--info); flex:0 0 auto; }
 .toolline .tx { color:var(--muted); word-break:break-word; }
 .toolline.bad .nm { color:var(--bad); }
+/* Чем занята часть работы прямо сейчас. Отличается от `.subStat`: там счёт,
+   здесь — конкретное дело, и по нему видно, какая часть зависла. */
+.subNow { color:var(--muted); font-size:11.5px; margin-top:2px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.subNow:not(:empty) { color:var(--info); }
 /* Полоса хода задачи: видно, что агент делает сейчас, сколько шагов и
    токенов потрачено и сколько ещё есть. Без неё длинная задача выглядит
    как зависшая: последнее, что видно, — давний вызов инструмента.
@@ -1384,7 +1389,7 @@ let CUR_PERM = null;
 // него не выводится — там нет понятия «сейчас».
 const PROG = {
   active: false, tool: '', file: '', steps: 0, maxSteps: 0,
-  tokens: 0, budget: 0, note: '',
+  tokens: 0, budget: 0, note: '', quiet: false,
 };
 
 function fmtTokens(n) {
@@ -1428,6 +1433,7 @@ function renderProgress() {
 function progressOff() {
   PROG.active = false;
   PROG.tool = ''; PROG.file = ''; PROG.note = '';
+  PROG.quiet = false; QUIET_SHOWN = false;
   PROG.steps = 0; PROG.maxSteps = 0; PROG.tokens = 0; PROG.budget = 0;
   renderProgress();
 }
@@ -1446,8 +1452,38 @@ try {
 function rememberEvent(id) {
   if (!(id > lastEvent)) return;
   lastEvent = id;
+  LAST_EVENT_AT = Date.now();
   try { sessionStorage.setItem(EVT_KEY, String(id)); } catch { /* переживём */ }
 }
+
+// Отличать работу от зависания.
+//
+// Пока идёт задача, события идут постоянно. Если их нет дольше двух минут,
+// перед нами либо очень долгий запрос модели, либо уже мёртвый процесс, и
+// по журналу это не различить — оба выглядят одинаково тихо. Здесь честно
+// сказано «тишина идёт N секунд», чтобы человек решал сам, а не гадал по
+// отсутствию строк. Молчание не всегда поломка: бесплатные модели думают
+// по минуте и дольше, и ложная тревога научила бы игнорировать настоящую.
+const QUIET_AFTER_MS = 120000;
+let LAST_EVENT_AT = Date.now();
+let QUIET_SHOWN = false;
+
+function watchQuiet() {
+  const box = $('progBar');
+  if (!box || !PROG.active) { QUIET_SHOWN = false; return; }
+  const quiet = Date.now() - LAST_EVENT_AT > QUIET_AFTER_MS;
+  if (quiet === QUIET_SHOWN) return;
+  QUIET_SHOWN = quiet;
+  if (quiet && !PROG.quiet) {
+    PROG.quiet = true;
+    PROG.note = 'тишина больше 2 минут — возможно завис, возможно долгий запрос';
+  } else if (!quiet && PROG.quiet) {
+    PROG.quiet = false;
+    PROG.note = '';
+  }
+  renderProgress();
+}
+setInterval(watchQuiet, 5000);
 // Прогресс замера доступности из России. directDone — сделан ли первый замер:
 // без него второй бессмыслен, поэтому кнопка блокируется.
 let GEO = {running:false, progress:{done:0,total:0,current:'',phase:''},
@@ -2047,6 +2083,7 @@ function subCardHtml(sub, data) {
       <span class="subMore mini">след ▾</span>
     </div>
     <div class="subWhy mini"></div>
+    <div class="subNow mini" data-role="now"></div>
     <div class="subFiles mini dim">свои файлы: ${esc(files)}</div>
     <div class="subTrail" data-role="trail" hidden></div>
   </div>`;
@@ -2061,7 +2098,8 @@ function ensureSub(sub, data) {
     // запросы, потом все шаги. Порядок, в котором часть на самом деле
     // работала, при этом терялся — а именно он и нужен, чтобы понять,
     // почему агент написал именно этот код.
-    SUBS[sub] = {part: data || {}, rows: [], model: ''};
+    SUBS[sub] = {part: data || {}, rows: [], model: '', tool: '', file: '',
+                tokens: 0};
   } else if (data) {
     Object.assign(SUBS[sub].part, data);
   }
@@ -2145,6 +2183,26 @@ function subLiveStat(sub) {
   if (prompts) bits.push(`запросов ${prompts}`);
   if (calls) bits.push(`вызовов ${calls}`);
   stat.textContent = bits.join(' · ');
+  subLiveNow(sub);
+}
+
+// Чем конкретная часть занята прямо сейчас. Без этой строки у десяти
+// частей был один и тот же счётчик запросов, и понять, кто завис, а кто
+// работает, было невозможно — а это ровно то, что нужно при разборе роя.
+function subLiveNow(sub) {
+  const item = SUBS[sub];
+  if (!item || !item.el) return;
+  const box = item.el.querySelector('[data-role="now"]');
+  if (!box) return;
+  const done = !!(item.part && item.part.ok !== undefined && item.part.ok !== null);
+  if (done) { box.textContent = ''; return; }
+  const bits = [];
+  if (item.tool) bits.push(item.tool + (item.file ? ' · ' + item.file : ''));
+  else if (item.model) bits.push(item.model.split('/').pop() + ' думает');
+  else bits.push('начало');
+  if (item.tokens) bits.push(`токенов ${fmtTokens(item.tokens)}`);
+  box.textContent = bits.join(' · ');
+  box.title = box.textContent;
 }
 
 function pushRow(sub, row) {
@@ -2189,27 +2247,34 @@ function onSubEvent(e) {
     subLiveStat(sub);
     return true;
   }
-  if (e.type === 'model_call') {
-    ensureSub(sub, null);
-    const got = e.got || {};
-    if (got.model) SUBS[sub].model = got.model;
-    pushRow(sub, {kind: 'prompt', sent: e.sent, model: got.model,
-                  text: got.text, error: e.error});
-    subLiveStat(sub);
-    return true;
-  }
   if (e.type === 'tool') {
     ensureSub(sub, null);
     const f = e.file || e.path || '';
     const toolRow = {kind: 'call', tool: e.tool, args: e.args, result: e.result};
     if (f) toolRow.file = f;
     pushRow(sub, toolRow);
+    const item = SUBS[sub];
+    if (item) { item.tool = e.tool || ''; item.file = f; }
+    subLiveStat(sub);
+    return true;
+  }
+  if (e.type === 'model_call') {
+    ensureSub(sub, null);
+    const got = e.got || {};
+    if (got.model) SUBS[sub].model = got.model;
+    if (e.tokens != null) SUBS[sub].tokens = Number(e.tokens) || 0;
+    // Запрос ушёл, ответа ещё нет — модель сейчас занята именно им.
+    const item = SUBS[sub];
+    if (item) { item.tool = 'думает'; item.file = ''; }
+    pushRow(sub, {kind: 'prompt', sent: e.sent, model: got.model,
+                  text: got.text, error: e.error});
     subLiveStat(sub);
     return true;
   }
   if (e.type === 'step') {
     ensureSub(sub, null);
     const step = e.step || {};
+    if (e.tokens != null) SUBS[sub].tokens = Number(e.tokens) || 0;
     pushRow(sub, {kind: 'step', text: step.text, phase: step.phase});
     subLiveStat(sub);
     return true;
