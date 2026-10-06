@@ -92,6 +92,35 @@ def request(port: int, path: str, headers: dict[str, str],
     return status, payload, head
 
 
+def get(port: int, path: str, headers: dict[str, str]) -> tuple[int, str, str]:
+    """GET с произвольными заголовками — включая поддельный Host.
+
+    Host подделывается именно здесь, руками: настоящий клиент вставить его
+    не может, а DNS-rebinding подставляет ровно такое сочетание — чужое имя
+    в обоих заголовках, совпадающих друг с другом.
+    """
+    lines = [f"GET {path} HTTP/1.1"]
+    if not any(k.lower() == "host" for k in headers):
+        lines.append(f"Host: 127.0.0.1:{port}")
+    lines.append("Connection: close")
+    lines += [f"{k}: {v}" for k, v in headers.items()]
+    raw = ("\r\n".join(lines) + "\r\n\r\n").encode("utf-8")
+
+    with socket.create_connection(("127.0.0.1", port), timeout=20) as sock:
+        sock.sendall(raw)
+        chunks = []
+        while True:
+            piece = sock.recv(65536)
+            if not piece:
+                break
+            chunks.append(piece)
+    text = b"".join(chunks).decode("utf-8", errors="replace")
+    head, _, payload = text.partition("\r\n\r\n")
+    first = head.split("\r\n", 1)[0].split()
+    status = int(first[1]) if len(first) > 1 and first[1].isdigit() else 0
+    return status, payload, head
+
+
 # =============================================================== Origin
 
 
@@ -122,6 +151,55 @@ def test_origin_null_отклоняется(live: Any) -> None:
     port = live[0]
     status, body, _ = request(port, "/api/permissions", {"Origin": "null"})
     assert status == 403, f"{status} {body}"
+
+
+# ================================================================== GET
+
+
+def get_state_ok(live: Any) -> str:
+    """Служебная проверка: свой GET проходит, а не всё подряд отклоняется."""
+    port = live[0]
+    status, body, _ = get(port, "/api/state", {})
+    assert status == 200, f"свой запрос не прошёл: {status} {body[:200]}"
+    return body
+
+
+def test_свой_get_проходит(live: Any) -> None:
+    get_state_ok(live)
+
+
+def test_get_с_чужим_origin_отклоняется(live: Any) -> None:
+    """Чужая страница читала /api/state целиком: ошибки, счётчики, ключи."""
+    port = live[0]
+    status, body, _ = get(port, "/api/state", {"Origin": "https://evil.test"})
+    assert status == 403, f"{status} {body[:200]}"
+    assert "чужого" in body.lower()
+
+
+def test_get_с_поддельным_host_отклоняется(live: Any) -> None:
+    """DNS-rebinding: Origin и Host подставлены браузером и совпадают.
+
+    Совпадение честное, но адресат чужой — страница открывала состояние
+    сервера с домена, который уже переназначен на 127.0.0.1.
+    """
+    port = live[0]
+    status, body, _ = get(port, "/api/state",
+                          {"Host": "evil.test:8783",
+                           "Origin": "http://evil.test:8783"})
+    assert status == 403, f"{status} {body[:200]}"
+
+
+def test_get_без_origin_но_чужой_host_отклоняется(live: Any) -> None:
+    """Origin можно не прислать вовсе — одним Origin дыра не закрывается."""
+    port = live[0]
+    status, body, _ = get(port, "/api/tasks", {"Host": "evil.test"})
+    assert status == 403, f"{status} {body[:200]}"
+
+
+def test_get_на_свой_состояние_отдаёт(live: Any) -> None:
+    """После всех отказов настоящий интерфейс обязан работать."""
+    body = get_state_ok(live)
+    assert "models" in body or "tasks" in body or "{" in body, body[:200]
 
 
 # =============================================================== Content-Type

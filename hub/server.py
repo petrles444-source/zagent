@@ -205,6 +205,28 @@ class Handler(BaseHTTPRequestHandler):
         # `[::1]:8783.evil` ровно `::1`, и подделка прошла бы как свой адрес.
         return _LOOPBACK_NETLOC.match(parsed.netloc) is not None
 
+    def _host_is_local(self) -> bool:
+        """Страница пришла на этот же процесс, а не на чужой хост.
+
+        Одной проверки `Origin == Host` недостаточно: при DNS-rebinding
+        браузер ходит на `evil.test`, но IP этого имени уже указывает на
+        127.0.0.1, и подставленные `Host` с `Origin` совпадают — оба
+        `evil.test`. Совпадение честное, а запрос-то чужой. Лечится это
+        проверкой того, что адресат — loopback: настоящий интерфейс на
+        чужой хост не открывается, сервер и так слушает только 127.0.0.1.
+        """
+        host = (self.headers.get("Host") or "").strip()
+        if not host:
+            # HTTP/1.0 и отдельные тесты присылают запрос без Host. Такой
+            # запрос не может быть перехвачен переопределением DNS: браузер
+            # заголовок всегда ставит.
+            return True
+        return _LOOPBACK_NETLOC.match(host) is not None
+
+    def _own_request(self) -> bool:
+        """Запрос свой: и адресат наш, и страница наша."""
+        return self._host_is_local() and self._same_origin()
+
     def _write_event(self, event: dict[str, Any]) -> None:
         payload = json.dumps(event, ensure_ascii=False, default=str)
         self.wfile.write(f"data: {payload}\n\n".encode("utf-8"))
@@ -218,7 +240,9 @@ class Handler(BaseHTTPRequestHandler):
         # браузере отправляла бы `text/plain`-fetch кросс-доменно: такой
         # запрос не проходит preflight и доходит до обработчика, то есть
         # посторонняя страница могла бы читать файлы и запускать задачи.
-        if not self._same_origin():
+        # Host проверяется отдельно от Origin: при DNS-rebinding оба
+        # заголовка чужие, но друг с другом совпадают.
+        if not (self._host_is_local() and self._same_origin()):
             self._reject("Запрос с чужого адреса отклонён")
             return
 
@@ -715,6 +739,13 @@ class Handler(BaseHTTPRequestHandler):
 #: Расширения картинок: их показываем, а не считаем «не текстовым».
 
     def do_GET(self) -> None:
+        # GET отдаёт состояние, список задач и поток событий — аутентификации
+        # нет, поэтому защита та же, что у POST. Раньше проверялся только
+        # Origin у POST, и любая чужая страница читала `/api/state` целиком:
+        # там ошибки с фингерпринтами ключей, счётчики и имена моделей.
+        if not self._own_request():
+            self._reject("Запрос с чужого адреса отклонён")
+            return
         parsed = urlparse(self.path)
         query = parse_qs(parsed.query)
         try:

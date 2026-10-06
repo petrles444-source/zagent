@@ -90,6 +90,34 @@ def test_origin_сравнивается_с_host() -> None:
     assert not Handler._same_origin(other)
 
 
+# ================================================================== Host
+
+
+def test_loopback_host_проходит() -> None:
+    for host in ("127.0.0.1:8783", "localhost:8783", "[::1]:8783", "127.0.0.1"):
+        assert Handler._host_is_local(handler_with({"Host": host})), host
+
+
+def test_чужой_host_отклоняется() -> None:
+    """DNS-rebinding: Host чужой, а IP уже наш, и Origin с ним совпадает."""
+    for host in ("evil.test", "evil.test:8783", "127.0.0.1.evil.test:8783",
+                 "[::1]:8783.evil"):
+        assert not Handler._host_is_local(handler_with({"Host": host})), host
+
+
+def test_без_host_не_блокирует() -> None:
+    """HTTP/1.0 и тесты присылают запрос без Host — браузер всегда ставит."""
+    assert Handler._host_is_local(handler_with({}))
+
+
+def test_поддельный_host_не_проходит_даже_при_совпадающем_origin() -> None:
+    """Ровно комбинация, которой пользуется переназначение DNS."""
+    handler = handler_with({
+        "Host": "evil.test:8783", "Origin": "http://evil.test:8783",
+    })
+    assert not Handler._own_request(handler)
+
+
 # =============================================================== Content-Type
 
 
