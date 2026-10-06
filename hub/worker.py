@@ -807,7 +807,11 @@ class Worker:
         # ломали любую сортировку по началу задачи и подсчёт длительности.
         self.store.update_task(task["id"], started_at=time.time())
         self.emit({"type": "started", "task_id": task["id"], "task": task["task"],
-                   "resumed": resumed, "subagents": subagents, "herd": herd})
+                   "resumed": resumed, "subagents": subagents, "herd": herd,
+                   # Лимит шагов этой попытки: полоса прогресса показывает
+                   # расход, а расход относительно чего-то конкретного.
+                   # При продолжении сюда попадает уже увеличенный лимит.
+                   "max_steps": agent.config.max_steps})
 
         # Субагенты: сначала главный агент делит задачу, потом части идут
         # параллельно, потом главный собирает результат. Разбиение и сборка —

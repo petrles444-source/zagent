@@ -804,6 +804,24 @@ code.inl { font-family:var(--mono); font-size:11.5px; background:var(--panel2);
 .toolline .nm { font-family:var(--mono); color:var(--info); flex:0 0 auto; }
 .toolline .tx { color:var(--muted); word-break:break-word; }
 .toolline.bad .nm { color:var(--bad); }
+/* Полоса хода задачи: видно, что агент делает сейчас, сколько шагов и
+   токенов потрачено и сколько ещё есть. Без неё длинная задача выглядит
+   как зависшая: последнее, что видно, — давний вызов инструмента.
+   Показывается только во время работы, в покое она занимает место и
+   сообщает ноль, то есть ничего. */
+.progBar { display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+  padding:6px 10px; border-bottom:1px solid var(--line);
+  font-size:12px; background:var(--panel); }
+.progBar[hidden] { display:none; }
+.progNow { font-weight:600; max-width:52%; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap; }
+.progTrack { flex:1 1 90px; min-width:70px; height:4px; border-radius:3px;
+  background:var(--line); overflow:hidden; }
+.progFill { height:100%; background:var(--accent); border-radius:3px;
+  transition:width .25s ease; }
+.progFill.warn { background:var(--warn); }
+.progNum { color:var(--muted); font-family:var(--mono); font-size:11px;
+  white-space:nowrap; }
 .verify { background:color-mix(in srgb,var(--info) 10%,var(--panel)); border-radius:6px;
   padding:4px 8px; margin:3px 0; font-size:12px; }
 .verify.bad { background:color-mix(in srgb,var(--bad) 12%,var(--panel)); }
@@ -1243,6 +1261,10 @@ th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase
   <!-- План роя: кто на каком аккаунте и кто в резерве. Появляется, когда
        включён режим роя. -->
   <div id="herdBox" class="herdBox"></div>
+  <!-- Полоса хода задачи: что агент делает прямо сейчас, сколько шагов и
+       токенов потрачено и сколько ещё есть. Без неё длинная задача выглядит
+       как зависшая: последнее, что видно, — давний вызов инструмента. -->
+  <div id="progBar" class="progBar" hidden></div>
   <div id="msgs"></div>
   <div id="composer">
     <div id="attach"></div>
@@ -1354,6 +1376,61 @@ const $ = id => document.getElementById(id);
 // целиком, и список моделей оставался пустым до следующего обновления.
 let S = {}, GUIDE = null, ATTACH = [], lastEvent = 0, curTask = null;
 let CUR_PERM = null;
+
+// Ход текущей задачи для полосы прогресса.
+//
+// Отдельное состояние, а не вычисление по журналу: журнал показывает всё
+// подряд, включая прошлые задачи, и «сейчас агент читает вот этот файл» из
+// него не выводится — там нет понятия «сейчас».
+const PROG = {
+  active: false, tool: '', file: '', steps: 0, maxSteps: 0,
+  tokens: 0, budget: 0, note: '',
+};
+
+function fmtTokens(n) {
+  n = Number(n || 0);
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return Math.round(n / 1000) + 'k';
+  return String(n);
+}
+
+// Полоса: слева — чем занят агент сейчас, дальше — расход шагов и токенов.
+function renderProgress() {
+  const box = $('progBar');
+  if (!box) return;
+  if (!PROG.active) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+
+  const stepPct = PROG.maxSteps
+    ? Math.min(100, Math.round(PROG.steps * 100 / PROG.maxSteps)) : 0;
+  const tokPct = PROG.budget
+    ? Math.min(100, Math.round(PROG.tokens * 100 / PROG.budget)) : 0;
+
+  const now = PROG.note
+    || (PROG.file ? `${PROG.tool} · ${PROG.file}` : PROG.tool)
+    || 'думает';
+
+  box.innerHTML =
+    `<span class="progNow" title="${esc(now)}">${esc(now)}</span>` +
+    (PROG.maxSteps
+      ? `<span class="progTrack" title="шаги ${PROG.steps} из ${PROG.maxSteps}">
+           <div class="progFill" style="width:${stepPct}%"></div></span>
+         <span class="progNum">шаги ${PROG.steps}/${PROG.maxSteps}</span>`
+      : '') +
+    (PROG.budget
+      ? `<span class="progTrack" title="токены ${PROG.tokens} из ${PROG.budget}">
+           <div class="progFill ${tokPct > 80 ? 'warn' : ''}"
+                style="width:${tokPct}%"></div></span>
+         <span class="progNum">токены ${fmtTokens(PROG.tokens)}/${fmtTokens(PROG.budget)}</span>`
+      : '');
+}
+
+function progressOff() {
+  PROG.active = false;
+  PROG.tool = ''; PROG.file = ''; PROG.note = '';
+  PROG.steps = 0; PROG.maxSteps = 0; PROG.tokens = 0; PROG.budget = 0;
+  renderProgress();
+}
 
 // lastEvent хранится между перезагрузками. Без этого поток начинался с нуля
 // и сервер отдавал всю историю событий: до 200 чужих записей, каждая тянула
@@ -3569,6 +3646,16 @@ function handleEvent(e, replay) {
   // Решение «Авто» по режиму. Показывается в переписке и остаётся под
   // кнопкой режима: человек должен видеть не только что выбрано, но и
   // почему, иначе «Авто» выглядит как произвол.
+  if (e.type === 'started') {
+    PROG.active = true;
+    PROG.maxSteps = Number(e.max_steps || 0);
+    PROG.steps = 0;
+    PROG.tool = 'думает';
+    PROG.file = '';
+    PROG.note = '';
+    renderProgress();
+    return;
+  }
   if (e.type === 'mode_chosen') {
     AUTO_PICK = e;
     renderAutoNote();
@@ -3583,6 +3670,17 @@ function handleEvent(e, replay) {
   }
   if (e.type === 'step') {
     const s = e.step;
+    // Счётчики хода: без них полоса показывала бы время и ничего больше.
+    if (PROG.active) {
+      PROG.steps = Number(s.index || 0);
+      if (e.tokens != null) PROG.tokens = Number(e.tokens) || 0;
+      if (e.budget_limit) PROG.budget = Number(e.budget_limit) || 0;
+      // Пустой `note` — иначе требование «продолжи» из прошлой попытки
+      // осталось бы висеть на полосе вместо текущего занятия.
+      if (s.phase === 'thinking') { PROG.tool = 'думает'; PROG.file = ''; }
+      PROG.note = '';
+      renderProgress();
+    }
     if (s.phase === 'thinking') {
       addMsg({who:'агент', text:s.text, model:s.model, ms:s.duration_ms,
               kind: s.ok ? 'assistant' : 'sys'});
@@ -3593,6 +3691,14 @@ function handleEvent(e, replay) {
         }</span>
          <span class="tx">${esc(s.text)}</span></div>`);
       $('msgs').scrollTop = $('msgs').scrollHeight;
+    }
+  } else if (e.type === 'tool') {
+    // Главный ответ на вопрос «чем занят агент»: имя инструмента и файл.
+    if (PROG.active) {
+      PROG.tool = e.tool || 'инструмент';
+      PROG.file = e.file || e.path || '';
+      PROG.note = '';
+      renderProgress();
     }
   } else if (e.type === 'verify') {
     const v = e.verification;
@@ -3637,11 +3743,21 @@ function handleEvent(e, replay) {
     addMsg({who: 'продолжаю',
             text: `Попытка ${e.attempt}, лимит шагов теперь ${e.max_steps}.`,
             kind: 'sys'});
+    // Полоска остаётся на экране: задача не закончилась, а новый лимит
+    // надо видеть сразу — иначе полоса молча стоит на нуле.
+    PROG.active = true;
+    PROG.maxSteps = Number(e.max_steps || PROG.maxSteps);
+    PROG.steps = 0;
+    PROG.tool = 'продолжаю';
+    PROG.file = '';
+    PROG.note = '';
+    renderProgress();
   } else if (e.type === 'continuation_exhausted') {
     addMsg({who: 'стоп',
             text: `Шаги закончились ${e.continuations} раз подряд `
                 + `(${e.reason || 'лимит исчерпан'}). Что успел — выше в отчёте.`,
             kind: 'sys'});
+    progressOff();
   } else if (e.type === 'finished') {
     if (e.status === 'done') {
       addMsg({who:'готово', text:'Задача выполнена.', kind:'sys'});
@@ -3650,6 +3766,7 @@ function handleEvent(e, replay) {
     else if (e.status === 'failed') addMsg({who:'сбой', text:e.result?.last || 'не удалось', kind:'sys'});
     else if (e.status === 'cancelled') addMsg({who:'отмена', text:'Задача отменена.', kind:'sys'});
     if (!replay) { curTask = null; $('stopBtn').style.display = 'none'; }
+    progressOff();
   } else if (e.type === 'geo_start') {
     GEO.running = true;
     GEO.progress = {done:0, total:0, current:'', phase:'старт'};
