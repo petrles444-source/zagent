@@ -404,6 +404,9 @@ tr.on { background:color-mix(in srgb,var(--accent) 10%,transparent); }
 .kmark.off { color:var(--warn); }
 /* Ещё не использованный ключ — не «выбитый», просто пока без запросов. */
 .kmark.idle { color:var(--dim); }
+/* Аккаунт упирается в лимит минуты. Предупреждение, а не отказ: работы он
+   не потерял, но новую часть ему выдавать уже нельзя. */
+.kmark.tight { color:var(--accent); font-weight:700; }
 .kfree {
   color:var(--dim); font-family:var(--mono); font-size:11px;
   font-variant-numeric:tabular-nums;
@@ -3152,8 +3155,14 @@ function renderKeyPower() {
     // на несколько строк здесь нельзя — закрывающая кавычка теряется среди
     // интерполяций и скрипт перестаёт парситься целиком.
     const marks = listed.slice(0, 12).map(k => {
-      const cls = k.blocked ? ' off' : (k.used ? '' : ' idle');
-      const tip = k.label + ' · запросов ' + k.used
+      // Аккаунт, выбравший лимит в минуту, не выбит: он просто занят. Отличать
+      // надо, иначе «NVIDIA выбита» будет написано про один исчерпанный аккаунт
+      // из четырёх, и человек пойдёт искать проблему там, где её нет.
+      const tight = k.rpm_limit && k.rpm_left !== undefined && k.rpm_left <= 3;
+      const cls = k.blocked ? ' off' : (tight ? ' tight' : (k.used ? '' : ' idle'));
+      const rpm = k.rpm_limit
+        ? ` · в минуту ${k.rpm_left ?? k.rpm_limit} из ${k.rpm_limit}` : '';
+      const tip = k.label + ' · запросов ' + k.used + rpm
         + (k.blocked ? ' · ждёт ' + fmtLeft(k.cooldown) : '');
       const glyph = k.blocked ? '×' : '·';
       return '<span class="kmark' + cls + '" title="' + esc(tip) + '">'

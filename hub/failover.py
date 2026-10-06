@@ -150,6 +150,12 @@ class AutoCaller:
                 # OpenRouter лимит на аккаунт, и девять ключей дают в девять
                 # раз больше работы, чем один.
                 api_key = REGISTRY.next_key(gateway)
+                # Расход отмечается до запроса: при отказе по лимиту неизвестно,
+                # учтён ли этот запрос провайдером, и счётчик расползается.
+                # Точнее нельзя — провайдер отвечает постфактум, а решение
+                # нужно до запроса.
+                if api_key:
+                    REGISTRY.note_spent(gateway, api_key)
                 if not api_key:
                     attempts.append(
                         Attempt(ref=ref, ok=False,
@@ -162,6 +168,7 @@ class AutoCaller:
                     api_key,
                     timeout=self.timeout,
                     client=client,
+                    extra_body=gateway.get("extra_body") or None,
                 )
                 result = await provider.chat(
                     state.model,
@@ -199,9 +206,14 @@ class AutoCaller:
                     # Повтор после пустого ответа идёт тем же ключом: он уже
                     # ответил и своё дело сделал. Брать другой незачем — так
                     # девять аккаунтов используются неравномерно.
+                    # Счётчик расхода пополняется: повтор — тоже запрос,
+                    # и без этого аккаунт выглядит потратившим меньше, чем
+                    # потратил.
+                    REGISTRY.note_spent(gateway, api_key)
                     provider = OpenAICompatProvider(
                         state.gateway, gateway["resolved_url"], api_key,
                         timeout=self.timeout, client=client,
+                        extra_body=gateway.get("extra_body") or None,
                     )
                     result = await provider.chat(
                         state.model, payload_messages,

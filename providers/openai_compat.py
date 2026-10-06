@@ -29,6 +29,13 @@ class OpenAICompatProvider(Provider):
         api_key: Bearer-токен; пустая строка для keyless-шлюзов
         timeout: таймаут одного запроса, сек
         client: готовый httpx.AsyncClient (для тестов)
+        extra_body: поля, которые шлюз требует сверх стандартного запроса
+
+    `extra_body` — не украшение. У NVIDIA, например, размышление включается
+    по умолчанию, и модель тратит на него несколько секунд и часть ответа.
+    Поле `chat_template_kwargs: {"enable_thinking": false}` выключает его,
+    и по замеру ответ приходит вдвое быстрее. Прописывать это в коде нельзя:
+    у другого шлюза такого поля нет, и запрос ушёл бы с ошибкой.
     """
 
     def __init__(
@@ -40,6 +47,7 @@ class OpenAICompatProvider(Provider):
         timeout: float = DEFAULT_TIMEOUT,
         client: httpx.AsyncClient | None = None,
         extra_headers: dict[str, str] | None = None,
+        extra_body: dict[str, Any] | None = None,
     ) -> None:
         self.gateway_id = gateway_id
         self.name = gateway_id
@@ -47,6 +55,7 @@ class OpenAICompatProvider(Provider):
         self.api_key = (api_key or "").strip()
         self.timeout = float(timeout)
         self.extra_headers = dict(extra_headers or {})
+        self.extra_body = dict(extra_body or {})
         self._client = client
         self._owns_client = client is None
 
@@ -87,6 +96,7 @@ class OpenAICompatProvider(Provider):
             payload["temperature"] = temperature
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens
+        payload.update(self.extra_body)
         payload.update(kw)
 
         url = f"{self.base_url}/chat/completions"

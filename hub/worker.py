@@ -277,6 +277,10 @@ class Worker:
         try:
             self.gateways = load_gateways(self.root, env={})
             self.registry = await collect(self.gateways, root=self.root)
+            # Лимиты из конфига — до первого запроса. Иначе остаток аккаунта
+            # станет известен лишь после того, как агент упрётся в лимит, а
+            # к тому моменту часть работы уже потеряна.
+            KEY_RING.apply_limits(self.gateways)
             self.selector = selector_from_registry(
                 self.registry,
                 mode=self.store.get_meta("mode", "auto"),

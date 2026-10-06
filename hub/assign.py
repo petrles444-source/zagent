@@ -183,9 +183,13 @@ def _ring_of(keyring: Any, gateway_id: str) -> Any:
     шлюзами, в проверках — одно кольцо. Разница только в том, откуда его
     взять, и незаметив её, легко получить «ноль свободных аккаунтов» у
     единственного шлюза и выдать вывод о том, что работать некому.
+
+    У реестра спрашивается уже созданное кольцо, а не создаётся новое: чтобы
+    его создать, нужен список ключей, а читать здесь нужно состояние.
     """
-    if hasattr(keyring, "ring"):
-        return keyring.ring(gateway_id)
+    existing = getattr(keyring, "existing", None)
+    if callable(existing):
+        return existing(gateway_id)
     if getattr(keyring, "keys", None):
         return keyring
     return None
@@ -194,8 +198,13 @@ def _ring_of(keyring: Any, gateway_id: str) -> Any:
 def _spare_requests(keyring: Any, gateway_id: str) -> int | None:
     """Сколько запросов гарантированно есть хотя бы у одного аккаунта.
 
-    ``None`` — провайдер остаток не сообщает. Это честнее, чем угадывать:
-    неизвестность и ноль запросов требуют разных решений.
+    ``None`` — остаток неизвестен. Это честнее, чем угадывать: неизвестность
+    и ноль запросов требуют разных решений.
+
+    Если провайдер заголовков не присылает, но лимит в минуту известен из
+    документации (так у NVIDIA — 40 запросов на аккаунт), остаток вычисляется
+    из собственного счётчика расхода. Иначе решение принималось бы только
+    после отказа, а часть к тому моменту уже половину работы потеряла.
     """
     ring = _ring_of(keyring, gateway_id)
     if ring is None:
@@ -206,6 +215,13 @@ def _spare_requests(keyring: Any, gateway_id: str) -> int | None:
     best: int | None = 0
     for key in available:
         left = (ring.quota_of(key) or {}).get("requests_remaining")
+        if left is None:
+            rpm = ring.rpm_of(key)
+            if rpm:
+                try:
+                    left = int(rpm) - ring.spent_in_minute(key)
+                except Exception:  # noqa: BLE001
+                    left = None
         if left is None:
             # Хотя бы один аккаунт остаток не сообщает: сколько запросов
             # есть на самом деле, неизвестно, и сводить это к нулю нельзя —

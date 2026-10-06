@@ -536,7 +536,7 @@ def test_остаток_берется_из_заголовков() -> None:
     ring.note_quota("k2", {"requests_remaining": 900})
 
     class Registry:
-        def ring(self, gateway_id: str) -> KeyRing:
+        def existing(self, gateway_id: str) -> KeyRing:
             return ring
 
     class State:
@@ -551,3 +551,61 @@ def test_остаток_берется_из_заголовков() -> None:
     assert got, "модель с замерами обязана быть кандидатом"
     assert got[0].spare == 900, "берётся лучший аккаунт, а не худший"
     assert got[0].free_keys == 2
+
+
+def test_остаток_считается_по_своему_расходу() -> None:
+    """Провайдер остаток не сообщает — но лимит известен из документации.
+
+    Так у NVIDIA: заголовков квоты нет, лимит 40 запросов в минуту на аккаунт
+    есть. Без своего счётчика остаток узнаётся только после 429, а к тому
+    моменту часть работы уже потеряна.
+    """
+    ring = KeyRing(keys=["k1", "k2"])
+    ring.set_rpm(40)
+    from hub.assign import _spare_requests
+
+    class Registry:
+        def existing(self, gateway_id: str) -> KeyRing:
+            return ring
+
+    assert _spare_requests(Registry(), "a") == 40, "в обоих аккаунтах полный запас"
+    for _ in range(20):
+        ring.note_spent("k1", 40)
+    assert _spare_requests(Registry(), "a") == 40, "второй аккаунт ещё свободен"
+    for _ in range(40):
+        ring.note_spent("k1", 40)
+    assert _spare_requests(Registry(), "a") == 40, "первый исчерпан, второй цел"
+    for _ in range(40):
+        ring.note_spent("k2", 40)
+    assert _spare_requests(Registry(), "a") == 0, "оба аккаунта выбрали лимит"
+
+
+def test_лимит_из_конфига_раздаётся_аккаунтам() -> None:
+    from hub.keyring import KeyRegistry
+
+    reg = KeyRegistry()
+    gateway = {"id": "nvidia", "api_keys": ["k1", "k2", "k3"],
+               "rpm_per_account": 40}
+    reg.apply_limits([gateway])
+    ring = reg.ring("nvidia", gateway["api_keys"])
+    assert {ring.rpm_of(k) for k in ring.keys} == {40}, ring.rpm
+
+    reg2 = KeyRegistry()
+    reg2.apply_limits([{"id": "groq", "api_keys": ["g1"]}])
+    assert not reg2.ring("groq", ["g1"]).rpm_of("g1"), (
+        "без лимита в конфиге ничего не выдумываем"
+    )
+
+
+def test_смена_набора_ключей_не_сбрасывает_расход() -> None:
+    """Добавление ключа не должно выглядеть как «аккаунты свежие»."""
+    from hub.keyring import KeyRegistry
+
+    reg = KeyRegistry()
+    reg.apply_limits([{"id": "a", "api_keys": ["k1"], "rpm_per_account": 40}])
+    reg.ring("a", ["k1"]).note_spent("k1", 40)
+    ring = reg.ring("a", ["k1", "k2"])
+    assert ring.spent_in_minute("k1") == 1, "расход сохранён при смене набора"
+    assert ring.rpm_of("k2") == 40, (
+        "новый ключ обязан знать лимит шлюза, иначе 429 будет только на нём"
+    )

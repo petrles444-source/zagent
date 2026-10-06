@@ -76,6 +76,12 @@ def fingerprint(key: str) -> str:
     return "…" + text[-6:] if len(text) > 8 else text
 
 
+#: Окно, за которое считается расход. Ровно минута, потому что лимиты
+#: «в минуту» считаются скользящим окном: запрос, ушедший 59 секунд назад,
+#: освобождает место только что.
+MINUTE_S = 60.0
+
+
 @dataclass
 class KeyRing:
     """Кольцо ключей одного шлюза с карантином по лимиту."""
@@ -90,6 +96,18 @@ class KeyRing:
     #: ключ → что провайдер сообщил об остатке: осталось запросов, токенов,
     #: когда сброс. Заполняется из заголовков ответа.
     quota: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: ключ → метки времени запросов за последнюю минуту. Свой счётчик нужен
+    #: там, где провайдер остаток не сообщает: лимит известен из документации,
+    #: а израсходовано — только отсюда.
+    spent: dict[str, list[float]] = field(default_factory=dict)
+    #: ключ → запросов в минуту на аккаунт. Переопределение для отдельного ключа;
+    #: обычно лимит одинаков для всех, и тогда работает rpm_default.
+    rpm: dict[str, int] = field(default_factory=dict)
+    #: Запросов в минуту на аккаунт у всего шлюза (из config/gateways.json).
+    #: Лимит принадлежит шлюзу, а не ключу: ключи у него меняются, а лимит
+    #: остаётся. Если хранить его только на ключах, то ключ, добавленный
+    #: позже, окажется без лимита — и именно на нём начнёт сыпаться 429.
+    rpm_default: int = 0
     #: Почему ключ отключён: "429" или "401". Разные причины требуют разного
     #: решения: 429 ждёт времени, 401 — чинить ключ.
     reason: dict[str, str] = field(default_factory=dict)
@@ -126,6 +144,68 @@ class KeyRing:
             merged = dict(previous)
             merged.update(clean)
             self.quota[key] = merged
+
+    def note_spent(self, key: str, rpm: int | None = None) -> None:
+        """Записать, что аккаунт потратил один запрос в текущей минуте.
+
+        Нужно там, где провайдер остаток не сообщает. NVIDIA, например, не
+        присылает заголовков квоты, а лимит у него жёсткий — 40 запросов в
+        минуту на аккаунт. Без своего счётчика пришлось бы упираться в 429
+        и узнавать о лимите постфактум; со счётчиком остаток известен заранее
+        и часть можно не выдавать вовсе.
+
+        Считается скользящее окно в минуту, потому что провайдер считает
+        именно так: лимит не «обнуляется в начале минуты», а освобождается
+        по мере истечения.
+        """
+        now = time.time()
+        with self._lock:
+            stamps = [t for t in self.spent.get(key, ()) if now - t < MINUTE_S]
+            stamps.append(now)
+            self.spent[key] = stamps
+            if rpm:
+                self.rpm_default = int(rpm)
+
+    def rpm_of(self, key: str) -> int:
+        """Лимит в минуту для аккаунта. 0 — неизвестен."""
+        return int(self.rpm.get(key) or self.rpm_default or 0)
+
+    def set_rpm(self, rpm: int) -> None:
+        """Запомнить лимит шлюза. Применяется ко всем аккаунтам сразу.
+
+        Отдельным методом, а не записью по каждому ключу: ключ, добавленный
+        позже, тоже обязан знать лимит, иначе именно на нём начнёт сыпаться
+        429 — а выглядеть это будет как «NVIDIA выбивается», когда на самом
+        деле выбился всего один аккаунт из четырёх.
+        """
+        with self._lock:
+            self.rpm_default = int(rpm)
+
+    def spent_in_minute(self, key: str) -> int:
+        """Сколько запросов ушло по этому аккаунту за последнюю минуту."""
+        now = time.time()
+        with self._lock:
+            stamps = [t for t in self.spent.get(key, ()) if now - t < MINUTE_S]
+            self.spent[key] = stamps
+            return len(stamps)
+
+    def room(self, key: str, need: int = 1) -> tuple[bool, str]:
+        """Хватит ли аккаунту `need` запросов в текущей минуте.
+
+        Считается по собственному расходу и известному лимиту в минуту.
+        Ограничение — не жёсткое: если все аккаунты исчерпаны, лучше рискнуть
+        429, чем отказать в работе. Отказ приводит к тому, что задача не
+        выполняется вовсе.
+        """
+        limit = self.rpm_of(key)
+        if not limit:
+            return True, ""
+        used = self.spent_in_minute(key)
+        left = limit - used
+        if left < need:
+            return False, (f"осталось {max(left, 0)} запросов из {limit} "
+                           f"в минуту, нужно {need}")
+        return True, f"осталось {left} из {limit} запросов в минуту"
 
     def quota_of(self, key: str) -> dict[str, Any]:
         """Что известно об остатке аккаунта. Пусто — провайдер не сообщает."""
@@ -247,13 +327,21 @@ class KeyRing:
         rows = []
         for key in self.keys:
             until = self.blocked_until.get(key, 0.0)
-            rows.append({
+            row = {
                 "label": fingerprint(key),
                 "used": self.used.get(key, 0),
                 "blocked": until > now,
                 "cooldown": max(0, int(until - now)) if until > now else 0,
                 "reason": self.reason.get(key, ""),
-            })
+            }
+            # Остаток показывается рядом с лимитом: по одному числу
+            # «израсходовано 38» непонятно, много это или мало, а по
+            # «2 из 40» — сразу.
+            if self.rpm_of(key):
+                row["rpm_limit"] = self.rpm_of(key)
+                row["rpm_spent"] = self.spent_in_minute(key)
+                row["rpm_left"] = max(0, row["rpm_limit"] - row["rpm_spent"])
+            rows.append(row)
         blocked = sum(1 for r in rows if r["blocked"])
         return {
             "total": len(self.keys),
@@ -315,12 +403,28 @@ class KeyRegistry:
             if ring is None or ring.keys != clean:
                 # Набор ключей изменился: состояние прошлого кольца больше не
                 # имеет смысла, но счётчики запросов хотелось бы сохранить.
+                # Остаток и расход — тоже: иначе смена набора ключей
+                # выглядела бы как «аккаунты свежие», и часть выдалась бы
+                # аккаунту, который на самом деле уже выбрал лимит.
                 previous = ring or KeyRing()
                 ring = KeyRing(keys=clean, used=dict(previous.used),
                                blocked_until=dict(previous.blocked_until),
-                               reason=dict(previous.reason))
+                               reason=dict(previous.reason),
+                               quota=dict(previous.quota),
+                               spent={k: list(v) for k, v in previous.spent.items()},
+                               rpm=dict(previous.rpm),
+                               rpm_default=previous.rpm_default)
                 self._rings[gateway_id] = ring
             return ring
+
+    def existing(self, gateway_id: str) -> KeyRing | None:
+        """Уже созданное кольцо шлюза, без создания и без ключей.
+
+        Для чтения состояния. Создавать кольцо здесь нельзя: без списка
+        ключей оно было бы пустым, и «свободных аккаунтов ноль» выглядело бы
+        как правда там, где просто ничего не спрашивали.
+        """
+        return self._rings.get(str(gateway_id))
 
     def next_key(self, gateway: dict) -> str | None:
         """Ключ для вызова по данным шлюза из config."""
@@ -354,6 +458,31 @@ class KeyRegistry:
         """Передать кольцу остаток квоты, если провайдер его сообщил."""
         keys = gateway.get("api_keys") or ([gateway["api_key"]] if gateway.get("api_key") else [])
         self.ring(str(gateway.get("id")), list(keys)).note_quota(key, limits)
+
+    def note_spent(self, gateway: dict, key: str) -> None:
+        """Отметить, что по аккаунту ушёл ещё один запрос.
+
+        Счётчик свой, потому что провайдер может не сообщать остаток, а лимит
+        при этом жёсткий. Знание о потраченном нужно и для показа в
+        интерфейсе, и для решения, выдавать ли часть этому аккаунту.
+        """
+        keys = gateway.get("api_keys") or ([gateway["api_key"]] if gateway.get("api_key") else [])
+        self.ring(str(gateway.get("id")), list(keys)).note_spent(
+            key, gateway.get("rpm_per_account"))
+
+    def apply_limits(self, gateways: list[dict[str, Any]]) -> None:
+        """Раздать кольцам известные лимиты из конфига.
+
+        Заполняется при загрузке, а не по ходу работы: остаток аккаунта нужен
+        до первого запроса, чтобы решить, выдавать ли часть. Если ждать первого
+        ответа, решение примет уже факт отказа.
+        """
+        for gateway in gateways:
+            rpm = gateway.get("rpm_per_account")
+            if not rpm:
+                continue
+            keys = gateway.get("api_keys") or ([gateway["api_key"]] if gateway.get("api_key") else [])
+            self.ring(str(gateway.get("id")), list(keys)).set_rpm(int(rpm))
 
     def note_ok(self, gateway: dict, key: str) -> None:
         keys = gateway.get("api_keys") or ([gateway["api_key"]] if gateway.get("api_key") else [])
