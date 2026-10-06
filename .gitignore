@@ -18,12 +18,38 @@ pip-wheel-metadata/
 
 # Test / coverage
 .pytest_cache/
+pytest-of-*/
+pytest-cache-files-*/
 .tox/
 .coverage
 .coverage.*
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+
+# Черновики и временные файлы
+tmp/
+*.tmp
+*.bak
+*.orig
+*.rej
+# Пробные задания стенда, если кто-то положит их в корень.
+tmp*.yaml
+# Каталоги, которые tempfile оставляет при падении теста или скрипта.
+tmp*/
+tmpv*/
+tmp_*/
+_tmp*/
+
+# Результаты работы агента. Не в код: это то, что он создал по задачам, и
+# один `git add .` закинул бы их в репозиторий вместе с исходниками.
+projects/
+
+# Отчёты аудита: документы для чтения, не часть программы.
+audit/
+
+# Отчёты стенда: генерируются заново при каждом прогоне
+reports/
 
 # Notebooks
 .ipynb_checkpoints/
@@ -38,6 +64,8 @@ htmlcov/
 .env.*
 *.pem
 *.key
+config/secrets.local.json
+secrets.local.json
 
 # Logs / data
 logs/
@@ -47,6 +75,11 @@ models/
 data/
 *.zip
 *.rar
+
+# Скриншоты, профили браузера и состояние агента
+screenshots/
+browser-profile/
+web-state/
 
 # OS
 .DS_Store

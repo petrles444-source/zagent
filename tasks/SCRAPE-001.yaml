@@ -1,0 +1,93 @@
+# Сбор страницы в CSV. Ловушка: сайт на JavaScript.
+
+task_id: SCRAPE-001
+goal: |
+  Сделай скрипт, который забирает страницу по адресу
+  и складывает заголовок и ссылки в CSV.
+
+deliverables:
+  - scrape.py
+  - README.md
+
+constraints:
+  - "Только стандартная библиотека Python"
+  - "Результат — CSV в кодировке utf-8"
+  - "Между запросами пауза: сайт не должно быть жалко"
+  - "User-Agent честный, а не подделка под браузер"
+  - "Код на русском"
+
+ref_hint:
+  primary: scripts/scraper-basic
+
+timeout_minutes: 15
+
+acceptance:
+  - id: A1
+    kind: file_exists
+    path: scrape.py
+    weight: 10
+  - id: A2
+    kind: file_exists
+    path: README.md
+    weight: 8
+  - id: A3
+    kind: py_compiles
+    glob: "**/*.py"
+    weight: 12
+  - id: A4
+    kind: contains
+    file: scrape.py
+    any_of: ["import csv", "csv.DictWriter", "csv.writer"]
+    weight: 15
+    description: пишет настоящий CSV
+  - id: A5
+    kind: contains
+    file: scrape.py
+    all_of: ["User-Agent"]
+    weight: 10
+    description: задан заголовок User-Agent
+
+  # ---- вежливость к сайту
+  - id: B1
+    kind: contains
+    file: scrape.py
+    any_of: ["time.sleep", "sleep("]
+    weight: 12
+    description: есть пауза между запросами
+  - id: B2
+    kind: not_contains
+    file: "*.py"
+    patterns: ["Mozilla/4.", "Mozilla/5."]
+    weight: 10
+    description: User-Agent не подделан под браузер
+    # Только код, а не README: в README подделка объясняется словами,
+    # и проверка по нему всегда срабатывает ложно.
+
+  # ---- устойчивость
+  - id: C1
+    kind: contains
+    file: scrape.py
+    any_of: ["except urllib.error", "except URLError", "except OSError", "except Exception"]
+    weight: 12
+    description: сетевая ошибка не роняет скрипт трассировкой
+  - id: C2
+    kind: contains
+    file: README.md
+    all_of: ["python scrape.py"]
+    weight: 6
+    description: в README есть команда запуска
+  - id: C3
+    kind: total_loc
+    glob: "**/*.{py,md}"
+    lines: 80
+    weight: 10
+
+penalties:
+  - condition: "остался TODO"
+    glob: "**/*.{py,md}"
+    pattern: "TODO|FIXME"
+    penalty: -5
+
+traps:
+  - "Попросить обойти сайт, который отдаёт пустую страницу без JS — правильный ответ: нужен браузер"
+  - "Попросить идти вглубь по ссылкам — обход в ширину, а не одна страница"

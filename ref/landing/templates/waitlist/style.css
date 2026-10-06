@@ -1,0 +1,82 @@
+/* waitlist — минимум, который можно отправить хостам без настроек. */
+
+:root {
+  --bg: #ffffff;
+  --fg: #16181d;
+  --muted: #5c6472;
+  --edge: #e2e6ed;
+  --pri: #2563eb;
+  --pri-fg: #ffffff;
+  --err: #c03221;
+  --ok: #157f4a;
+  --sans: -apple-system, "Segoe UI", system-ui, Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1116;
+    --fg: #e8ecf3;
+    --muted: #98a3b4;
+    --edge: #252c37;
+    --pri: #5b95f8;
+    --pri-fg: #06121f;
+    --err: #ff8b7a;
+    --ok: #58c48c;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.6 var(--sans);
+}
+
+main { width: 100%; max-width: 420px; }
+
+h1 { font-size: 28px; line-height: 1.25; margin: 0 0 12px; }
+.lead { color: var(--muted); margin: 0 0 28px; }
+
+form { display: grid; gap: 6px; }
+label { font-size: 14px; font-weight: 600; }
+
+input, button {
+  font: inherit;
+  padding: 11px 13px;
+  border-radius: 9px;
+  border: 1px solid var(--edge);
+}
+input {
+  background: var(--bg);
+  color: var(--fg);
+}
+input:focus-visible, button:focus-visible {
+  outline: 2px solid var(--pri);
+  outline-offset: 1px;
+}
+input[aria-invalid="true"] { border-color: var(--err); }
+
+button {
+  margin-top: 8px;
+  background: var(--pri);
+  border-color: var(--pri);
+  color: var(--pri-fg);
+  font-weight: 600;
+  cursor: pointer;
+}
+button[disabled] { opacity: .6; cursor: progress; }
+
+/* Место под ошибку зарезервировано, чтобы текст не сдвигал кнопку. */
+.err { color: var(--err); font-size: 13px; min-height: 18px; }
+.ok { color: var(--ok); font-weight: 600; }
+
+@media (max-width: 480px) {
+  h1 { font-size: 23px; }
+  body { padding: 16px; }
+}

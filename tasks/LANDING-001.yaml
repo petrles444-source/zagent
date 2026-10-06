@@ -1,0 +1,115 @@
+# Задание для стенда. Формат проверок декларативный: kind + параметры.
+# Виды проверок: python tools/bench.py kinds
+
+task_id: LANDING-001
+goal: |
+  Сверстай одностраничный лендинг для сервиса управления задачами.
+  Название выбери сам. Тексты на русском.
+
+deliverables:
+  - index.html
+  - style.css
+  - script.js
+
+constraints:
+  - "Только статика: HTML + CSS + обычный JS, без сборки и без npm"
+  - "Страница должна работать, если открыть index.html напрямую с диска"
+  - "Адаптив от 360px: без горизонтальной прокрутки"
+  - "Форма заявки отправляет POST на /api/lead с JSON в теле"
+  - "Почта в форме проверяется до отправки"
+  - "Не использовать jQuery и другие внешние библиотеки"
+  - "Код на русском, комментарии на русском"
+
+ref_hint:
+  primary: landing/templates/saas-minimal
+  fallback: landing/templates/waitlist
+
+timeout_minutes: 15
+
+acceptance:
+  # ---- что должно работать
+  - id: A1
+    kind: file_exists
+    path: index.html
+    weight: 10
+    description: есть главный файл
+  - id: A2
+    kind: file_exists
+    path: style.css
+    weight: 8
+    description: стили отдельным файлом, а не инлайном
+  - id: A3
+    kind: file_exists
+    path: script.js
+    weight: 8
+    description: логика отдельным файлом
+  - id: A4
+    kind: contains
+    file: index.html
+    all_of: ['<form']
+    weight: 8
+    description: на странице есть форма
+  - id: A5
+    kind: contains
+    file: script.js
+    any_of: ["fetch("]
+    weight: 12
+    description: форма реально отправляется, а не имитируется
+  - id: A6
+    kind: contains
+    file: script.js
+    any_of: ['type="email"', "checkValidity", "EMAIL_RE", "email.test"]
+    weight: 12
+    description: почта проверяется до отправки
+
+  # ---- качество
+  - id: B1
+    kind: html_has_media_query
+    glob: "**/*.css"
+    breakpoints: ["768", "480"]
+    weight: 12
+    description: есть адаптив
+  - id: B2
+    kind: html_images_have_alt
+    glob: "**/*.html"
+    weight: 5
+    description: у картинок есть alt
+  - id: B3
+    kind: total_loc
+    glob: "{index.html,style.css,script.js}"
+    lines: 60
+    weight: 10
+    description: результат не пустой
+  - id: B4
+    kind: contains
+    file: index.html
+    any_of: ['lang="ru"', "lang='ru'"]
+    weight: 5
+    description: указан язык документа
+
+  # ---- процесс
+  - id: C1
+    kind: contains
+    file: index.html
+    any_of: ['name="viewport"', "name='viewport'"]
+    weight: 5
+    description: есть метатег viewport
+  - id: C2
+    kind: no_files
+    glob: "**/*.py"
+    weight: 3
+    description: в статичном лендинге не должно быть Python-файлов
+
+penalties:
+  - condition: "использован jQuery или другая внешняя библиотека"
+    glob: "**/*.js"
+    pattern: "jquery|jQuery|cdn\\.jsdelivr\\.net/npm/|unpkg\\.com"
+    penalty: -20
+  - condition: "осталась подставная проверка вместо отправки"
+    file: script.js
+    pattern: "//\\s*TODO|console\\.log\\(.*заглушк"
+    penalty: -10
+
+traps:
+  - "Попросить тёмную тему — вёрстка не должна поехать (prefers-color-scheme)"
+  - "Попросить RU/EN переключатель — проверить, что строки не зашиты в разметку"

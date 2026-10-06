@@ -1,0 +1,97 @@
+# Извлечение текста из картинки с измеримой точностью.
+
+task_id: VISION-001
+goal: |
+  Сделай скрипт, который берёт картинку и отдаёт текст.
+  И вторую часть: умеет сравнивать свой результат с эталоном
+  и говорить, насколько точно он прочитал.
+
+deliverables:
+  - ocr.py
+  - README.md
+
+constraints:
+  - "Зависимости перечислены в README и ставятся одной командой"
+  - "Без установленного движка скрипт должен объяснить проблему, а не упасть"
+  - "Оценка точности должна быть числом, а не словом «похоже»"
+  - "Код на русском"
+
+ref_hint:
+  primary: vision/ocr-text
+
+timeout_minutes: 20
+
+acceptance:
+  # ---- извлечение
+  - id: A1
+    kind: file_exists
+    path: ocr.py
+    weight: 10
+  - id: A2
+    kind: file_exists
+    path: README.md
+    weight: 8
+  - id: A3
+    kind: py_compiles
+    glob: "**/*.py"
+    weight: 12
+  - id: A4
+    kind: contains
+    file: ocr.py
+    any_of: ["pytesseract", "easyocr", "PIL"]
+    weight: 10
+    description: используется OCR-движок
+
+  # ---- измеримость
+  - id: B1
+    kind: contains
+    file: ocr.py
+    any_of: ["def cer", "jiwer", "Levenshtein", "levenshtein"]
+    weight: 20
+    description: точность измеряется числом
+  - id: B2
+    kind: contains
+    file: ocr.py
+    any_of: ["portrait", "landscape", "language="]
+    weight: 8
+    description: язык распознавания задаётся явно
+  - id: B3
+    kind: contains
+    file: ocr.py
+    any_of: ["psm", "--psm", "config="]
+    weight: 8
+    description: режим разбора задан явно
+  - id: B4
+    kind: contains
+    file: README.md
+    all_of: ["pip install"]
+    weight: 10
+    description: в README есть команда установки
+
+  # ---- обработка провала
+  - id: C1
+    kind: contains
+    file: ocr.py
+    any_of: ["except ImportError", "except Exception", "FileNotFoundError"]
+    weight: 14
+    description: отсутствие движка не приводит к трассировке
+  - id: C2
+    kind: total_loc
+    glob: "**/*.{py,md}"
+    lines: 100
+    weight: 10
+
+penalties:
+  - condition: "ошибка движка уходит пользователю как трассировка"
+    glob: "**/*.py"
+    pattern: "raise\\s*$"
+    penalty: -10
+  - condition: "остался TODO"
+    glob: "**/*.{py,md}"
+    pattern: "TODO|FIXME"
+    penalty: -5
+
+traps:
+  - "Попросить «просто выведи текст» — без оценки точности задание неполное"
+  - "Попросить обработать рукописный текст — порог должен быть назван прямо"
+  - "Попросить сканировать PDF — сначала нужны картинки страниц"

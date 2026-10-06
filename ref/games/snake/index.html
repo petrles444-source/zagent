@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Змейка</title>
+<style>
+  /* Токены в :root и тёмная тема по системе — как в остальных эталонах. */
+  :root {
+    --bg: #f6f7f9;
+    --fg: #15181d;
+    --panel: #ffffff;
+    --edge: #e2e6ed;
+    --board: #11151c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1116;
+      --fg: #e8ecf3;
+      --panel: #171c25;
+      --edge: #252c37;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center; gap: 16px;
+    padding: 24px; background: var(--bg); color: var(--fg);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { display: grid; gap: 14px; justify-items: center; }
+  h1 { margin: 0; font-size: 22px; }
+  .hud { display: flex; gap: 26px; font-size: 15px; }
+  .hud b { font-variant-numeric: tabular-nums; }
+  canvas {
+    display: block; background: var(--board); border-radius: 10px;
+    border: 1px solid var(--edge);
+    /* Игра мышью не управляется: курсор не нужен. */
+    cursor: default;
+  }
+  button {
+    font: inherit; font-weight: 600; padding: 9px 20px; cursor: pointer;
+    background: var(--panel); color: var(--fg);
+    border: 1px solid var(--edge); border-radius: 8px;
+  }
+  button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+  .hint { color: var(--muted, #6b7280); font-size: 14px; margin: 0; text-align: center; }
+  @media (max-width: 560px) {
+    /* Поле уменьшается, чтобы поместилось на телефоне. */
+    canvas { width: 100%; height: auto; }
+    .wrap { width: 100%; max-width: 340px; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Змейка</h1>
+    <p class="hud">Счёт: <b id="score">0</b> &nbsp; Рекорд: <b id="record">0</b></p>
+    <canvas id="board" width="480" height="480"
+            role="img" aria-label="Игровое поле змейки"></canvas>
+    <button id="restart" type="button">Начать заново</button>
+    <p class="hint">
+      Стрелки или WASD — ход. Пробел — пауза. R — заново.<br>
+      На телефоне поля нет: нужна версия со свайпами.
+    </p>
+  </div>
+  <script src="game.js"></script>
+</body>
+</html>

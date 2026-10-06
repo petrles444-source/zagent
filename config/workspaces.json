@@ -1,0 +1,47 @@
+{
+  "active": "default",
+  "workspaces": [
+    {
+      "id": "default",
+      "name": "zagent",
+      "path": "C:\\Users\\HP\\PycharmProjects\\WelcomeScreen\\zagent",
+      "access": 3,
+      "autonomy": "yolo",
+      "escalation": "auto",
+      "max_steps": 40,
+      "protected": [
+        ".git",
+        ".venv",
+        "venv",
+        "node_modules",
+        "__pycache__",
+        ".env",
+        ".env.local",
+        "secrets.local.json"
+      ],
+      "created_at": "",
+      "self_edit": false
+    },
+    {
+      "id": "создам-сам",
+      "name": "создам-сам",
+      "path": "C:\\Users\\HP\\PycharmProjects\\WelcomeScreen\\zagent\\tmp\\тестовая-папка",
+      "access": 2,
+      "autonomy": "normal",
+      "escalation": "auto",
+      "max_steps": 40,
+      "protected": [
+        ".git",
+        ".venv",
+        "venv",
+        "node_modules",
+        "__pycache__",
+        ".env",
+        ".env.local",
+        "secrets.local.json"
+      ],
+      "created_at": "2026-10-06 01:09:12",
+      "self_edit": false
+    }
+  ]
+}

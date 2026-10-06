@@ -1,0 +1,100 @@
+# Игра на canvas. Ловушка — проверка краёв, а не только «код есть».
+
+task_id: GAME-001
+goal: |
+  Сделай простую игру «Змейка» на canvas.
+  Управление стрелками, счёт в углу, кнопка перезапуска после проигрыша.
+
+deliverables:
+  - index.html
+  - game.js
+
+constraints:
+  - "Один index.html со всем разметкой, отдельный game.js с логикой"
+  - "Без сборки: открыл файл — играет"
+  - "Игровое поле 20 клеток по 20"
+  - "Скорость растёт, иначе через минуту становится скучно"
+  - "Код на русском, комментарии объясняют неочевидные места"
+
+ref_hint:
+  primary: games/snake
+  fallback: []
+
+timeout_minutes: 15
+
+acceptance:
+  # ---- механика
+  - id: A1
+    kind: file_exists
+    path: index.html
+    weight: 10
+  - id: A2
+    kind: file_exists
+    path: game.js
+    weight: 10
+  - id: A3
+    kind: contains
+    file: index.html
+    any_of: ["<canvas"]
+    weight: 15
+    description: поле нарисовано на canvas
+  - id: A4
+    kind: contains
+    file: game.js
+    any_of: ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "keydown"]
+    weight: 15
+    description: есть управление стрелками
+  - id: A5
+    kind: contains
+    file: game.js
+    any_of: ["score", "очк", "счёт"]
+    weight: 10
+    description: счёт виден
+
+  # ---- края случая — здесь и ловушка
+  - id: B1
+    kind: contains
+    file: game.js
+    any_of: ["gameOver", "game_over", "проиграл", "Конец", "столкн", "collision"]
+    weight: 15
+    description: проигрыш обрабатывается
+  - id: B2
+    kind: contains
+    file: game.js
+    any_of: ["restart", "заново", "Начать", "start", "reset"]
+    weight: 10
+    description: есть перезапуск
+  - id: B3
+    kind: contains
+    file: game.js
+    any_of: ["speed", "скорост", "interval", "frame"]
+    weight: 8
+    description: скорость меняется
+
+  # ---- качество
+  - id: C1
+    kind: not_contains
+    glob: "**/*.{js,html}"
+    patterns: ["console.log", "debugger"]
+    weight: 5
+    description: без отладочного мусора
+  - id: C2
+    kind: total_loc
+    glob: "{index.html,game.js}"
+    lines: 80
+    weight: 7
+
+penalties:
+  - condition: "цикл игры не останавливается после проигрыша"
+    file: game.js
+    pattern: "setInterval\\([^)]*,\\s*1\\d{2}\\s*\\)\\s*;\\s*$"
+    penalty: -10
+  - condition: "остался TODO"
+    glob: "**/*.{js,html}"
+    pattern: "TODO|FIXME"
+    penalty: -5
+
+traps:
+  - "Попросить сохранить рекорд — localStorage и проверка на заполненность"
+  - "Попросить движение по диагонали — две оси одновременно, обработать очередь нажатий"
+  - "Попросить игру на телефоне — свайпы, а не стрелки"

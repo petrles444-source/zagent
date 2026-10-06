@@ -1,0 +1,394 @@
+{
+  "_comment": "Заполняется командой `zagent geo --vpn|--direct`. Не затирайте руками: вердикт собирается из сырых замеров.",
+  "models": {
+    "cloudflare/@cf/google/gemma-4-26b-a4b-it": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "ok",
+        "vpn": "ok"
+      },
+      "note": "",
+      "checked_at": 1791223399.5531576
+    },
+    "cloudflare/@cf/ibm-granite/granite-4.0-h-micro": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "ok",
+        "vpn": "ok"
+      },
+      "note": "",
+      "checked_at": 1791223399.5531878
+    },
+    "cloudflare/@cf/meta/llama-3.1-8b-instruct-fp8-fast": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "ok",
+        "vpn": "ok"
+      },
+      "note": "",
+      "checked_at": 1791223399.5532057
+    },
+    "cloudflare/@cf/meta/llama-3.3-70b-instruct-fp8-fast": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "ok",
+        "vpn": "ok"
+      },
+      "note": "",
+      "checked_at": 1791223399.5532112
+    },
+    "cloudflare/@cf/mistralai/mistral-small-3.1-24b-instruct": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "ok",
+        "vpn": "ok"
+      },
+      "note": "",
+      "checked_at": 1791223399.5532217
+    },
+    "cloudflare/@cf/openai/gpt-oss-120b": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "ok",
+        "vpn": "ok"
+      },
+      "note": "",
+      "checked_at": 1791223399.5532265
+    },
+    "cloudflare/@cf/openai/gpt-oss-20b": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "ok",
+        "vpn": "ok"
+      },
+      "note": "",
+      "checked_at": 1791223399.5532305
+    },
+    "cloudflare/@cf/qwen/qwen3-30b-a3b-fp8": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "ok",
+        "vpn": "ok"
+      },
+      "note": "",
+      "checked_at": 1791223399.5532346
+    },
+    "groq/openai/gpt-oss-120b": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "ok",
+        "vpn": "ok"
+      },
+      "note": "",
+      "checked_at": 1791223399.5532396
+    },
+    "groq/openai/gpt-oss-20b": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "ok",
+        "vpn": "ok"
+      },
+      "note": "",
+      "checked_at": 1791223399.5532439
+    },
+    "groq/qwen/qwen3.8-27b": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "ok",
+        "vpn": "ok"
+      },
+      "note": "",
+      "checked_at": 1791223399.553248
+    },
+    "llm7/DeepSeek-V4-Flash-0731": {
+      "region": "ru",
+      "status": "blocked",
+      "samples": {
+        "direct": "down",
+        "vpn": "down"
+      },
+      "note": "",
+      "checked_at": 1791223399.5532534
+    },
+    "llm7/GLM-5.3-Flash": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "limited",
+        "vpn": "limited"
+      },
+      "note": "",
+      "checked_at": 1791223399.5532644
+    },
+    "llm7/codestral-latest": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "limited",
+        "vpn": "limited"
+      },
+      "note": "",
+      "checked_at": 1791223399.5532742
+    },
+    "llm7/minimax-m2.7": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "limited",
+        "vpn": "limited"
+      },
+      "note": "",
+      "checked_at": 1791223399.5532806
+    },
+    "mistralai/codestral-latest": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "ok",
+        "vpn": "ok"
+      },
+      "note": "",
+      "checked_at": 1791223399.5532856
+    },
+    "mistralai/ministral-3b-latest": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "ok",
+        "vpn": "ok"
+      },
+      "note": "",
+      "checked_at": 1791223399.5532906
+    },
+    "mistralai/ministral-8b-latest": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "ok",
+        "vpn": "ok"
+      },
+      "note": "",
+      "checked_at": 1791223399.5532947
+    },
+    "openrouter/apodex/apodex-1.1-mini:free": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "limited",
+        "vpn": "limited"
+      },
+      "note": "",
+      "checked_at": 1791223399.5532992
+    },
+    "openrouter/cohere/north-mini-code:free": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "limited",
+        "vpn": "limited"
+      },
+      "note": "",
+      "checked_at": 1791223399.553304
+    },
+    "openrouter/dots-studio/dots-3-note-preview:free": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "limited",
+        "vpn": "limited"
+      },
+      "note": "",
+      "checked_at": 1791223399.5533094
+    },
+    "openrouter/google/gemma-4-26b-a4b-it:free": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "limited",
+        "vpn": "limited"
+      },
+      "note": "",
+      "checked_at": 1791223399.553315
+    },
+    "openrouter/google/gemma-4-31b-it:free": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "limited",
+        "vpn": "limited"
+      },
+      "note": "",
+      "checked_at": 1791223399.5533195
+    },
+    "openrouter/inclusionai/ling-3.0-flash-sante:free": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "limited",
+        "vpn": "limited"
+      },
+      "note": "",
+      "checked_at": 1791223399.553324
+    },
+    "openrouter/liquid/lfm-2.5-2.6b:free": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "limited",
+        "vpn": "limited"
+      },
+      "note": "",
+      "checked_at": 1791223399.5533295
+    },
+    "openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "limited",
+        "vpn": "limited"
+      },
+      "note": "",
+      "checked_at": 1791223399.5533342
+    },
+    "openrouter/nvidia/nemotron-3-super-120b-a12b:free": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "limited",
+        "vpn": "limited"
+      },
+      "note": "",
+      "checked_at": 1791223399.5533404
+    },
+    "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "limited",
+        "vpn": "limited"
+      },
+      "note": "",
+      "checked_at": 1791223399.5533452
+    },
+    "openrouter/nvidia/nemotron-3.5-lightning:free": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "limited",
+        "vpn": "limited"
+      },
+      "note": "",
+      "checked_at": 1791223399.5533502
+    },
+    "openrouter/openrouter/free": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "limited",
+        "vpn": "limited"
+      },
+      "note": "",
+      "checked_at": 1791223399.5533547
+    },
+    "openrouter/poolside/laguna-s-2.1:free": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "limited",
+        "vpn": "limited"
+      },
+      "note": "",
+      "checked_at": 1791223399.5533593
+    },
+    "openrouter/poolside/laguna-xs-2.1:free": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "limited",
+        "vpn": "limited"
+      },
+      "note": "",
+      "checked_at": 1791223399.5533638
+    },
+    "openrouter/qwen/qwen3.8-27b:free": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "limited"
+      },
+      "note": "",
+      "checked_at": 1791218129.6976206
+    },
+    "openrouter/thinkingmachines/inkling-small:free": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "blocked",
+        "vpn": "blocked"
+      },
+      "note": "",
+      "checked_at": 1791223399.5533683
+    },
+    "openrouter/thinkingmachines/inkling:free": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "blocked",
+        "vpn": "blocked"
+      },
+      "note": "",
+      "checked_at": 1791223399.553373
+    },
+    "z_ai/glm-4.5-flash": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "ok",
+        "vpn": "ok"
+      },
+      "note": "",
+      "checked_at": 1791223399.553379
+    },
+    "z_ai/glm-4.6v-flash": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "ok",
+        "vpn": "ok"
+      },
+      "note": "",
+      "checked_at": 1791223399.5533834
+    },
+    "z_ai/glm-4.7-flash": {
+      "region": "ru",
+      "status": "vpn",
+      "samples": {
+        "direct": "down",
+        "vpn": "limited"
+      },
+      "note": "",
+      "checked_at": 1791223399.553388
+    },
+    "zen/space-bunny-free": {
+      "region": "ru",
+      "status": "ok",
+      "samples": {
+        "direct": "ok",
+        "vpn": "ok"
+      },
+      "note": "",
+      "checked_at": 1791223399.553393
+    }
+  }
+}

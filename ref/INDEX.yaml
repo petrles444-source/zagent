@@ -1,0 +1,108 @@
+# Библиотека эталонов для агента.
+#
+# Агент читает этот файл ПЕРВЫМ, до обхода дерева. Поэтому запись должна быть
+# короткой и отвечать на два вопроса: когда применять и когда НЕ применять.
+# Второй вопрос важнее: именно он останавливает натягивание неподходящего
+# образца вместо решения задачи.
+#
+# Папка без записи здесь агент не найдёт. Проверка согласованности:
+#     python tools/bench.py check
+
+version: 1
+updated: "2026-10-05"
+
+entries:
+  # ============================================================ ЛЕНДИНГИ
+  - id: saas-minimal
+    path: landing/templates/saas-minimal
+    tags: [landing, static, form, email-capture, no-build]
+    stack: [html, css, vanilla-js]
+    complexity: 1
+    use_when: >
+      Нужен одностраничник без сборки: hero, блок преимуществ, форма заявки.
+      Статика, без авторизации и без роутинга.
+    avoid_when: >
+      Нужны аккаунты, несколько страниц или админка — бери multipage/auth-flow.
+      Нужна тёмная тема по системным настройкам — здесь только светлая.
+    license: своё
+    source: идея структуры из общих практик одностраничников
+
+  - id: waitlist-email
+    path: landing/templates/waitlist
+    tags: [landing, email-capture, minimal, one-file]
+    stack: [html, css]
+    complexity: 1
+    use_when: >
+      Нужен только сбор почты: одна страница, одно поле, без кнопок-приманок.
+    avoid_when: >
+      Нужен раздел с преимуществами или FAQ — это уже saas-minimal.
+    license: своё
+
+  # ============================================================ МНОГОСТРАНИЧНЫЕ
+  - id: auth-flow
+    path: multipage/auth-flow
+    tags: [multipage, auth, sqlite, passwords, security]
+    stack: [python, stdlib-http, sqlite3, html]
+    complexity: 3
+    use_when: >
+      Нужна регистрация, вход и сброс пароля на одной «базе» — на стандартной
+      библиотеке, без Flask и без сборки.
+    avoid_when: >
+      Нужен только вход без регистрации — лишние страницы мешают.
+      Нужен ORM или миграции — здесь голый sqlite3.
+    security_notes:
+      - "пароль хешируется pbkdf2_hmac со случайной солью"
+      - "сессия в httpOnly cookie, не в localStorage"
+      - "сброс пароля по одноразовому токену со сроком"
+    license: своё
+
+  # ============================================================ СКРИПТЫ
+  - id: scraper-basic
+    path: scripts/scraper-basic
+    tags: [scraper, requests, csv, sync]
+    stack: [python, urllib, csv]
+    complexity: 1
+    use_when: >
+      Сайт отдаёт разметку сразу, нужен разовый сбор в CSV.
+    avoid_when: >
+      Сайт рендерится через JavaScript — бери scraper-playwright,
+      иначе получишь пустые секции.
+    license: своё
+
+  # ============================================================ ИГРЫ
+  - id: snake-canvas
+    path: games/snake
+    tags: [game, canvas, vanilla-js, game-loop, collision]
+    stack: [html, canvas, vanilla-js]
+    complexity: 2
+    use_when: >
+      Нужна простая игра с пошаговым циклом: змейка, тетрис, крестики.
+      Открыл файл — играет, без сборки.
+    avoid_when: >
+      Нужно управление свайпами на телефоне — в эталоне только клавиши.
+      Нужны уровни, препятствия, несколько жизней — здесь чистая классика.
+    license: своё
+
+  # ============================================================ ЗРЕНИЕ
+  - id: ocr-text
+    path: vision/ocr-text
+    tags: [ocr, screenshot, cer, eval, no-gpu]
+    stack: [python, pillow, pytesseract]
+    complexity: 2
+    use_when: >
+      Нужен текст из скриншота или картинки и способ измерить, насколько
+      точно он прочитан.
+    avoid_when: >
+      Нужен разбор структуры интерфейса по скриншоту — это другая задача,
+      извлечение текста её не решает.
+    license: своё
+
+  # ============================================================ МЕТА
+  - id: anti-patterns
+    path: meta
+    tags: [meta, rules]
+    complexity: 1
+    use_when: >
+      Всегда, перед началом работы. Короткий список того, что портит результат.
+    avoid_when: "никогда"
+    license: своё

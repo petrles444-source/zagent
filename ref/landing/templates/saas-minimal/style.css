@@ -1,0 +1,156 @@
+/* saas-minimal — эталон одностраничника.
+ *
+ * Правила, которые этот файл показывает:
+ *   - токены в :root, а не цвета по коду;
+ *   - одна точка входа под тему через prefers-color-scheme;
+ *   - адаптив на 480 / 768 / 1200, а не «всё одной вёрсткой»;
+ *   - focus-visible, а не outline:none.
+ */
+
+:root {
+  --bg: #ffffff;
+  --fg: #14161a;
+  --muted: #5b6472;
+  --edge: #e3e7ee;
+  --pri: #2563eb;
+  --pri-fg: #ffffff;
+  --ok: #157f4a;
+  --err: #c03221;
+  --radius: 10px;
+  --sans: -apple-system, "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1218;
+    --fg: #e7ebf2;
+    --muted: #97a2b3;
+    --edge: #262d39;
+    --pri: #4f8ef7;
+    --pri-fg: #06121f;
+    --err: #ff8b7a;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.6 var(--sans);
+}
+
+/* --- шапка --------------------------------------------------------- */
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--edge);
+  flex-wrap: wrap;                 /* на узком экране навигация уедет вниз */
+}
+
+.brand { font-weight: 700; text-decoration: none; color: var(--fg); }
+
+.nav { display: flex; gap: 18px; flex-wrap: wrap; }
+.nav a { color: var(--muted); text-decoration: none; }
+.nav a:hover { color: var(--fg); text-decoration: underline; }
+
+/* --- секции -------------------------------------------------------- */
+
+main { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+.hero { padding: 72px 0 56px; text-align: center; }
+.hero h1 { font-size: 40px; line-height: 1.2; margin: 0 0 14px; }
+.sub { color: var(--muted); font-size: 18px; margin: 0 auto 28px; max-width: 56ch; }
+.cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+  padding: 40px 0;
+}
+.features h2 { font-size: 20px; margin: 0 0 8px; }
+.features p { color: var(--muted); margin: 0; }
+
+.price { padding: 32px 0; }
+.price table { width: 100%; border-collapse: collapse; }
+.price th, .price td {
+  text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--edge);
+}
+.price th { color: var(--muted); font-weight: 600; font-size: 14px; }
+
+/* --- форма --------------------------------------------------------- */
+
+.lead { padding: 40px 0 64px; }
+.hint { color: var(--muted); }
+
+#leadForm { display: grid; gap: 6px; max-width: 420px; }
+#leadForm label { font-size: 14px; font-weight: 600; margin-top: 10px; }
+
+input {
+  padding: 10px 12px;
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+}
+input:focus-visible {
+  outline: 2px solid var(--pri);
+  outline-offset: 1px;
+}
+input[aria-invalid="true"] { border-color: var(--err); }
+
+/* Сообщение об ошибке не должно прыгать: место под него зарезервировано
+   пустым элементом, который заполняется текстом. */
+.err { color: var(--err); font-size: 13px; min-height: 18px; }
+.done { color: var(--ok); font-weight: 600; }
+
+.btn {
+  display: inline-block;
+  padding: 11px 22px;
+  font: inherit;
+  font-weight: 600;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--fg);
+  text-decoration: none;
+  cursor: pointer;
+}
+.btn.pri { background: var(--pri); border-color: var(--pri); color: var(--pri-fg); }
+.btn:focus-visible { outline: 2px solid var(--pri); outline-offset: 2px; }
+.btn[disabled] { opacity: .6; cursor: progress; }
+
+.foot {
+  border-top: 1px solid var(--edge);
+  padding: 20px 24px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* --- адаптив ------------------------------------------------------- */
+
+@media (max-width: 768px) {
+  .hero { padding: 48px 0 36px; }
+  .hero h1 { font-size: 30px; }
+  .sub { font-size: 16px; }
+}
+
+@media (max-width: 480px) {
+  main { padding: 0 16px; }
+  .top { padding: 12px 16px; }
+  .hero h1 { font-size: 25px; }
+  .cta { flex-direction: column; align-items: stretch; }
+  .price table { font-size: 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}

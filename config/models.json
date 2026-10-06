@@ -1,0 +1,8 @@
+{
+  "base_url": "https://opencode.ai/zen/v1",
+  "models": [
+    {"id": "mimo-v2.6-flash-free", "label": "MiMo"},
+    {"id": "longcat-2.5-preview-free", "label": "LongCat"},
+    {"id": "space-bunny-free", "label": "Space Bunny"}
+  ]
+}

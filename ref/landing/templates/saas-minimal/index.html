@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TaskFlow — задачи команд под контролем</title>
+<meta name="description" content="TaskFlow: доски задач, отчёты по срокам, напоминания. Без установки.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="top">
+  <a class="brand" href="#top">TaskFlow</a>
+  <nav class="nav">
+    <a href="#features">Возможности</a>
+    <a href="#price">Цены</a>
+    <a href="#lead">Заявка</a>
+  </nav>
+</header>
+
+<main id="top">
+
+  <section class="hero">
+    <h1>Задачи команды — на одном экране</h1>
+    <p class="sub">
+      TaskFlow собирает доски, отчёты по срокам и напоминания в одно место.
+      Начало за минуту, без установки и без карты до оплаты.
+    </p>
+    <p class="cta">
+      <a class="btn pri" href="#lead">Попробовать бесплатно</a>
+      <a class="btn" href="#features">Как это работает</a>
+    </p>
+  </section>
+
+  <section id="features" class="features">
+    <article>
+      <h2>Доски</h2>
+      <p>Списки, колонки, метки. Перетаскивание мышью, перенос задач между людьми.</p>
+    </article>
+    <article>
+      <h2>Отчёты</h2>
+      <p>Кто сколько закрыл и что провисло. Выгрузка в CSV одной кнопкой.</p>
+    </article>
+    <article>
+      <h2>Напоминания</h2>
+      <p>Письмо о просрочке приходит тому, кто застрял, а не руководителю.</p>
+    </article>
+  </section>
+
+  <section id="price" class="price">
+    <h2>Цены</h2>
+    <table>
+      <thead>
+        <tr><th>План</th><th>Людей</th><th>Цена</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Пробный</td><td>до 5</td><td>бесплатно</td></tr>
+        <tr><td>Команда</td><td>до 50</td><td>490 ₽ / мес</td></tr>
+        <tr><td>Компания</td><td>сколько нужно</td><td>по запросу</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="lead" class="lead">
+    <h2>Оставить заявку</h2>
+    <p class="hint">Ответим на почту в течение рабочего дня.</p>
+
+    <!-- novalidate: проверку делает script.js, чтобы показывать свои
+         сообщения и не зависеть от локали браузера. -->
+    <form id="leadForm" novalidate>
+      <label for="email">Рабочая почта</label>
+      <input id="email" name="email" type="email" required
+             autocomplete="email" placeholder="you@company.ru"
+             aria-describedby="emailErr">
+      <span id="emailErr" class="err" role="alert"></span>
+
+      <label for="team">Сколько человек в команде</label>
+      <input id="team" name="team" type="number" min="1" max="1000"
+             placeholder="12" aria-describedby="teamErr">
+      <span id="teamErr" class="err" role="alert"></span>
+
+      <button class="btn pri" type="submit" id="leadSubmit">Отправить</button>
+      <p id="leadDone" class="done" hidden role="status">Заявка принята.</p>
+    </form>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <p>TaskFlow — демонстрационный пример. Данные никуда не уходят.</p>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>

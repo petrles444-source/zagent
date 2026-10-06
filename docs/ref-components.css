@@ -1,0 +1,210 @@
+/* ===== Ring Spinner  id=ld-spinner-ring  bg=? =====
+HTML: <div class="rs-spin"></div>
+.rs-spin {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 5px solid #e5e7eb;
+  border-top-color: #6366f1;
+  animation: rs-rot 0.9s linear infinite;
+}
+@keyframes rs-rot { to { transform: rotate(360deg); } }
+
+/* ===== Progress Bar Loader  id=ld-progress-bar  bg=light =====
+HTML: <div class="pb-track"><div class="pb-fill"></div></div>
+.pb-track { width: 240px; height: 10px; background: #e5e7eb; border-radius: 999px; overflow: hidden; }
+.pb-fill {
+  height: 100%; width: 40%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6, #6366f1);
+  background-size: 200% 100%;
+  position: relative;
+  animation: pb-fill 2s ease-in-out infinite, pb-shine 1.5s linear infinite;
+}
+.pb-fill::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, #ffffffaa, transparent);
+  transform: translateX(-100%);
+  animation: pb-sweep 1.5s linear infinite;
+}
+@keyframes pb-fill {
+  0% { width: 0; }
+  50% { width: 75%; }
+  100% { width: 100%; }
+}
+@keyframes pb-shine { to { background-position: 200% 0; } }
+@keyframes pb-sweep { to { transform: translateX(100%); } }
+
+/* ===== Icon Swap Button  id=btn-icon-swap  bg=light =====
+HTML: <button class="is-btn">
+  <span class="is-text">Continue</span>
+  <span class="is-icon">→</span>
+</button>
+.is-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  background: #111827;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: background 0.3s ease;
+}
+.is-icon {
+  display: inline-block;
+  transition: transform 0.35s cubic-bezier(.5,0,.2,1);
+}
+.is-btn:hover { background: #4f46e5; }
+.is-btn:hover .is-icon { transform: translateX(6px); }
+.is-text { transition: transform 0.35s cubic-bezier(.5,0,.2,1); }
+.is-btn:hover .is-text { transform: translateX(-2px); }
+
+/* ===== Glow Border Card  id=card-glow-border  bg=dark =====
+HTML: <div class="gb-card">
+  <h3 class="gb-title">Aurora</h3>
+  <p class="gb-text">A soft glow that breathes.</p>
+</div>
+.gb-card {
+  width: 220px; padding: 22px;
+  border-radius: 16px;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  color: #e2e8f0;
+  text-align: center;
+  box-shadow: 0 0 12px #6366f122;
+  transition: box-shadow 0.4s ease, border-color 0.4s ease, transform 0.3s ease;
+}
+.gb-card:hover {
+  border-color: #6366f1;
+  box-shadow: 0 0 8px #6366f155, 0 0 24px #6366f133;
+  transform: translateY(-3px);
+}
+.gb-title { margin: 0 0 6px; font-size: 18px; font-weight: 700; }
+.gb-text { margin: 0; font-size: 13px; opacity: 0.7; }
+
+/* ===== Shimmer Text  id=txt-shimmer  bg=light =====
+HTML: <h2 class="sm-text">SHIMMER</h2>
+.sm-text {
+  font-size: 52px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  background: linear-gradient(90deg, #94a3b8 0%, #94a3b8 40%, #fff 50%, #94a3b8 60%, #94a3b8 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: sm-sheen 2.5s linear infinite;
+}
+@keyframes sm-sheen {
+  to { background-position: -200% center; }
+}
+.sm-text { filter: drop-shadow(0 2px 8px #94a3b844); }
+
+/* ===== Status Badge  id=tg-status-badge  bg=light =====
+HTML: <div class="sb-row">
+  <span class="sb-badge sb-online"><span class="sb-dot"></span>Online</span>
+  <span class="sb-badge sb-away"><span class="sb-dot"></span>Away</span>
+  <span class="sb-badge sb-offline"><span class="sb-dot"></span>Offline</span>
+</div>
+.sb-row { display: inline-flex; gap: 10px; }
+.sb-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 13px; font-weight: 600;
+}
+.sb-dot { width: 8px; height: 8px; border-radius: 50%; }
+.sb-online { background: #22c55e15; color: #16a34a; }
+.sb-online .sb-dot { background: #22c55e; box-shadow: 0 0 0 0 #22c55e80; animation: sb-pulse 1.8s infinite; }
+.sb-away { background: #f59e0b15; color: #d97706; }
+.sb-away .sb-dot { background: #f59e0b; }
+.sb-offline { background: #94a3b815; color: #64748b; }
+.sb-offline .sb-dot { background: #94a3b8; }
+@keyframes sb-pulse {
+  0% { box-shadow: 0 0 0 0 #22c55e80; }
+  70% { box-shadow: 0 0 0 8px #22c55e00; }
+  100% { box-shadow: 0 0 0 0 #22c55e00; }
+}
+
+/* ===== iOS Switch  id=tg-ios  bg=light =====
+HTML: <input type="checkbox" id="io-toggle" class="io-input" />
+<label for="io-toggle" class="io-switch"></label>
+.io-input { display: none; }
+.io-switch {
+  display: block;
+  width: 56px; height: 32px;
+  border-radius: 16px;
+  background: #e5e7eb;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+.io-switch::after {
+  content: "";
+  position: absolute; top: 2px; left: 2px;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 4px #00000030;
+  transition: transform 0.3s cubic-bezier(.4,1.4,.6,1);
+}
+.io-input:checked + .io-switch { background: #34c759; }
+.io-input:checked + .io-switch::after { transform: translateX(24px); }
+.io-input:active + .io-switch::after { width: 32px; }
+
+/* ===== Search Input  id=in-search-icon  bg=light =====
+HTML: <div class="si-wrap">
+  <span class="si-icon">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+  </span>
+  <input type="text" class="si-input" placeholder="Search…" />
+</div>
+.si-wrap {
+  display: flex; align-items: center; gap: 8px;
+  width: 220px;
+  padding: 0 12px;
+  background: #f9fafb;
+  border: 2px solid #e5e7eb;
+  border-radius: 30px;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.si-icon { color: #9ca3af; transition: color 0.25s ease, transform 0.25s ease; display: flex; }
+.si-input {
+  flex: 1;
+  padding: 11px 0;
+  font-size: 14px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #111827;
+}
+.si-wrap:focus-within {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 4px #6366f122;
+}
+.si-wrap:focus-within .si-icon { color: #6366f1; transform: scale(1.1); }
+
+/* ===== Striped Progress  id=pg-striped  bg=light =====
+HTML: <div class="sp-track"><div class="sp-fill" style="width:68%"></div></div>
+.sp-track {
+  width: 240px; height: 14px;
+  background: #e5e7eb;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.sp-fill {
+  height: 100%;
+  background: #22c55e;
+  background-image: linear-gradient(45deg, #ffffff33 25%, transparent 25%, transparent 50%, #ffffff33 50%, #ffffff33 75%, transparent 75%, transparent);
+  background-size: 20px 20px;
+  border-radius: 999px;
+  animation: sp-stripes 0.6s linear infinite;
+}
+@keyframes sp-stripes {
+  to { background-position: 20px 0; }
+}
