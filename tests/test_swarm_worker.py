@@ -1,13 +1,13 @@
-"""Субагенты на настоящем воркере: разбить, назначить, выполнить, собрать.
+"""Рой на настоящем воркере: запуск, подмена, промежуточная сборка.
 
-Тесты в `test_subagents.py` проверяют отдельные куски: разбор частей, выбор
-модели, запреты, след. Здесь проверяется связка целиком, потому что разрыв
-живётся именно на стыке — например, воркер звал `self._reset_cycle()` вместо
-`agent._reset_cycle()`, и ошибка не выявлялась ни одним из кусковых тестов:
-метода у воркера просто нет, и падение вылезало только на живой задаче.
+Кусковые проверки в `test_swarm.py` смотрят план и правила. Здесь проверяется
+связка: части действительно стартуют на разных аккаунтах, выбывшая часть
+переезжает на резерв и продолжает с чекпоинта, а главный агент работает,
+пока части ещё идут.
 
-Модели не вызываются: подставляется заглушка, которая отвечает заранее
-заготовленным разбиением и коротким «готово».
+Модели не вызываются. Подставляется заглушка, которая пишет файл и падает
+там, где нужно проверить подмену, — так видно всё поведение целиком и
+проверка стоит ноль токенов.
 """
 
 from __future__ import annotations
@@ -25,237 +25,316 @@ sys.path.insert(0, str(ROOT))
 
 from hub.agent import Agent, AgentConfig, make_guard  # noqa: E402
 from hub.autonomy import AccessLevel, Autonomy  # noqa: E402
-from hub.tiers import TierBook  # noqa: E402
+from hub.keyring import KeyRing  # noqa: E402
+from hub.subagents import parse_parts  # noqa: E402
+from hub.swarm_run import SwarmRun  # noqa: E402
 
 SPLIT = json.dumps({"parts": [
-    {"title": "дизайн", "brief": "сверстай главную страницу",
-     "files": ["index.html"]},
-    {"title": "стили", "brief": "напиши стили страницы",
-     "files": ["assets/style.css"]},
+    {"title": "дизайн", "brief": "сверстай главную", "files": ["index.html"]},
+    {"title": "стили", "brief": "напиши стили", "files": ["style.css"]},
+    {"title": "скрипты", "brief": "добавь интерактив", "files": ["app.js"]},
 ]}, ensure_ascii=False)
 
 
-class FakeSelector:
-    """Селектор с одной заведомо рабочей моделью."""
+class _State:
+    gateway, model = "a", "модель"
+    avg_ms, last_status, cooldown_left = 400, "ok", 0
+    tier, fails = 1, 0
 
-    class State:
-        gateway, model = "a", "быстрая"
-        avg_ms, last_status, cooldown_left = 400, "ok", 0
+
+class _Book:
+    def get(self, gateway: str, model: str) -> Any:
+        class Spec:
+            tier, vision, tools = 1, False, True
+        return Spec()
+
+
+class _Selector:
+    tierbook = _Book()
 
     def __init__(self) -> None:
-        self.tierbook = TierBook.empty()
-        self.states = {"a/быстрая": self.State()}
+        self.states = {"a/модель": _State()}
         self.require_vision = False
-        self.registry = type("R", (), {"gateways": []})()
 
-    def stats(self) -> dict[str, Any]:
+    def stats(self) -> dict:
         return {}
 
 
-class FakeCaller:
-    """Отвечает заготовленным текстом и запоминает, что ему сказали."""
+class _Ring:
+    def __init__(self, keys: list[str]) -> None:
+        self.keys = keys
+        self.rpm = {k: 40 for k in keys}
 
-    def __init__(self, script: list[str] | None = None) -> None:
-        self.script = list(script or [])
-        self.pinned: str | None = None
-        self.asked: list[dict[str, Any]] = []
+    def available(self) -> list[str]:
+        return list(self.keys)
 
-    async def ask(self, messages: list[dict], **kw: Any) -> dict[str, Any]:
-        self.asked.append({"messages": messages, "kw": kw,
-                           "pinned": self.pinned})
-        text = self.script.pop(0) if self.script else "готово"
-        return {"text": text, "tokens_in": 1, "tokens_out": 1,
-                "duration_ms": 1, "status": 200, "raw": {}, "error": None,
-                "reasoning": "", "cost": None, "limits": {}}
+    def quota_of(self, key: str) -> dict:
+        return {}
+
+    def spent_in_minute(self, key: str) -> int:
+        return 0
+
+    def rpm_of(self, key: str) -> int:
+        return 40
+
+    def is_blocked(self, key: str) -> bool:
+        return False
+
+
+class _KeyRing:
+    def __init__(self, count: int = 4) -> None:
+        self.ring_obj = _Ring([f"k{i}" for i in range(count)])
+
+    def existing(self, gateway_id: str) -> _Ring:
+        return self.ring_obj
+
+    def ring(self, gateway_id: str, keys: list[str]) -> _Ring:
+        return self.ring_obj
+
+    def keys_of(self, gateway: dict) -> list[str]:
+        return list(self.ring_obj.keys)
+
+    def next_key(self, gateway: dict) -> str | None:
+        return self.ring_obj.keys[0]
+
+    def note_spent(self, gateway: dict, key: str) -> None:
+        return None
+
+
+class FakeWorker:
+    """Минимальный воркер: воркеру нужны селектор, шлюзы и реестр ключей."""
+
+    def __init__(self, tmp_path: Path) -> None:
+        self.selector = _Selector()
+        self.keyring = _KeyRing(4)
+        self.gateways = [{"id": "a", "key_count": 4, "rpm_per_account": 40}]
+        self.events: list[dict[str, Any]] = []
+        self.agents: list[Agent] = []
+
+    def emit(self, event: dict[str, Any]) -> None:
+        self.events.append(event)
 
 
 def _config(base: Path) -> AgentConfig:
     return AgentConfig(base_dir=str(base), access=AccessLevel.FULL,
-                       autonomy=Autonomy.YOLO, max_steps=3)
+                       autonomy=Autonomy.YOLO, max_steps=3, max_tokens=1024)
 
 
-def _candidate():
-    from hub.assign import Candidate
+def _agent(base: Path, worker: FakeWorker) -> Agent:
+    guard = make_guard(_config(base))
+    guard.set_workspace(str(base), None)
+    agent = Agent(worker.selector, guard, _config(base))
+    worker.agents.append(agent)
+    return agent
 
-    return [Candidate(ref="a/быстрая", gateway="a", model="быстрая", tier=1,
-                      vision=True, tools=True, avg_ms=400, free_keys=1,
-                      spare=10_000)]
+
+def _parts(count: int = 3):
+    data = json.loads(SPLIT)
+    data["parts"] = data["parts"][:count]
+    return parse_parts(json.dumps(data, ensure_ascii=False))
+
+
+def _run(worker: FakeWorker, base: Path, parts, *, stub: dict | None = None,
+         fail_on: str = "", agent_behaviour=None):
+    """Прогнать рой на заглушках."""
+    main = _agent(base, worker)
+
+    if stub is not None:
+        stub["fail_on"] = fail_on
+
+    if agent_behaviour is None:
+        async def _plain() -> dict:
+            return {"ok": True, "last": "готово"}
+        agent_behaviour = _plain
+    main.run = agent_behaviour  # type: ignore[assignment]
+
+    async def run() -> dict[str, Any]:
+        run_ = SwarmRun(worker=worker, agent=main, config=_config(base),
+                        parts=parts, task={"id": 1, "task": "сделай страницу"},
+                        task_context="сделай страницу")
+        # Без разброса: тест проверяет логику, а не тайминги.
+        import hub.swarm_run as mod
+        mod.STAGGER_S = 0.0
+        try:
+            return await run_.run()
+        finally:
+            mod.STAGGER_S = 0.8
+    return asyncio.run(run()), main
 
 
 @pytest.fixture()
-def swarm(monkeypatch: pytest.MonkeyPatch):
-    """Готовое окружение: воркер с одним кандидатом и заглушкой вместо сети.
+def model_stub(monkeypatch: pytest.MonkeyPatch):
+    """Заглушка вместо агента части: пишет файл, а указанной части падает.
 
-    Отдаётся функцией, потому что у каждой проверки свой сценарий ответов
-    модели и свой набор того, что надо посмотреть после прогона.
+    Падает только первая попытка. Вторая — это уже подменённый рабочий на
+    резервном аккаунте, и он обязан отработать, иначе проверка подмены
+    ничего не значит.
     """
-    import hub.assign as assign_module
+    state = {"fail_on": "", "calls": [], "failed_once": set()}
 
-    monkeypatch.setattr(assign_module, "collect_candidates",
-                        lambda selector, keyring: _candidate())
+    def fake_agent(agent: Agent, messages, **kw):  # noqa: ANN001, ANN003
+        state["calls"].append(agent.part or "")
 
-    made: dict[str, Any] = {}
+        async def run() -> dict[str, Any]:
+            name = agent.part or ""
+            if name == state["fail_on"] and name not in state["failed_once"]:
+                state["failed_once"].add(name)
+                agent.checkpoint = {
+                    "messages": [{"role": "system", "content": "с"},
+                                 {"role": "user", "content": "часть"}],
+                    "step": 2}
+                return {"ok": False, "error": "429 лимит запросов", "steps": 2,
+                        "last": "", "tools_used": [], "models_used": ["a/модель"]}
+            agent.steps.append(
+                type("S", (), {"tool": "write_file", "model": "a/модель"})())
+            return {"ok": True, "last": "сделал", "steps": 3,
+                    "tools_used": ["write_file"], "models_used": ["a/модель"]}
 
-    def start(tmp_path: Path, script: list[str],
-              boom_part: int | None = None) -> dict[str, Any]:
-        from hub.worker import Worker
+        agent.run = run
+        return {"ok": True}
 
-        worker = Worker(tmp_path)
-        worker.selector = FakeSelector()
-
-        guard = make_guard(_config(tmp_path))
-        guard.set_workspace(str(tmp_path), None)
-        main = FakeCaller(script)
-        agent = Agent(worker.selector, guard, _config(tmp_path), caller=main)
-
-        # Воркер сам создаёт вызывающего для каждой части. Заглушка отвечает
-        # заготовленным текстом и записывает, какую модель ей закрепили:
-        # именно это и проверяется — выбор должен быть зафиксирован.
-        import hub.worker as worker_module
-
-        pinned: list[str | None] = []
-        count = {"n": 0}
-
-        class PartCaller(FakeCaller):
-            def __init__(self) -> None:
-                super().__init__(["сверстал главную", "написал стили"])
-
-            def __setattr__(self, name: str, value: Any) -> None:
-                if name == "pinned":
-                    pinned.append(value)
-                super().__setattr__(name, value)
-
-        def factory(selector: Any, **kw: Any) -> PartCaller:
-            caller = PartCaller()
-            count["n"] += 1
-            if boom_part == count["n"]:
-                async def boom(*a: Any, **k: Any) -> dict[str, Any]:
-                    raise RuntimeError("модель упала")
-                caller.ask = boom  # type: ignore[method-assign]
-            return caller
-
-        monkeypatch.setattr(worker_module, "AutoCaller", factory)
-
-        decider = FakeCaller([SPLIT])
-        agent.set_task("сделай страницу")
-        made.update(worker=worker, agent=agent, main=main, decider=decider,
-                    pinned=pinned)
-        return made
-
-    yield start
-
-    worker = made.get("worker")
-    if worker is not None:
-        worker.store.close()
+    monkeypatch.setattr(Agent, "set_task", lambda self, task: fake_agent(
+        self, [{"role": "user", "content": task}]))
+    return state
 
 
-def _run(env: dict[str, Any], task: str = "сделай страницу из двух файлов",
-         wanted: int = 2) -> dict[str, Any]:
-    return asyncio.run(env["worker"]._run_swarm(
-        {"id": 1, "task": task}, env["agent"], _config(Path(env["agent"].config.base_dir)),
-        wanted=wanted, decider=env["decider"]))
+# =============================================================== запуск
 
 
-def test_разбитые_части_выполняются_и_собираются(swarm, tmp_path: Path) -> None:
-    env = swarm(tmp_path, ["проверил, всё собрано"])
-    result = _run(env)
+def test_аккаунты_разные_у_разных_частей(tmp_path: Path,
+                                        model_stub) -> None:
+    """Главное правило роя: один аккаунт — одна часть.
 
-    info = result.get("swarm")
-    assert info is not None, "результат должен содержать сводку о частях"
-    assert info["parts"] == 2
-    assert info["ok"] == 2, info
-
-    # Разбиение спрашивалось отдельно и отдельным промтом.
-    split = env["decider"].asked
-    assert len(split) == 1, split
-    text = json.dumps(split[0]["messages"], ensure_ascii=False)
-    assert "сделай страницу из двух файлов" in text
-    # Разбиение решается один раз и на холодную: чем стабильнее ответ,
-    # тем меньше шанс, что одна и та же задача разобьётся по-разному.
-    assert split[0]["kw"].get("temperature") == 0.0, split[0]["kw"]
-
-
-def test_разбиение_спрашивает_структуру(swarm, tmp_path: Path) -> None:
-    """Модель должна знать, что от неё ждут: перечень частей с областями."""
-    env = swarm(tmp_path, ["готово"])
-    _run(env)
-    text = json.dumps(env["decider"].asked[0]["messages"], ensure_ascii=False)
-    assert "files" in text, text[:400]
-    assert "brief" in text, text[:400]
-
-
-def test_каждая_часть_получает_свои_файлы_и_запреты(swarm, tmp_path: Path) -> None:
-    """Части не должны затирать друг друга: у каждой свои файлы."""
-    env = swarm(tmp_path, ["проверил"])
-    seen: list[Any] = []
-
-    original = Agent.__init__
-
-    def spy(self: Agent, *a: Any, **kw: Any) -> None:
-        original(self, *a, **kw)
-        seen.append(self.guard)
-
-    patch = pytest.MonkeyPatch()
-    patch.setattr(Agent, "__init__", spy)
-    try:
-        _run(env)
-    finally:
-        patch.undo()
-
-    # Последний guard — главного агента, он собирает результат. Части идут
-    # перед ним и у каждой свой guard с собственными границами.
-    guards = [g for g in seen if g is not env["agent"].guard]
-    assert len(guards) == 2, seen
-    granted = [set(guard.granted_paths) for guard in guards]
-    assert any(str(tmp_path / "index.html") in g for g in granted), granted
-    # Части со стилями выдан конкретный файл, а не вся папка: выдать папку
-    # — значит разрешить ей затирать работу соседки по соседним файлам.
-    assert any(str(tmp_path / "assets" / "style.css") in g for g in granted), granted
-    for guard in guards:
-        assert guard.denied_paths, "часть без запрета затирает соседку"
-
-
-def test_модель_части_закреплена(swarm, tmp_path: Path) -> None:
-    """Выбранная модель пробуется первой, а не любая подряд.
-
-    Закрепление — это и есть «осознанный выбор»: часть отдана этой модели
-    не потому, что она первая в списке, а потому, что подошла. Дальше по
-    кругу — только если у неё кончился лимит, и тогда работа продолжается
-    с последнего шага, а не начинается заново.
+    Ротация по кругу раздала бы двум частям один ключ, и они удвоили бы его
+    темп до отказа по лимиту.
     """
-    env = swarm(tmp_path, ["проверил"])
-    _run(env)
-    chosen = [ref for ref in env["pinned"] if ref]
-    assert chosen == ["a/быстрая", "a/быстрая"], env["pinned"]
+    worker = FakeWorker(tmp_path)
+    run = SwarmRun(worker=worker, agent=_agent(tmp_path, worker),
+                   config=_config(tmp_path), parts=_parts(3),
+                   task={"id": 1, "task": "t"}, task_context="t")
+    plan = run.build_plan()
+    keys = [s.key for s in plan.workers if not s.free]
+    assert len(keys) == len(set(keys)), keys
+    assert len(keys) == 3, "три части на четырёх аккаунтах: три рабочих"
+    assert len(plan.reserve) == 1, "четвёртый — резерв"
 
 
-def test_разбить_не_вышло_идёт_обычный_путь(swarm, tmp_path: Path) -> None:
-    """Мусор вместо разбиения — не повод бросать задачу."""
-    env = swarm(tmp_path, ["готово, всё сделал"])
-    env["decider"].script = ["не знаю, как разбить"]
-    result = _run(env, task="сделай страницу")
-
-    assert result["ok"] is True, result
-    assert "swarm" not in result, "разбиения не было — и роя не было"
-    assert env["main"].asked, "обычный агент всё равно отработал"
+def test_все_части_выполнены(tmp_path: Path, model_stub) -> None:
+    worker = FakeWorker(tmp_path)
+    run_, _ = _run(worker, tmp_path, _parts(3), stub=model_stub)
+    assert run_["parts"] == 3 and run_["ok"] == 3
 
 
-def test_одна_часть_упала_остальные_доехали(swarm, tmp_path: Path) -> None:
-    env = swarm(tmp_path, ["доделал упавшую часть сам"], boom_part=1)
-    result = _run(env)
+def test_подмена_продолжает_с_чекпоинта(tmp_path: Path, model_stub) -> None:
+    """Главное требование подмены: работа не начинается заново."""
+    worker = FakeWorker(tmp_path)
+    fail_on = _parts(3)[0].name
+    run_, _ = _run(worker, tmp_path, _parts(3), stub=model_stub,
+                   fail_on=fail_on)
+    kinds = [e["type"] for e in worker.events]
+    assert "swarm_handoff" in kinds, worker.events
+    assert "swarm_resumed" in kinds, (
+        "подменённый рабочий обязан продолжить с чекпоинта, а не заново")
+    assert run_["ok"] == 3, "часть не выпала из задачи"
 
-    info = result.get("swarm")
-    assert info is not None
-    assert info["parts"] == 2
-    assert info["ok"] == 1, "одна часть упала, вторая отработала"
+
+def test_подмена_берёт_аккаунт_из_резерва(tmp_path: Path, model_stub) -> None:
+    worker = FakeWorker(tmp_path)
+    fail_on = _parts(3)[0].name
+    _run(worker, tmp_path, _parts(3), stub=model_stub, fail_on=fail_on)
+    note = next(e for e in worker.events if e["type"] == "swarm_handoff")
+    assert note["to"] and note["from"]
+    assert note["to"] != note["from"], "перевод на тот же аккаунт — не подмена"
 
 
-def test_сводка_доходит_до_главного_агента(swarm, tmp_path: Path) -> None:
-    """Главный агент должен видеть, что сделали части, иначе он не проверит."""
-    env = swarm(tmp_path, ["проверил, всё на месте"])
-    _run(env)
+def test_событие_подмены_объясняет_причину(tmp_path: Path, model_stub) -> None:
+    worker = FakeWorker(tmp_path)
+    _run(worker, tmp_path, _parts(3), stub=model_stub,
+         fail_on=_parts(3)[0].name)
+    note = next(e for e in worker.events if e["type"] == "swarm_handoff")
+    assert "429" in note["reason"] or "лимит" in note["reason"], note
 
-    final = env["main"].asked[-1]
-    text = json.dumps(final["messages"], ensure_ascii=False)
-    assert "Части работы выполнены параллельно" in text
-    assert "доделай сам" in text
+
+def test_план_виден_в_событиях(tmp_path: Path, model_stub) -> None:
+    """Человек должен видеть распределение аккаунтов, а не только «работает»."""
+    worker = FakeWorker(tmp_path)
+    _run(worker, tmp_path, _parts(3), stub=model_stub)
+    plan = next(e for e in worker.events if e["type"] == "swarm_plan")
+    assert len(plan["plan"]["workers"]) == 3
+    assert len(plan["plan"]["reserve"]) == 1
+    assert "резерв 1" in plan["plan"]["note"]
+
+
+def test_итог_виден_в_событиях(tmp_path: Path, model_stub) -> None:
+    worker = FakeWorker(tmp_path)
+    _run(worker, tmp_path, _parts(3), stub=model_stub)
+    done = next(e for e in worker.events if e["type"] == "swarm_done")
+    assert done["ok"] == 3 and done["parts"] == 3
+    assert done["reserve"] == 1
+
+
+# =============================================================== темп
+
+
+def test_темп_настроен_на_каждый_аккаунт(tmp_path: Path, model_stub) -> None:
+    """Часть не должна обходить ограничитель: у каждого аккаунта своё ведро
+    с его лимитом, иначе рой шлёт всё сразу."""
+    worker = FakeWorker(tmp_path)
+    run = SwarmRun(worker=worker, agent=_agent(tmp_path, worker),
+                   config=_config(tmp_path), parts=_parts(3),
+                   task={"id": 1, "task": "t"}, task_context="t")
+    plan = run.build_plan()
+    for slot in plan.workers + plan.reserve:
+        account = slot.gateway + ":" + slot.key[-8:]
+        assert run.pacer.bucket(account).rate_per_min == 40, account
+
+
+# =============================================================== сборка
+
+
+def test_главный_агент_видит_невыполненные_части(tmp_path: Path,
+                                                model_stub) -> None:
+    """Сводка обязана различать «сделано» и «нет»: иначе задача объявляется
+    выполненной, а часть файлов не написана."""
+    worker = FakeWorker(tmp_path)
+    parts = _parts(2)
+    run_ = SwarmRun(worker=worker, agent=_agent(tmp_path, worker),
+                    config=_config(tmp_path), parts=parts,
+                    task={"id": 1, "task": "t"}, task_context="t")
+    run_.swarm = None
+    from hub.pacer import Pacer
+    from hub.swarm import Swarm
+    run_.swarm = Swarm(plan=run_.build_plan(), pacer=run_.pacer)
+    run_.swarm.mark_done(parts[0].name, "сверстал")
+    run_.swarm.mark_failed(parts[1].name, "модель упала")
+    text = run_.swarm.ready()
+    assert "НЕ СДЕЛАНО" in text
+    assert parts[1].name in text
+
+
+def test_главный_агент_получает_промежуточный_результат(
+        tmp_path: Path, model_stub) -> None:
+    """Главный агент не простаивает, пока части идут."""
+    worker = FakeWorker(tmp_path)
+    parts = _parts(2)
+    run_ = SwarmRun(worker=worker, agent=_agent(tmp_path, worker),
+                    config=_config(tmp_path), parts=parts,
+                    task={"id": 1, "task": "t"}, task_context="t")
+    plan = run_.build_plan()
+    for slot, part in zip(plan.workers, parts):
+        slot.taken_by = part.name
+    run_.swarm.mark_done(parts[0].name, "первая готова")
+
+    seen: list[str] = []
+    main = run_.agent
+
+    async def behaviour() -> dict[str, Any]:
+        seen.append("\n".join(str(m.get("content")) for m in main.messages))
+        return {"ok": True, "last": "жду остальное"}
+
+    main.run = behaviour  # type: ignore[assignment]
+    asyncio.run(run_.partial_round())
+    assert seen, "главный агент не запускался"
+    assert "первая готова" in seen[0], seen[0]
+    assert parts[1].name in seen[0], "в сообщении должно быть и то, что в работе"
+    assert "НУЖНО ЖДАТЬ" in seen[0], "главному оставлен выбор: ждать или нет"

@@ -484,6 +484,18 @@ class KeyRegistry:
             keys = gateway.get("api_keys") or ([gateway["api_key"]] if gateway.get("api_key") else [])
             self.ring(str(gateway.get("id")), list(keys)).set_rpm(int(rpm))
 
+    def keys_of(self, gateway: dict) -> list[str]:
+        """Ключи шлюза из конфига — тот же список, что у кольца.
+
+        Отдельный метод, чтобы не собирать его руками в каждом месте:
+        расхождение между двумя списками означало бы, что кольцо считает не
+        те аккаунты, с которыми работает агент, и лимит пересчитывается
+        не по тем остаткам.
+        """
+        keys = gateway.get("api_keys") or (
+            [gateway["api_key"]] if gateway.get("api_key") else [])
+        return [str(k) for k in keys]
+
     def note_ok(self, gateway: dict, key: str) -> None:
         keys = gateway.get("api_keys") or ([gateway["api_key"]] if gateway.get("api_key") else [])
         ring = self.ring(str(gateway.get("id")), list(keys))

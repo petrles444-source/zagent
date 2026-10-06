@@ -285,6 +285,25 @@ pre.code {
 .mcWarn { color:var(--warn); font-size:11.5px; margin-top:4px; }
 #modeBtn.on { border-color:var(--ok); color:var(--ok); }
 
+/* План роя: список занятых аккаунтов и резерва. */
+.herdBox { margin: 0 0 8px; }
+.herdBox:empty { display: none; }
+.herdGroup {
+  font-size:11px; color:var(--dim); text-transform:uppercase;
+  letter-spacing:.04em; margin:6px 12px 3px;
+}
+.herdList { padding: 0 12px; display:flex; flex-wrap:wrap; gap:4px; }
+.herdSlot {
+  display:flex; gap:6px; align-items:baseline; max-width:100%;
+  border:1px solid var(--edge); border-radius:4px; padding:1px 6px;
+  font-size:11px;
+}
+/* Занятый слот — под частью, свободный — в резерве. Различие видно сразу. */
+.herdSlot.busy { border-color:var(--accent); }
+.herdSlot.idle { border-style:dashed; color:var(--dim); }
+.hsRef { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:230px; }
+.hsOwner { color:var(--muted); white-space:nowrap; }
+
 /* Панель субагентов: карточка на часть, след разворачивается по клику. */
 .subsBox { margin: 0 0 8px; }
 .subsBox:empty { display: none; }
@@ -1212,6 +1231,9 @@ th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase
   <!-- Панель частей работы: пока части идут, видно, над чем каждая
      работает; когда отработали — сворачивается. -->
   <div id="subsBox" class="subsBox"></div>
+  <!-- План роя: кто на каком аккаунте и кто в резерве. Появляется, когда
+       включён режим роя. -->
+  <div id="herdBox" class="herdBox"></div>
   <div id="msgs"></div>
   <div id="composer">
     <div id="attach"></div>
@@ -1670,6 +1692,17 @@ const MODES = {
     note: 'Сначала несколько моделей ищут информацию по частям, потом главный ' +
           'агент собирает выжимку и выполняет задачу с опорой на неё.',
   },
+  herd: {
+    title: 'Рой агентов',
+    note: 'Большую задачу делают сразу много рабочих, каждый на своём ' +
+          'аккаунте. Аккаунты делятся по частям, часть мощности остаётся ' +
+          'резервом, выбывшего подменяют — и работа продолжается с места, ' +
+          'где остановилась. Главный агент не ждёт всех: он делает то, что ' +
+          'можно, пока части идут.',
+    warn: 'Темп запросов ограничен намеренно: рой шлёт много запросов сразу, ' +
+          'и без ограничения это выглядит для провайдера как злоупотребление.',
+    needsAccounts: 4,
+  },
 };
 
 let CUR_MODE = 'auto';
@@ -1679,6 +1712,7 @@ let CUR_MODE = 'auto';
 // запуска программы.
 const TASK_FLAGS = {
   auto: true, plan: false, selfdev: false, subagents: false, research: false,
+  herd: false,
 };
 
 // Что «Авто» выбрал для последней задачи. Показывается рядом с кнопкой
@@ -1689,6 +1723,7 @@ let AUTO_PICK = null;
 function currentModeLabel() {
   if (TASK_FLAGS.auto) return 'авто';
   const on = [];
+  if (TASK_FLAGS.herd) on.push('рой');
   if (TASK_FLAGS.selfdev) on.push('разработка софта');
   if (TASK_FLAGS.subagents) on.push('субагенты');
   if (TASK_FLAGS.research) on.push('веб-разведка');
@@ -1700,7 +1735,8 @@ function renderModeBtn() {
   const btn = $('modeBtn');
   if (!btn) return;
   btn.textContent = 'Режим: ' + currentModeLabel() + ' ⌄';
-  btn.classList.toggle('on', TASK_FLAGS.subagents || TASK_FLAGS.research);
+  btn.classList.toggle('on', TASK_FLAGS.subagents || TASK_FLAGS.research
+                              || TASK_FLAGS.herd);
   renderAutoNote();
 }
 
@@ -1746,23 +1782,36 @@ function renderModeCards() {
   const cards = [
     ['auto', 'auto'],
     ['plain', ''],
+    ['herd', 'herd'],
     ['subagents', 'subagents'],
     ['research', 'research'],
     ['swarm', 'swarm'],
   ].map(([key, flag]) => {
     const m = MODES[key];
+    const power = keyPower();
+    // Рой требует аккаунтов: без них он не рой, а очередь. Карточка
+    // остаётся доступной, но сразу говорит, чего не хватает — иначе человек
+    // выбрал бы режим и узнал о проблеме через полчаса работы.
+    //
+    // Пока состояние не пришло, предупреждения нет: «0 из 0» — это не
+    // «аккаунтов нет», это «ещё не спросили», и человек увидел бы ложное
+    // требование отключить то, что на самом деле доступно.
+    const short = m.needsAccounts && power.total > 0
+                  && power.free < m.needsAccounts;
     const on = (() => {
     // При включённом «Авто» отмечена только карточка «Авто». Раньше признак
     // считался как «не субагенты и не разведка», и при «Авто» обычный режим
     // тоже выглядел включённым: две галочки на одном невозможном выборе.
     if (TASK_FLAGS.auto) return flag === 'auto';
     if (flag === 'swarm') return TASK_FLAGS.subagents && TASK_FLAGS.research;
-    return flag ? !!TASK_FLAGS[flag] : !(TASK_FLAGS.subagents || TASK_FLAGS.research);
+    return flag ? !!TASK_FLAGS[flag]
+                : !(TASK_FLAGS.subagents || TASK_FLAGS.research || TASK_FLAGS.herd);
   })();
     return `<div class="modeCard${on ? ' on' : ''}" onclick="setTaskMode('${key}')">
       <div class="mcHead">${esc(m.title)}
         ${on ? '<span class="mcOn">включён</span>' : ''}</div>
       <div class="mcNote">${esc(m.note)}</div>
+      ${short ? `<div class="mcWarn">Свободных аккаунтов ${power.free} из ${power.total}, а рою нужно минимум ${m.needsAccounts}. Рой будет работать вхолостую — возьми субагентов.</div>` : ''}
       ${m.warn ? `<div class="mcWarn">${esc(m.warn)}</div>` : ''}
     </div>`;
   }).join('');
@@ -1790,13 +1839,25 @@ async function setTaskMode(key) {
     TASK_FLAGS.selfdev = false;
     TASK_FLAGS.subagents = false;
     TASK_FLAGS.research = false;
+    TASK_FLAGS.herd = false;
   } else if (key === 'plain') {
     TASK_FLAGS.auto = false;
     TASK_FLAGS.selfdev = false;
     TASK_FLAGS.subagents = false;
     TASK_FLAGS.research = false;
+    TASK_FLAGS.herd = false;
     TASK_FLAGS.plan = false;
     $('planChk').checked = false;
+  } else if (key === 'herd') {
+    // Рой — не «субагенты побольше»: у него свои правила распределения
+    // аккаунтов, есть резерв и подмена выбывшего. Отдельный флаг, и он
+    // снимает остальные: смешивать два режима в одном прогоне — значит
+    // получить ни то ни другое.
+    TASK_FLAGS.auto = false;
+    TASK_FLAGS.herd = true;
+    TASK_FLAGS.subagents = false;
+    TASK_FLAGS.research = false;
+    TASK_FLAGS.selfdev = false;
   } else if (key === 'swarm') {
     TASK_FLAGS.auto = false;
     TASK_FLAGS.subagents = true;
@@ -2062,6 +2123,38 @@ function onSubEvent(e) {
 function collapseSubs() {
   const box = $('subsBox');
   if (box) box.classList.add('done');
+}
+
+// План роя: кто на каком аккаунте и кто в резерве.
+//
+// Отдельный блок от карточек частей. Карточки показывают работу, план —
+// распределение ресурсов: смешивать незачем, это разные вопросы.
+const HERD = {plan: null};
+
+function herdBox() {
+  let box = $('herdBox');
+  if (box) return box;
+  box = document.createElement('div');
+  box.id = 'herdBox';
+  box.className = 'herdBox';
+  const anchor = $('subsBox');
+  (anchor && anchor.parentElement ? anchor.parentElement : anchor).appendChild(box);
+  return box;
+}
+
+function renderHerdPlan(plan) {
+  HERD.plan = plan || null;
+  const box = herdBox();
+  if (!plan) { box.innerHTML = ''; return; }
+  const rows = (list, cls) => list.map(s => `<div class="herdSlot ${cls}"
+      title="${esc(s.ref)}${s.note ? ' — ' + esc(s.note) : ''}">
+      <span class="hsRef">${esc(s.ref)}</span>
+      <span class="hsOwner">${esc(s.taken_by || 'резерв')}</span>
+    </div>`).join('');
+  box.innerHTML = `<div class="herdGroup">рабочие</div>
+    <div class="herdList">${rows(plan.workers || [], 'busy') || '<span class="dim mini">нет</span>'}</div>
+    <div class="herdGroup">резерв</div>
+    <div class="herdList">${rows(plan.reserve || [], 'idle') || '<span class="dim mini">нет</span>'}</div>`;
 }
 
 function renderSubPanel() {
@@ -2672,6 +2765,7 @@ async function send() {
                 auto_mode: TASK_FLAGS.auto,
                 subagents: TASK_FLAGS.subagents,
                 web_research: TASK_FLAGS.research,
+                herd: TASK_FLAGS.herd,
                 self_edit: TASK_FLAGS.selfdev};
   if (ATTACH.length) body.images = ATTACH.map(a => ({data_url: a.url, name: a.name}));
   $('sendInfo').textContent = 'ставлю в очередь…';
@@ -3372,6 +3466,42 @@ function handleEvent(e, replay) {
     addMsg({who:'⚙', kind:'sys',
             text:`Части отработали: ${e.ok} из ${e.parts} за ` +
                  `${Math.round((e.elapsed_ms || 0) / 1000)} с. Собираю результат.`});
+    return;
+  }
+  // План роя виден сразу: сколько рабочих, сколько в резерве и почему.
+  // Резерв без объяснения выглядит как «недоделанная работа».
+  if (e.type === 'swarm_plan') {
+    const p = e.plan || {};
+    const w = (p.workers || []).length;
+    const r = (p.reserve || []).length;
+    addMsg({who:'⚙', kind:'sys',
+            text:`Рой: ${w} рабочих, ${r} в резерве. ${p.note || ''}` +
+                 ((p.unassigned && p.unassigned.length)
+                   ? ` Не досталось аккаунта: ${p.unassigned.join(', ')}.`
+                   : '')});
+    renderHerdPlan(p);
+    return;
+  }
+  // Подмена видна отдельно от результата: человек должен понимать, что часть
+  // не бросили, а перевели на другой аккаунт и продолжили с чекпоинта.
+  if (e.type === 'swarm_handoff') {
+    addMsg({who:'⚙', kind:'sys',
+            text:`«${e.sub}»: ${e.from} закончился — перевожу на ${e.to}. Причина: ${e.reason}`});
+    return;
+  }
+  if (e.type === 'swarm_resumed') {
+    addMsg({who:'⚙', kind:'sys', text:`«${e.sub}»: ${e.note}.`});
+    return;
+  }
+  if (e.type === 'swarm_part_failed') {
+    addMsg({who:'⚙', kind:'sys', text:`«${e.sub}» не выполнена: ${e.error}`});
+    return;
+  }
+  if (e.type === 'swarm_partial') {
+    const wait = (e.pending || []).join(', ');
+    addMsg({who:'⚙', kind:'sys',
+            text:`Главный агент собрал промежуточный результат: готово ${(e.done || []).length}, в работе: ${wait || '—'}.` +
+                 (e.note ? ` ${e.note}` : '')});
     return;
   }
   // Решение «Авто» по режиму. Показывается в переписке и остаётся под

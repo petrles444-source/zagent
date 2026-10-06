@@ -646,10 +646,14 @@ class Worker:
         # и набор инструментов, а они собираются в set_task.
         web_research = bool(payload.get("web_research"))
         subagents = int(payload.get("subagents") or 0)
+        # Рой — отдельный режим, а не число субагентов побольше: у него
+        # другие правила распределения аккаунтов, есть резерв и подмена.
+        herd = bool(payload.get("herd"))
         if payload.get("auto_mode"):
             decision = run(self.loop, self._choose_mode(task["task"]))
             web_research = decision.web_research
             subagents = decision.subagents
+            herd = bool(getattr(decision, "herd", False))
             self.emit({
                 "type": "mode_chosen",
                 "task_id": task["id"],
@@ -684,6 +688,9 @@ class Worker:
             # смотрит, что именно делает каждая часть. В обычной задаче
             # следа нет, и в журнал уходит меньше данных.
             agent.trace_on = True
+        if herd:
+            agent.subagents = max(subagents, self._free_accounts())
+            agent.trace_on = True
 
         # Продолжение после вопроса пользователя: восстанавливаем диалог
         # из чекпоинта, а не начинаем задачу заново.
@@ -715,7 +722,7 @@ class Worker:
         # ломали любую сортировку по началу задачи и подсчёт длительности.
         self.store.update_task(task["id"], started_at=time.time())
         self.emit({"type": "started", "task_id": task["id"], "task": task["task"],
-                   "resumed": resumed, "subagents": subagents})
+                   "resumed": resumed, "subagents": subagents, "herd": herd})
 
         # Субагенты: сначала главный агент делит задачу, потом части идут
         # параллельно, потом главный собирает результат. Разбиение и сборка —
@@ -725,7 +732,11 @@ class Worker:
         # хвост задачи (статус, чекпоинт, событие finished) не должен
         # разъезжаться между двумя путями, иначе по одному из них
         # задача осталась бы в статусе running навсегда.
-        if subagents:
+        if herd:
+            result = run(self.loop, self._run_herd(
+                task, agent, config, payload.get("images")))
+            duration = int((time.perf_counter() - started) * 1000)
+        elif subagents:
             result = run(self.loop, self._run_swarm(
                 task, agent, config, subagents, payload.get("images")))
             duration = int((time.perf_counter() - started) * 1000)
@@ -1602,6 +1613,132 @@ class Worker:
         for stats in KEY_RING.snapshot().values():
             total += int(stats.get("available") or 0)
         return total
+
+    async def _run_herd(self, task: dict[str, Any], agent: Agent,
+                        config: AgentConfig, images: list[str] | None = None,
+                        decider: Any = None) -> dict[str, Any]:
+        """Рой агентов: крупная задача делается многими рабочими сразу.
+
+        Отличие от субагентов в трёх вещах, и все три — про устойчивость:
+
+        * аккаунты распределяются по частям **по одному**, а не по кругу;
+          несколько частей на одном ключе съедают его лимит и получают отказ;
+        * держится резерв, и часть, оставшаяся без аккаунта, переходит на
+          него, продолжая с чекпоинта, а не заново;
+        * темп запросов ограничен, иначе рой выглядит для провайдера как
+          злоупотребление и получает бан на все аккаунты сразу.
+
+        Главный агент при этом не ждёт сложа рук: пока части идут, он
+        получает то, что готово, и делает то, что можно сделать без
+        недостающих файлов.
+        """
+        from hub.keyring import REGISTRY as RING
+        from hub.swarm_run import HERD_SYSTEM, SwarmRun, system_of
+        from hub.subagents import (
+            parse_parts as _parse_parts,
+        )
+
+        task_id = int(task["id"])
+        text = str(task["task"])
+        self.keyring = RING
+
+        # 1. Разбиение. Частей просят больше обычного: рою доступны все
+        # свободные аккаунты, а не те, что осталось от прошлой задачи.
+        free = self._free_accounts()
+        want = max(2, min(int(free * 0.75), 12))
+        parts: list[Any] = []
+        if decider is None:
+            decider = AutoCaller(self.selector, timeout=60.0, empty_retries=1)
+        try:
+            split = await decider.ask(
+                [{"role": "system", "content": HERD_SYSTEM},
+                 {"role": "user", "content": text}],
+                temperature=0.0, max_tokens=2500)
+            if not split.get("error"):
+                parts = _parse_parts(str(split.get("text") or ""), limit=want)
+        except Exception as exc:  # noqa: BLE001
+            self.emit({"type": "swarm_failed", "task_id": task_id,
+                       "stage": "разбиение",
+                       "error": f"{type(exc).__name__}: {exc}"})
+
+        if len(parts) < MIN_SWARM_PARTS:
+            reason = ("разбить не вышло" if not parts
+                      else f"получилось {len(parts)} часть, а нужно минимум "
+                           f"{MIN_SWARM_PARTS}")
+            self.emit({"type": "swarm_skipped", "task_id": task_id,
+                       "reason": reason})
+            return await agent.run()
+
+        for part in parts:
+            self.emit({"type": "part_assigned", "task_id": task_id,
+                       "sub": part.name, "part": part.to_dict(),
+                       "assignment": None})
+
+        run = SwarmRun(worker=self, agent=agent, config=config, parts=parts,
+                       task=task, task_context=text)
+        started = time.perf_counter()
+        info = await run.run()
+        info["elapsed_ms"] = int((time.perf_counter() - started) * 1000)
+
+        # 2. Финальная сборка — с полной сводкой, включая невыполненное.
+        result = await self._assemble(agent, config, text, run, images)
+        result["herd"] = {
+            "parts": info["parts"], "ok": info["ok"],
+            "elapsed_ms": info["elapsed_ms"], "reserve": info["reserve"],
+            "handoffs": dict(run.swarm.handoffs) if run.swarm else {},
+            "results": {
+                name: {"ok": r["ok"], "summary": r["summary"][:400],
+                       "error": r["error"][:200], "steps": r["steps"],
+                       "tools": r["tools"][:8], "models": r["models"],
+                       "elapsed_ms": r["elapsed_ms"]}
+                for name, r in run.results.items()
+            },
+        }
+        return result
+
+    async def _assemble(self, agent: Agent, config: AgentConfig, text: str,
+                        run: Any, images: list[str] | None) -> dict[str, Any]:
+        """Финальная сборка: полная сводка и ответ человеку."""
+        swarm = run.swarm
+        lines = []
+        for name, got in (run.results or {}).items():
+            if got["ok"]:
+                tools = ", ".join(got["tools"]) or "—"
+                lines.append(f"- {name}: СДЕЛАНО, {got['steps']} шагов, "
+                             f"инструменты: {tools}\n  {got['summary']}")
+            else:
+                lines.append(f"- {name}: НЕ СДЕЛАНО ({got['error'] or 'без причины'})")
+        handoffs = dict(swarm.handoffs) if swarm else {}
+        note = ("" if not handoffs else
+                f"\nПодмен аккаунта: {handoffs}. Работа продолжена с чекпоинта.")
+        agent.messages = [
+            {"role": "system", "content": system_of(agent)},
+            {"role": "user", "content": text},
+            {"role": "user", "content":
+                "Работа шла роем агентов. Их результаты:\n\n"
+                + ("\n".join(lines) or "ничего не вернулось")
+                + note +
+                "\n\nПроверь всё собранное, доделай то, что части не успели, и "
+                "ответь человеку: что сделано, что нет и что стоит посмотреть."},
+        ]
+        agent._reset_cycle()
+        return await self._run_with_images(agent, images)
+
+    async def _run_with_images(self, agent: Agent,
+                               images: list[str] | None) -> dict[str, Any]:
+        """Прогнать агента, выставив фильтр зрения только на время прогона."""
+        if not images:
+            return await agent.run()
+        self._attach_images(agent, images)
+        selector = self.selector
+        if selector is None or not hasattr(selector, "require_vision"):
+            return await agent.run()
+        had = bool(selector.require_vision)
+        selector.require_vision = True
+        try:
+            return await agent.run()
+        finally:
+            selector.require_vision = had
 
     async def _run_swarm(self, task: dict[str, Any], agent: Agent,
                          config: AgentConfig, wanted: int,

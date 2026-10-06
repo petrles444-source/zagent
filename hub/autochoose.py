@@ -89,6 +89,10 @@ class Decision:
 
     web_research: bool = False
     subagents: int = 0
+    #: Рой: работа делается многими сразу, с резервом и подменой. Отдельное
+    #: поле, а не флаг у субагентов: у роя другие правила распределения
+    #: аккаунтов, и решение «рой или субагенты» принимается отдельно.
+    herd: bool = False
     reason: str = ""
     #: Чем решено: model | heuristic | default.
     source: str = "default"
@@ -99,6 +103,11 @@ class Decision:
     @property
     def mode(self) -> str:
         """Короткое имя режима для интерфейса."""
+        if self.herd:
+            base = "рой"
+            if self.web_research:
+                return base + " + разведка"
+            return base
         if self.subagents and self.web_research:
             return "разведка + субагенты"
         if self.subagents:
@@ -111,6 +120,7 @@ class Decision:
         return {
             "web_research": self.web_research,
             "subagents": self.subagents,
+            "herd": self.herd,
             "reason": self.reason,
             "source": self.source,
             "model": self.model,
@@ -188,13 +198,15 @@ def parse_decision(text: str) -> Decision | None:
                                  "search", "нужен_поиск", "поиск"))
         subs = _first_key(inner, ("subagents", "sub", "parts", "pieces", "субагенты",
                                   "агенты", "частей", "част"))
+        herd = _first_key(inner, ("herd", "рой", "swarm", "herds", "стая"))
         reason = _first_key(inner, ("reason", "why", "why_not", "обоснование",
                                     "причина", "почему")) or ""
-        if web is None and subs is None and not reason:
+        if web is None and subs is None and herd is None and not reason:
             continue
         return Decision(
             web_research=_truthy(web),
             subagents=_as_int(subs, low=0, high=MAX_SUBAGENTS),
+            herd=_truthy(herd),
             reason=" ".join(str(reason).split())[:200],
             source="model",
             raw=raw[:400],
@@ -278,6 +290,10 @@ def score_task(task: str, limits: Limits | None = None) -> Decision:
     decision = Decision(
         web_research=web and limits.allow_web,
         subagents=min(3, MAX_SUBAGENTS) if subs else 0,
+        # Рой по признакам не ставится намеренно: «многостраничный сайт»
+        # бывает и из пяти страниц, а зависимые части в рою работать не
+        # будут. Решение о рое принимает модель — она читает задачу целиком.
+        herd=False,
         reason="; ".join(reason_bits),
         source="heuristic",
     )
@@ -298,8 +314,24 @@ def apply_limits(decision: Decision, limits: Limits) -> Decision:
         decision.web_research = False
     if not limits.allow_subagents:
         decision.subagents = 0
+        decision.herd = False
         if decision.web_research:
             decision.reason += "; субагенты выключены режимом"
+        return decision
+
+    if decision.herd:
+        # Рой требует настоящей параллельности. Четыре аккаунта — это три
+        # рабочих и резерв; меньше и «рой» превращается в очередь.
+        if limits.free_accounts < 4:
+            decision.herd = False
+            decision.reason += "; аккаунтов мало для роя, делаем субагентами"
+            decision.subagents = max(decision.subagents, min(2,
+                                                              limits.free_accounts))
+        elif limits.max_steps and limits.max_steps < 12:
+            # Короткий лимит шагов: каждый рабочий всё равно не успеет
+            # закончить часть, и рой превратится в брошенную работу.
+            decision.herd = False
+            decision.reason += "; лимит шагов мал для роя"
         return decision
 
     cap = MAX_SUBAGENTS
@@ -321,7 +353,8 @@ def apply_limits(decision: Decision, limits: Limits) -> Decision:
 DECIDER_SYSTEM = (
     "Ты распределитель задач. Ответь ТОЛЬКО JSON, без пояснений и без "
     "блока ```json:\n"
-    '{"web_research": true|false, "subagents": 0..6, "reason": "коротко, по-русски"}\n'
+    '{"web_research": true|false, "subagents": 0..6, "herd": true|false, '
+    '"reason": "коротко, по-русски"}\n'
     "\n"
     "web_research — нужен ли интернет: задача про то, что меняется "
     "(новые версии, цены, новости, свежая документация) или требует "
@@ -330,6 +363,9 @@ DECIDER_SYSTEM = (
     "subagents — на сколько частей дробить: 0 означает «одна модель "
     "справится». Больше нужен только для больших задач: многостраничный "
     "сайт, много файлов, много экранов.\n"
+    "herd — ставить ли рой: много СОВЕРШЕННО НЕЗАВИСИМЫХ кусков работы "
+    "(десяток и больше страниц, модули приложения, много однотипных "
+    "файлов), которые можно делать одновременно. Иначе false.\n"
     "reason — одно предложение, почему именно так."
 )
 
@@ -395,17 +431,20 @@ def _merge(by_model: Decision, by_words: Decision, task: str,
     reason = by_model.reason or ""
     web = by_model.web_research
     subs = by_model.subagents
+    herd = by_model.herd
 
     if by_words.web_research and not web:
         web = True
         reason = (reason + "; в тексте есть «" + "», «".join(
             _has(task.lower().replace("ё", "е"), _FRESH_WORDS)[:2]) + "»").strip("; ")
-    if by_words.subagents and not subs:
+    if by_words.subagents and not subs and not herd:
+        # Субагентов не добавляем поверх роя: у роя свои правила, и смешивать
+        # два режима в одном прогоне — значит получить ни то ни другое.
         subs = by_words.subagents
         reason = (reason + "; задача на несколько частей").strip("; ")
     if not reason:
         reason = by_words.reason
     return apply_limits(Decision(
-        web_research=web, subagents=subs, reason=reason[:200],
+        web_research=web, subagents=subs, herd=herd, reason=reason[:200],
         source="model", model=by_model.model, raw=by_model.raw,
     ), limits)
