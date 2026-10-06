@@ -87,6 +87,18 @@ AGENT_TIMEOUT_S = 1800
 #: лишним запросом к модели на разбиение и сборку.
 MIN_SWARM_PARTS = 2
 
+#: Шагов на финальную сборку.
+#:
+#: Замер 06.10.2026 на шести страницах: из 44 запросов на прогон 30 сделали
+#: части, а 14 — главный агент после них. Время роя определяла не параллельная
+#: работа, а сборка: её запросы шли последовательно и стоили по 15–20 секунд.
+#: Без потолка сборка занимала столько же места, сколько самая большая
+#: часть, а работы в ней — на два-три шага.
+#:
+#: Больше, чем у промежуточного взгляда: здесь главный агент уже отвечает
+#: человеку, и обрезать его ответ нельзя.
+ASSEMBLY_STEPS = 6
+
 #: Фоновый пинг: как часто и по каким моделям.
 #:
 #: Раньше состояние моделей обновлялось только по нажатию «Пинг», поэтому
@@ -1700,17 +1712,37 @@ class Worker:
     async def _assemble(self, agent: Agent, config: AgentConfig, text: str,
                         run: Any, images: list[str] | None) -> dict[str, Any]:
         """Финальная сборка: полная сводка и ответ человеку."""
-        from hub.swarm_run import system_of
+        from hub.swarm_run import _mark_of, system_of
 
         swarm = run.swarm
         lines = []
+        verdicts = dict(getattr(run, "verdicts", None) or {})
         for name, got in (run.results or {}).items():
+            verdict = verdicts.get(name, "")
+            # Вердикт проверяющего важнее отчёта самой части. Часть могла
+            # написать «готово» и оставить заглушку, а проверяющий это видит;
+            # или наоборот — отчёт пустой, а файлы на месте. Сборщику нужны
+            # оба, но вердикт впереди: он о том, что получилось.
+            checked = f"  проверка: {verdict}" if verdict else ""
             if got["ok"]:
                 tools = ", ".join(got["tools"]) or "—"
                 lines.append(f"- {name}: СДЕЛАНО, {got['steps']} шагов, "
-                             f"инструменты: {tools}\n  {got['summary']}")
+                             f"инструменты: {tools}{checked}\n  {got['summary']}")
             else:
-                lines.append(f"- {name}: НЕ СДЕЛАНО ({got['error'] or 'без причины'})")
+                lines.append(f"- {name}: НЕ СДЕЛАНО ({got['error'] or 'без причины'})"
+                             f"{checked}")
+        problems = [name for name, text in verdicts.items()
+                    if _mark_of(text) == "ПРОБЛЕМА"]
+        unknown = [name for name, text in verdicts.items()
+                   if not _mark_of(text)]
+        problem_note = ""
+        if problems:
+            problem_note = ("\nПроверяющие нашли проблемы: "
+                            + ", ".join(problems)
+                            + ". Посмотри их и доделай.")
+        elif unknown:
+            problem_note = ("\nПроверить не удалось: " + ", ".join(unknown)
+                            + ". Посмотри их сам.")
         handoffs = dict(swarm.handoffs) if swarm else {}
         note = ("" if not handoffs else
                 f"\nПодмен аккаунта: {handoffs}. Работа продолжена с чекпоинта.")
@@ -1720,12 +1752,38 @@ class Worker:
             {"role": "user", "content":
                 "Работа шла роем агентов. Их результаты:\n\n"
                 + ("\n".join(lines) or "ничего не вернулось")
-                + note +
-                "\n\nПроверь всё собранное, доделай то, что части не успели, и "
-                "ответь человеку: что сделано, что нет и что стоит посмотреть."},
+                + note + problem_note +
+                "\n\nЧасти работы уже проверены, перечитывать всё заново не "
+                "нужно. Доделай то, что помечено как проблема или не "
+                "сделано, собери общие файлы и ответь человеку: что сделано, "
+                "что нет и что стоит посмотреть."},
         ]
         agent._reset_cycle()
-        return await self._run_with_images(agent, images)
+        return await self._assemble_briefly(agent, config, images)
+
+    async def _assemble_briefly(self, agent: Agent, config: AgentConfig,
+                                 images: list[str] | None) -> dict[str, Any]:
+        """Финальная сборка с ограниченным бюджетом шагов.
+
+        Замер 06.10.2026 на шести страницах: из 44 запросов на прогон 30
+        сделали части, а 14 — главный агент после них. Время роя определял не
+        рой, а сборка: каждый её запрос стоил 15–20 секунд, и на общей шине
+        времени они шли последовательно.
+
+        Сборке нужен не полный бюджет задачи, а короткий проход: посмотреть
+        сводку, доделать общий файл, ответить. Без потолка она занимала
+        столько же места, сколько самая большая часть, а работы в ней — на
+        два-три шага.
+
+        Потолок выше, чем у промежуточного взгляда: тут главный агент уже
+        отвечает человеку, и обрезать его ответ нельзя.
+        """
+        saved = config.max_steps
+        try:
+            config.max_steps = min(saved, ASSEMBLY_STEPS)
+            return await self._run_with_images(agent, images)
+        finally:
+            config.max_steps = saved
 
     async def _run_with_images(self, agent: Agent,
                                images: list[str] | None) -> dict[str, Any]:

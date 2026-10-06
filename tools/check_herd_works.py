@@ -150,11 +150,14 @@ def pace_report(rec: Recorder) -> dict[str, Any]:
 class Bench:
     """Подмена воркера: те же настоящие методы, меньше обвязки.
 
-    Методы `_run_herd`, `_assemble`, `_run_with_images` и `_free_accounts`
-    берутся у настоящего `Worker` и вызываются на этом объекте. Это важно:
-    замеряется ровно тот код, который работает у человека, а не его копия в
-    инструменте. Если метод разойдётся с этим подменой, тесты упадут — но
-    замер в любом случае идёт по настоящей копии.
+    Методы `_run_herd`, `_assemble`, `_assemble_briefly`, `_run_with_images` и
+    `_free_accounts` берутся у настоящего `Worker` и вызываются на этом
+    объекте. Это важно: замеряется ровно тот код, который работает у человека,
+    а не его копия в инструменте.
+
+    Список методов приходится держать вручную: новый метод воркера без
+    привязки here падал бы с AttributeError посреди прогона, и замер
+    показывал бы «0 страниц» вместо причины.
     """
 
     def __init__(self, root: Path) -> None:
@@ -166,6 +169,7 @@ class Bench:
         self.events: list[dict[str, Any]] = []
         self._run_herd = Worker._run_herd.__get__(self)
         self._assemble = Worker._assemble.__get__(self)
+        self._assemble_briefly = Worker._assemble_briefly.__get__(self)
         self._run_with_images = Worker._run_with_images.__get__(self)
         self._free_accounts = Worker._free_accounts.__get__(self)
 

@@ -115,9 +115,9 @@ class FakeWorker:
         self.events.append(event)
 
 
-def _config(base: Path) -> AgentConfig:
+def _config(base: Path, steps: int = 3) -> AgentConfig:
     return AgentConfig(base_dir=str(base), access=AccessLevel.FULL,
-                       autonomy=Autonomy.YOLO, max_steps=3, max_tokens=1024)
+                       autonomy=Autonomy.YOLO, max_steps=steps, max_tokens=1024)
 
 
 def _agent(base: Path, worker: FakeWorker) -> Agent:
@@ -413,6 +413,320 @@ def test_причина_отказа_видна_в_результате_част
     failed = [e for e in worker.events if e["type"] == "swarm_part_failed"]
     assert failed, worker.events
     assert "карантине" in failed[0]["error"], failed[0]["error"]
+
+
+def _assembly_worker(tmp_path: Path) -> FakeWorker:
+    """Воркер с настоящими методами сборки.
+
+    Методы берутся у `Worker`, а не пишутся здесь: проверка должна ловить
+    изменения настоящего кода, иначе она проверяет саму себя.
+    """
+    from hub.worker import Worker
+
+    worker = FakeWorker(tmp_path)
+    worker._run_with_images = Worker._run_with_images.__get__(worker)
+    worker._attach_images = lambda agent, images: None
+    return worker
+
+
+def test_финальная_сборка_ограничена_шагами(tmp_path: Path) -> None:
+    """Сборка не должна занимать столько места, сколько самая большая часть.
+
+    Замер 06.10.2026 на шести страницах: из 44 запросов на прогон 30 сделали
+    части, а 14 — главный агент после них. Время роя определяла не
+    параллельная работа, а сборка: её запросы шли последовательно и стоили
+    по 15–20 секунд.
+    """
+    from hub.worker import ASSEMBLY_STEPS, Worker
+
+    worker = _assembly_worker(tmp_path)
+    config = _config(tmp_path, steps=20)
+    agent = _agent(tmp_path, worker)
+    agent.messages = [{"role": "system", "content": "правила"}]
+
+    seen: list[int] = []
+
+    async def run() -> dict[str, Any]:
+        # Агент читает лимит в каждом шаге — проверим, что он увидел урезанный.
+        seen.append(config.max_steps)
+        return {"ok": True, "last": "готово"}
+
+    agent.run = run  # type: ignore[assignment]
+    got = asyncio.run(
+        Worker._assemble_briefly.__get__(worker)(agent, config, None))
+
+    assert got["last"] == "готово"
+    assert seen == [ASSEMBLY_STEPS], seen
+    assert config.max_steps == 20, "после сборки бюджет обязан вернуться"
+
+
+def test_бюджет_сборки_не_увеличивается(tmp_path: Path) -> None:
+    """Потолок не должен поднимать бюджет: у задачи он и так может быть мал."""
+    from hub.worker import ASSEMBLY_STEPS, Worker
+
+    worker = _assembly_worker(tmp_path)
+    config = _config(tmp_path, steps=2)
+    agent = _agent(tmp_path, worker)
+    seen: list[int] = []
+
+    async def run() -> dict[str, Any]:
+        seen.append(config.max_steps)
+        return {"ok": True, "last": ""}
+
+    agent.run = run  # type: ignore[assignment]
+    asyncio.run(Worker._assemble_briefly.__get__(worker)(agent, config, None))
+    assert seen == [2], f"бюджет задачи урезан — увеличивать нельзя: {seen}"
+    assert ASSEMBLY_STEPS > 2, "потолок должен быть выше бюджета в тесте"
+
+
+def _ready_run(tmp_path: Path, count: int = 4) -> tuple[Any, Any]:
+    """Рой с готовыми частями: план собран, части отмечены сделанными."""
+    worker = _bench(tmp_path, 8)
+    parts = _parts(count)
+    run = SwarmRun(worker=worker, agent=_agent(tmp_path, worker),
+                   config=_config(tmp_path, steps=20), parts=parts,
+                   task={"id": 1, "task": "t"}, task_context="t")
+    run.build_plan()
+    for slot, part in zip(run.swarm.plan.workers, parts):
+        slot.taken_by = part.name
+        run.swarm.mark_done(part.name, "сделал")
+        slot.taken_by = ""
+    return worker, run
+
+
+def test_части_делятся_между_проверяющими_поровну() -> None:
+    """Ровно: неравная делёжка означает, что один проверяющий сидит вдвое
+    дольше, а время роя определяет самый долгий."""
+    from hub.swarm_run import _split_evenly
+
+    batches = _split_evenly(list(range(7)), 3)
+    assert [len(b) for b in batches] == [3, 2, 2], batches
+    assert sorted(x for b in batches for x in b) == list(range(7))
+
+
+def test_деление_не_оставляет_пустых_групп() -> None:
+    """Пустая группа — это проверяющий, которому нечего делать, но запрос он
+    всё равно сделает."""
+    from hub.swarm_run import _split_evenly
+
+    assert [len(b) for b in _split_evenly([1], 3)] == [1]
+    assert _split_evenly([], 3) == []
+
+
+def test_вердикт_берётся_по_имени_части() -> None:
+    """Проверяющий отвечает построчно, и вердикт достаётся своей части, а не
+    первой попавшейся строке."""
+    from hub.swarm_run import _verdict_for
+
+    parts = _parts(2)
+    text = ("проверил\n"
+            f"{parts[0].name}: ГОТОВО — файл есть\n"
+            f"{parts[1].name}: ПРОБЛЕМА — файл пустой\n")
+    assert _verdict_for(text, parts[0]).startswith(f"{parts[0].name}: ГОТОВО")
+    assert _verdict_for(text, parts[1]).startswith(f"{parts[1].name}: ПРОБЛЕМА")
+
+
+def test_вердикт_читается_списком_с_нумерацией() -> None:
+    """Модель могла завернуть ответ в список — нумерация и звёздочки не должны
+    ломать разбор, если имена на месте."""
+    from hub.swarm_run import _verdict_for
+
+    parts = _parts(2)
+    text = (f"- **{parts[0].name}**: ГОТОВО\n"
+            f"  - {parts[1].name}: ПРОБЛЕМА — нет файла\n")
+    assert "ГОТОВО" in _verdict_for(text, parts[0])
+    assert "ПРОБЛЕМА" in _verdict_for(text, parts[1])
+
+
+def test_неизвестный_вердикт_не_становится_готовым() -> None:
+    """Ложное «ГОТОВО» хуже отсутствия вердикта: сборщик решит, что часть в
+    порядке, и не посмотрит её. Поэтому неизвестное остаётся неизвестным."""
+    from hub.swarm_run import _verdict_for
+
+    parts = _parts(1)
+    got = _verdict_for("ну вроде нормально", parts[0])
+    assert not got.startswith("ГОТОВО"), got
+    assert "не проверено" in got, got
+
+
+def test_пустой_ответ_проверяющего_разбирается() -> None:
+    from hub.swarm_run import _verdict_for
+
+    parts = _parts(1)
+    assert "не проверено" in _verdict_for("", parts[0])
+    assert "не проверено" in _verdict_for("   \n  ", parts[0])
+
+
+def test_проверка_идёт_несколькими_агентами(tmp_path: Path,
+                                        monkeypatch: pytest.MonkeyPatch) -> None:
+    """Проверяющих несколько, и у каждого свой аккаунт: иначе они делят один
+    лимит и идут по очереди, а весь смысл был в параллельности."""
+    worker, run = _ready_run(tmp_path, 6)
+    used: list[str] = []
+    real_make = SwarmRun.make_checker
+
+    def spy(self: Any, slot: Any) -> Agent:
+        used.append(slot.key)
+        return real_make(self, slot)
+
+    monkeypatch.setattr(SwarmRun, "make_checker", spy)
+
+    async def fake_run(self: Any) -> dict[str, Any]:
+        return {"ok": True, "last": "ок"}
+
+    monkeypatch.setattr(Agent, "run", fake_run)
+    verdicts = asyncio.run(run.verify())
+
+    assert len(used) == 3, f"проверяющих должно быть три, а их {len(used)}"
+    assert len(set(used)) == len(used), f"аккаунт один на всех: {used}"
+    assert len(verdicts) == 6, verdicts
+
+
+def test_проверяющий_не_имеет_прав_на_запись(tmp_path: Path,
+                                          monkeypatch: pytest.MonkeyPatch) -> None:
+    """Проверка не имеет права чинить. Иначе проверяющий поправит молча, и в
+    отчёте будет «всё хорошо», а правки не будет нигде."""
+    worker, run = _ready_run(tmp_path, 4)
+    levels: list[Any] = []
+    real_make = SwarmRun.make_checker
+
+    def spy(self: Any, slot: Any) -> Agent:
+        agent = real_make(self, slot)
+        levels.append(agent.config.access)
+        return agent
+
+    monkeypatch.setattr(SwarmRun, "make_checker", spy)
+
+    async def fake_run(self: Any) -> dict[str, Any]:
+        return {"ok": True, "last": "ок"}
+
+    monkeypatch.setattr(Agent, "run", fake_run)
+    asyncio.run(run.verify())
+
+    assert levels, "проверяющие не созданы"
+    assert all(level.name == "READ" for level in levels), levels
+
+
+def test_проверка_пропускается_на_малом_числе_частей(tmp_path: Path) -> None:
+    """Одну-две части дешевле посмотреть сборщику: поднимать проверяющих
+    дороже, чем проверять."""
+    worker, run = _ready_run(tmp_path, 2)
+    assert asyncio.run(run.verify()) == {}
+
+
+def test_проверка_пропускается_без_свободных_аккаунтов(
+        tmp_path: Path) -> None:
+    """Проверять нечем — все аккаунты в работе. Проверка не должна залезать на
+    чужой ключ: это тот же отказ по лимиту, ради которого есть резерв."""
+    worker, run = _ready_run(tmp_path, 4)
+    for slot in run.swarm.plan.workers:
+        slot.taken_by = "занято"
+    assert asyncio.run(run.verify()) == {}
+
+
+def test_упавшая_проверка_не_прячет_часть(tmp_path: Path,
+                                        monkeypatch: pytest.MonkeyPatch) -> None:
+    """Проверка сорвалась — часть не считается проверенной. Иначе в сводке будет
+    «проверено», а на деле никто ничего не смотрел."""
+    worker, run = _ready_run(tmp_path, 4)
+
+    async def boom(self: Any) -> dict[str, Any]:
+        raise RuntimeError("провайдер молчит")
+
+    monkeypatch.setattr(Agent, "run", boom)
+    verdicts = asyncio.run(run.verify())
+    assert verdicts, "вердикты всё равно должны быть"
+    for text in verdicts.values():
+        assert not text.startswith("ГОТОВО"), text
+        assert "проверка не прошла" in text, text
+
+
+def test_событие_проверки_видно(tmp_path: Path,
+                                monkeypatch: pytest.MonkeyPatch) -> None:
+    """Человек должен видеть, что проверяли и сколько нашли проблем."""
+    worker, run = _ready_run(tmp_path, 4)
+
+    async def with_problem(self: Any) -> dict[str, Any]:
+        return {"ok": True, "last": "ПРОБЛЕМА — файла нет"}
+
+    monkeypatch.setattr(Agent, "run", with_problem)
+    asyncio.run(run.verify())
+    note = next(e for e in worker.events if e["type"] == "swarm_verified")
+    assert note["checked"] == 4, note
+    assert note["problems"], note
+
+
+def test_сборщик_видит_проблемы_проверяющих(tmp_path: Path) -> None:
+    """Вердикт обязан дойти до сборщика: иначе проверка работает вхолостую и
+    ровно та треть времени, которую она должна была сэкономить, уходит обратно
+    на перечитывание."""
+    from hub.worker import Worker
+
+    worker = _assembly_worker(tmp_path)
+    worker._assemble_briefly = Worker._assemble_briefly.__get__(worker)
+    seen: list[str] = []
+    agent = _agent(tmp_path, worker)
+
+    async def behaviour() -> dict[str, Any]:
+        seen.append(" ".join(str(m.get("content")) for m in agent.messages))
+        return {"ok": True, "last": "ответ"}
+
+    agent.run = behaviour  # type: ignore[assignment]
+
+    got = {"ok": True, "tools": ["write_file"], "summary": "сверстал",
+           "error": "", "steps": 3}
+    fake = type("Run", (), {
+        "swarm": type("S", (), {"handoffs": {}})(),
+        "results": {"часть 1": got},
+        "verdicts": {"часть 1": "часть 1: ПРОБЛЕМА — файл пустой"},
+    })()
+    asyncio.run(Worker._assemble.__get__(worker)(
+        agent, _config(tmp_path, steps=20), "задача", fake, None))
+
+    assert seen, "сборщик не запустился"
+    assert "ПРОБЛЕМА" in seen[0], seen[0][:300]
+    assert "проверяющие" in seen[0].lower(), seen[0][:300]
+
+
+def test_вердикт_опознаётся_с_именем_части() -> None:
+    """Ошибка была на этом месте: вердикт приходит с именем части впереди, а
+    разбор смотрел на начало строки. Любая проблема объявлялась «проверка не
+    удалась» — сборщик получал неверную причину и шёл чинить не то."""
+    from hub.swarm_run import _mark_of
+
+    assert _mark_of("часть 1: ПРОБЛЕМА — файл пустой") == "ПРОБЛЕМА"
+    assert _mark_of("часть 1: ГОТОВО — всё на месте") == "ГОТОВО"
+    assert _mark_of("ПРОБЛЕМА") == "ПРОБЛЕМА"
+    assert _mark_of("не проверено: пустой ответ") == ""
+    assert _mark_of("") == ""
+
+
+def test_сборщик_получает_верную_причину(tmp_path: Path) -> None:
+    """Проблема должна быть названа проблемой, а не «проверка не удалась»."""
+    from hub.worker import Worker
+
+    worker = _assembly_worker(tmp_path)
+    worker._assemble_briefly = Worker._assemble_briefly.__get__(worker)
+    seen: list[str] = []
+    agent = _agent(tmp_path, worker)
+
+    async def behaviour() -> dict[str, Any]:
+        seen.append(" ".join(str(m.get("content")) for m in agent.messages))
+        return {"ok": True, "last": "ответ"}
+
+    agent.run = behaviour  # type: ignore[assignment]
+    got = {"ok": True, "tools": ["write_file"], "summary": "сверстал",
+           "error": "", "steps": 3}
+    fake = type("Run", (), {
+        "swarm": type("S", (), {"handoffs": {}})(),
+        "results": {"часть 1": got},
+        "verdicts": {"часть 1": "часть 1: ПРОБЛЕМА — файл пустой"},
+    })()
+    asyncio.run(Worker._assemble.__get__(worker)(
+        agent, _config(tmp_path, steps=20), "задача", fake, None))
+
+    assert "нашли проблемы" in seen[0].lower(), seen[0][:300]
+    assert "проверить не удалось" not in seen[0].lower(), seen[0][:300]
 
 
 # =============================================================== сборка

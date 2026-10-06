@@ -9,17 +9,22 @@ from __future__ import annotations
 
 import asyncio
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from hub.agent import Agent, AgentConfig, make_guard
+from hub.autonomy import AccessLevel
 from hub.failover import AutoCaller
 from hub.pacer import PacedCaller, Pacer
 from hub.swarm import (
+    MAX_CHECKERS,
     PARTIAL_EVERY_S,
     PARTIAL_STEPS,
     STAGGER_S,
     TAIL_PARTS,
+    VERIFY_MIN_PARTS,
+    VERIFY_STEPS,
     Plan,
     Slot,
     Swarm,
@@ -64,6 +69,60 @@ HERD_SYSTEM = (
     "- Не дроби то, что дешевле сделать целиком: чтение одного файла, "
     "правку одной строки, ответ на вопрос."
 )
+
+
+def _mark_of(verdict: str) -> str:
+    """Что на самом деле сказал проверяющий: «ГОТОВО», «ПРОБЛЕМА» или ничего.
+
+    Ищется **внутри** строки, а не по началу. Вердикт приходит с именем
+    части впереди («часть 1: ПРОБЛЕМА — файл пустой»), и проверка по началу
+    объявляла бы любую проблему «проверка не удалась» — то есть сборщик
+    получил бы неверную причину и пошёл бы чинить не то.
+    """
+    text = (verdict or "").upper()
+    if "ПРОБЛЕМА" in text:
+        return "ПРОБЛЕМА"
+    if "ГОТОВО" in text:
+        return "ГОТОВО"
+    return ""
+
+
+def _split_evenly(items: list[Any], groups: int) -> list[list[Any]]:
+    """Разложить части по проверяющим поровну.
+
+    Поровну, а не «пока не кончатся»: неравномерная делёжка означает, что
+    один проверяющий сидит вдвое дольше другого, а время роя определяет
+    самый долгий.
+    """
+    groups = max(1, min(groups, len(items)))
+    out: list[list[Any]] = [[] for _ in range(groups)]
+    for index, item in enumerate(items):
+        out[index % groups].append(item)
+    return [g for g in out if g]
+
+
+def _verdict_for(text: str, part: Any) -> str:
+    """Вытащить вердикт по одной части из ответа проверяющего.
+
+    Ответ запрашивался построчно, но модель могла завернуть его в список,
+    добавить нумерацию или вовсе ответить одной фразой. Здесь ищется строка с
+    именем части; если её нет, берётся первая строка, похожая на вердикт, а
+    если нет и её — весь ответ целиком. Ложное «ГОТОВО» хуже отсутствия
+    вердикта, поэтому неизвестное никогда не превращается в «всё хорошо».
+    """
+    body = " ".join((text or "").split())
+    if not body:
+        return "не проверено: проверяющий не ответил"
+    name = (part.name or "").strip()
+    for line in (text or "").splitlines():
+        clean = " ".join(line.split()).lstrip("-*0123456789. ")
+        if name and clean.startswith(name):
+            return clean[:300]
+    for line in (text or "").splitlines():
+        clean = " ".join(line.split()).lstrip("-*0123456789. ")
+        if clean.startswith("ГОТОВО") or clean.startswith("ПРОБЛЕМА"):
+            return clean[:300]
+    return "не проверено: " + body[:240]
 
 
 def files_ready(part: Any, base: Path) -> list[str]:
@@ -143,6 +202,9 @@ class SwarmRun:
         self.swarm: Swarm | None = None
         #: Результаты частей: имя → (ок, текст, ошибка).
         self.results: dict[str, dict[str, Any]] = {}
+        #: Вердикты проверяющих: имя части → строка. Сборщику они вместо
+        #: сырых отчётов: «ГОТОВО» или «ПРОБЛЕМА — что».
+        self.verdicts: dict[str, str] = {}
         #: Чекпоинт каждой части — им продолжает подменяющий.
         self.checkpoints: dict[str, dict[str, Any]] = {}
         self.asyncio_tasks: dict[str, asyncio.Task] = {}
@@ -416,6 +478,124 @@ class SwarmRun:
                 last = now
                 await self.partial_round()
 
+    # ------------------------------------------------------------- проверка
+
+    def make_checker(self, slot: Slot) -> Agent:
+        """Проверяющий: свой агент, свой аккаунт, прав на запись нет.
+
+        Права только на чтение — не из вежливости, а потому что проверка не
+        имеет права чинить. Сборщик потом чинит всё сам и видит картину
+        целиком; если проверяющий что-то поправит молча, в отчёте будет
+        написано «всё хорошо», а правки не будет нигде.
+        """
+        config = replace(self.config, access=AccessLevel.READ,
+                         max_steps=VERIFY_STEPS)
+        guard = make_guard(config)
+        guard.set_workspace(str(self.base), None)
+        agent = Agent(self.worker.selector, guard, config,
+                      on_event=lambda event: self._on_part_event("проверка",
+                                                                event))
+        agent.trace_on = False
+        account = slot_account(slot.gateway, slot.key)
+        caller = AutoCaller(self.worker.selector, timeout=self.config.step_timeout,
+                            empty_retries=1)
+        caller.pinned = slot.ref
+        caller.pinned_key = slot.key
+        agent.caller = PacedCaller(caller, self.pacer, account, slot.rpm)
+        return agent
+
+    def checker_prompt(self, batch: list[Any]) -> str:
+        """Задание проверяющему на его долю частей.
+
+        Ответ запрашивается коротким и построчным: сборщику нужны не отчёты
+        о работе, а список того, что не так. Длинные объяснения здесь
+        возвращаются в сборку целиком и съедают ровно то время, которое
+        проверка должна была сэкономить.
+        """
+        rows = []
+        for part in batch:
+            files = ", ".join(part.files) or "(файлы не названы)"
+            rows.append(f"- {part.name}: {part.brief} — ждём: {files}")
+        return (
+            "Проверь чужую работу. Ничего не правь, только посмотри.\n\n"
+            "Части и их файлы:\n" + "\n".join(rows) + "\n\n"
+            "Для каждой строки открой её файлы и ответь одной строкой:\n"
+            "  <имя части>: ГОТОВО — если файлы есть и в них есть то, что "
+            "просили;\n"
+            "  <имя части>: ПРОБЛЕМА — <что не так> — если файла нет, он "
+            "пустой или там заглушка вместо работы.\n"
+            "Больше ничего не пиши: ни объяснений, ни похвалы, ни кода."
+        )
+
+    async def check_one(self, batch: list[Any], slot: Slot,
+                        index: int) -> dict[str, str]:
+        """Одна доля частей на одном проверяющем."""
+        out: dict[str, str] = {}
+        try:
+            agent = self.make_checker(slot)
+            agent.set_task(self.checker_prompt(batch))
+            got = await agent.run()
+            text = str(got.get("last") or "").strip()
+            for part in batch:
+                out[part.name] = _verdict_for(text, part)
+        except Exception as exc:  # noqa: BLE001
+            # Проверка не прошла — это не повод останавливать сборку. Сборщик
+            # получит пометку и посмотрит сам, а не будет считать часть
+            # проверенной, потому что проверить её не вышло.
+            note = f"проверка не прошла ({type(exc).__name__}: {exc})"
+            for part in batch:
+                out[part.name] = note
+        return out
+
+    async def verify(self) -> dict[str, str]:
+        """Проверить готовые части несколькими проверяющими сразу.
+
+        Что здесь параллелится и почему именно это. Проверка частей
+        независима: каждая смотрит свои файлы и ничего не решает. Сборка
+        общих файлов и ответ человеку — не независима: один файл и один
+        ответ пишутся целиком, и два сборщика не сделают это быстрее, а
+        каждый прочитает всё заново и потратит на это вдвое больше.
+
+        Поэтому проверяющих несколько, сборщик один и получает их короткие
+        вердикты вместо сырых отчётов частей. Замер 06.10.2026: сборка была
+        14 запросами из 44 на прогоне, то есть треть времени уходила на то,
+        чтобы главный агент сам перечитывал всё сделанное.
+        """
+        swarm = self.swarm
+        if swarm is None:
+            return {}
+        ready = [p for p in self.parts
+                 if p.name in swarm.done or p.name in swarm.failed]
+        if len(ready) < VERIFY_MIN_PARTS:
+            # Проверять одну-две части дороже, чем сборщик посмотрит их сам.
+            return {}
+
+        # Слоты рабочих к этому моменту свободны: части закончились. Резерв
+        # не трогается — он нужен на случай, если сборщик сам упрётся.
+        free = [s for s in swarm.plan.workers if not s.taken_by]
+        if not free:
+            return {}
+
+        batches = _split_evenly(ready, min(len(free), MAX_CHECKERS))
+        started = time.perf_counter()
+        results = await asyncio.gather(
+            *(self.check_one(batch, free[i], i) for i, batch
+              in enumerate(batches)),
+            return_exceptions=True)
+        verdicts: dict[str, str] = {}
+        for got in results:
+            if isinstance(got, dict):
+                verdicts.update(got)
+
+        self.emit({"type": "swarm_verified", "task_id": self.task_id,
+                   "checked": len(verdicts), "checkers": len(batches),
+                   "elapsed_ms": int((time.perf_counter() - started) * 1000),
+                   "problems": [name for name, text in verdicts.items()
+                                if _mark_of(text) == "ПРОБЛЕМА"],
+                   "unknown": [name for name, text in verdicts.items()
+                               if not _mark_of(text)]})
+        return verdicts
+
     # -------------------------------------------------------------- запуск
 
     async def run(self) -> dict[str, Any]:
@@ -428,6 +608,12 @@ class SwarmRun:
         await self.supervise(denied, globs)
         await self.wait_parts()
 
+        # Проверка идёт после частей и до сборки: сборщик получает вердикты
+        # вместо сырых отчётов, и его работа сжимается до общих файлов и
+        # ответа. Сами проверки параллельны, поэтому время роя почти не
+        # растёт, а перечитывания исчезают.
+        verdicts = await self.verify()
+
         elapsed = int((time.perf_counter() - started) * 1000)
         ok = sum(1 for r in self.results.values() if r["ok"])
         self.emit({
@@ -436,9 +622,11 @@ class SwarmRun:
             "reserve": len(plan.reserve),
             "handoffs": dict(self.swarm.handoffs) if self.swarm else {},
             "requests": self.pacer.report(),
+            "verified": len(verdicts),
         })
+        self.verdicts = verdicts
         return {"parts": len(self.parts), "ok": ok, "elapsed_ms": elapsed,
-                "reserve": len(plan.reserve)}
+                "reserve": len(plan.reserve), "verified": len(verdicts)}
 
 
 def _worth_handoff(reason: str, steps: int = 1) -> bool:

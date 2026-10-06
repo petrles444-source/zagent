@@ -3512,6 +3512,20 @@ function handleEvent(e, replay) {
                  (e.note ? ` ${e.note}` : '')});
     return;
   }
+  // Проверяющие отработали раньше сборки. Их вердикты и есть то, ради чего
+  // сборщику не приходится перечитывать всё заново, поэтому видно их должно
+  // быть здесь, а не только в итоговой сводке.
+  if (e.type === 'swarm_verified') {
+    const bad = (e.problems || []).length;
+    const skipped = (e.unknown || []).length;
+    let text = `Проверили ${e.checked} частей, проверяющих ${e.checkers}, ` +
+               `${Math.round((e.elapsed_ms || 0) / 1000)} с.`;
+    if (bad) text += ` Проблемы: ${e.problems.join(', ')}.`;
+    if (skipped) text += ` Не удалось проверить: ${e.unknown.join(', ')}.`;
+    if (!bad && !skipped) text += ' Все части в порядке.';
+    addMsg({who:'⚙', kind:'sys', text:text});
+    return;
+  }
   // Решение «Авто» по режиму. Показывается в переписке и остаётся под
   // кнопкой режима: человек должен видеть не только что выбрано, но и
   // почему, иначе «Авто» выглядит как произвол.
