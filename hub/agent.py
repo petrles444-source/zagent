@@ -312,6 +312,14 @@ RESET_REPEAT_OPS = MUTATING_OPS | DESTRUCTIVE_OPS
 #: пустой «сбой» хуже любого частичного ответа.
 WRAP_UP_TRIES = 1
 
+#: Сколько раз можно потребовать ответа вместо размышления.
+#:
+#: Живой прогон 07.10.2026: reasoning-модель отдала вслух план и цикл счёл
+#: это ответом — задача стала «готова» без единого файла. Одного требования
+#: достаточно: часть моделей правда держит ответ в поле размышления, и тогда
+#: после требования текст появляется. Повторяться дальше бессмысленно.
+SILENT_NUDGE_LIMIT = 1
+
 #: Бюджет токенов на шаг цикла.
 #:
 #: Жёсткие 60 000 на задачу кончились на четвёртом чтении файла. Бюджет
@@ -534,6 +542,58 @@ def big_task_guide(task: str) -> str:
     ])
 
 
+#: Слова, после которых путь в тексте задачи означает «это надо создать».
+#:
+#: Без этого списка требование «сравни файлы a.py и b.py» читалось бы как
+#: «создай a.py и b.py», и задача, где такого не требовали, уходила бы в
+#: бесконечное «файла нет».
+_WRITE_INTENT = (
+    "напиши", "написать", "запиши", "запишите", "сохрани", "создай",
+    "создайте", "положи", "запиши отчёт", "отчёт в", "отчет в",
+    "выгрузи", "выгрузите", "dump",
+)
+
+#: Расширения, ради которых задача формулируется словами «в файл».
+_DELIVERABLE_EXT = (
+    "md", "txt", "json", "csv", "html", "htm", "xml", "yaml", "yml",
+    "sql", "log",
+)
+
+#: Сколько раз можно напомнить про отсутствующий файл.
+#:
+#: Одного напоминания хватает модели, у которой отчёт уже есть в истории:
+#: ей остаётся его записать. Дальше крутить бессмысленно — она либо не
+#: может писать, либо считает задачу выполненной без файла.
+DELIVERABLE_NUDGE_LIMIT = 1
+
+
+def required_deliverables(task: str, workspace: Path) -> list[str]:
+    """Пути, которые задача просит создать.
+
+    Отбираются по двум признакам: в тексте есть слово записи и рядом с ним
+    назван путь с расширением из известных. Существование файла здесь не
+    проверяется намеренно: судьбу результата решает `_undelivered` в момент
+    «готово», и она же считает пустой файл несделанным. Если отсекать пути
+    по наличию файла на диске, то пустой отчёт, созданный формально, прошёл
+    бы незамеченным — а это ровно тот случай, который ловить нельзя.
+    """
+    text = (task or "").lower()
+    if not any(word in text for word in _WRITE_INTENT):
+        return []
+    out: list[str] = []
+    for match in re.finditer(
+        r"[\w][\w./\\-]*\.(?:%s)\b" % "|".join(_DELIVERABLE_EXT), text
+    ):
+        rel = match.group(0).replace("\\", "/").lstrip("./")
+        if not rel or rel in out:
+            continue
+        # Ключи и прочие файлы конфигурации создавать не просят.
+        if rel.startswith(("config/", "docs/free-", "docs/model-works")):
+            continue
+        out.append(rel)
+    return out
+
+
 def build_system_prompt(guard: Guard, config: AgentConfig, *, workspace: str,
                         self_edit: bool = False, web_research: bool = False,
                         guide: str = "") -> str:
@@ -731,6 +791,12 @@ class Agent:
         self.repeat_counts: dict[str, int] = {}
         #: Сколько раз уже требовали итоговый ответ вместо новых вызовов.
         self.wrap_up: int = 0
+        #: Сколько раз модель отвечала только размышлением, без ответа.
+        self.silent_replies: int = 0
+        #: Файлы, которые задача просит создать: проверяются перед «готово».
+        self.required_files: list[str] = []
+        #: Сколько раз напомнили про отсутствующий файл.
+        self.deliverable_repeats: int = 0
         #: По какой причине работа была остановлена принудительно
         #: («бюджет…», «один и тот же вызов…», «лимит шагов…»). Пусто —
         #: задача дошла до конца сама.
@@ -789,6 +855,9 @@ class Agent:
     def set_task(self, task: str) -> None:
         """Поставить задачу и сбросить состояние цикла."""
         self.task_text = task
+        # Что задача просит создать. Проверяется в момент, когда агент
+        # объявляет себя готовым: названный файл обязан существовать.
+        self.required_files = required_deliverables(task, self.workspace)
         self.messages = [
             {"role": "system", "content": self._system_prompt()},
             {"role": "user", "content": task},
@@ -840,6 +909,8 @@ class Agent:
         self.budget_exceeded = False
         self.repeat_counts = {}
         self.wrap_up = 0
+        self.silent_replies = 0
+        self.deliverable_repeats = 0
         self.stop_reason = ""
         # Проверки относятся к текущему циклу: оставшиеся от прошлого прохода
         # значения делали одну плохую запись причиной провала всей задачи.
@@ -1304,7 +1375,38 @@ class Agent:
             if broken or looks_like_tool_call(combined):
                 return await self._retry_format(combined, broken, model, duration)
 
-            final = text.strip() or reasoning.strip()
+            final = text.strip()
+            if not final and reasoning.strip():
+                # Модель размышляет, но не отвечает и ничего не вызывает.
+                #
+                # Живой прогон 07.10.2026: reasoning-модель на задаче «аудит
+                # всего кода» одиннадцать раз перебрала папки, а на двенадцатом
+                # шаге отдала вслух план - «Let's search for TODO or FIXME» - и
+                # цикл счёл это ответом. Задача получила статус «готово»,
+                # ok=True, а файла с отчётом не существовало.
+                #
+                # Размышление ответом не является, поэтому сначала требуем
+                # настоящего ответа. Один раз: возможно, модель правда несёт
+                # ответ именно в этом поле, и тогда она его повторит, и мы
+                # получим текст. Повторяться дальше бессмысленно - значит,
+                # ответа не будет.
+                self.silent_replies += 1
+                if self.silent_replies <= SILENT_NUDGE_LIMIT:
+                    message = (
+                        "Ты только что размышлял вслух, но не ответил и не "
+                        "вызвал инструмент. Размышление не считается ответом: "
+                        "задача не выполнена. Либо ответь словами по существу, "
+                        "либо вызови инструмент и продолжай работу."
+                    )
+                    self.messages.append({"role": "user", "content": message})
+                    await self._step(
+                        Phase.THINKING, message, model=model,
+                        duration_ms=duration, ok=False,
+                        error="модель ответила только размышлением",
+                    )
+                    return "continue"
+                final = ""
+
             if not final:
                 # Пустой ответ: failover уже повторил с увеличенным бюджетом.
                 # Значит, модель молчит — не крутим цикл, а честно останавливаемся.
@@ -1322,6 +1424,56 @@ class Agent:
                 return "stop"
 
             self.messages.append({"role": "assistant", "content": final})
+
+            # Названный в задаче результат обязан существовать на диске.
+            #
+            # Живой прогон 07.10.2026: задача «напиши отчёт в файл
+            # docs/audit-live.md». Агент составил развёрнутый отчёт и выдал
+            # его текстом в переписке — `write_file` не вызывался ни разу, а
+            # задача получила статус «готово» с ok=True. Файла не существовало.
+            #
+            # По критерию пользователя («файл появился = работа сделана, пустой
+            # файл — не работа») это провал, который был виден как успех.
+            # Проверка механическая и дешёвая: путь назван в тексте задачи.
+            undelivered = self._undelivered()
+            if undelivered:
+                self.deliverable_repeats += 1
+                if self.deliverable_repeats <= DELIVERABLE_NUDGE_LIMIT:
+                    message = (
+                        "Ты закончил словами, но результат должен лежать на "
+                        "диске, а его там нет: "
+                        + ", ".join(undelivered)
+                        + ". Напиши ответ в эти файлы через write_file "
+                        "(текст ответа у тебя уже есть в истории) и "
+                        "подтверди коротко, что файлы созданы."
+                    )
+                    self.messages.append({"role": "user", "content": message})
+                    await self._step(
+                        Phase.THINKING, message, model=model,
+                        duration_ms=duration, ok=False,
+                        error="названный в задаче файл не создан",
+                    )
+                    return "continue"
+                # Повтор не помог — отвечаем честно: работа не сдана.
+                text = (
+                    final
+                    + "\n\nВнимание: перечисленные в задаче файлы так и не "
+                    "созданы (" + ", ".join(undelivered) + "). Отчёт выше — "
+                    "это текст в переписке, а не результат на диске."
+                )
+                await self._step(Phase.THINKING, text, model=model,
+                                 duration_ms=duration)
+                self.finished = False
+                await self._emit({
+                    "type": "failed",
+                    "reason": ("задача требовала файла, а он не создан: "
+                               + ", ".join(undelivered)),
+                    "model": model,
+                    "text": text,
+                    "artifacts": list(self.artifacts),
+                    "stopped_by": "не создан требуемый файл",
+                })
+                return "stop"
 
             # Модель отказалась действовать словами: «нужен доступ к C:\x».
             # Пока инструмент не вызван, система не знает, о каком пути речь,
@@ -1870,6 +2022,27 @@ class Agent:
         })
         if len(self.trace) > TRACE_LIMIT:
             del self.trace[: len(self.trace) - TRACE_LIMIT]
+
+    def _undelivered(self) -> list[str]:
+        """Названные в задаче файлы, которых нет на диске.
+
+        Берутся только те, что должны быть **созданы**: путь обязан
+        упоминаться рядом со словом, выражающим запись, и не существовать
+        на момент постановки задачи. Иначе требование в «исправь баг в
+        файле hub/agent.py» (файл уже есть) или в «сравни a.py и b.py»
+        (создавать нечего) превратилось бы в вечное «файла нет».
+        """
+        missing: list[str] = []
+        for rel in self.required_files:
+            path = self.workspace / rel
+            try:
+                if path.exists() and path.stat().st_size > 0:
+                    continue
+            except OSError:
+                missing.append(rel)
+                continue
+            missing.append(rel)
+        return missing
 
     def _budget_limit(self) -> int:
         """Предел токенов на задачу: жёсткий бюджет или норма на шаг.
