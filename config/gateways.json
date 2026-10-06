@@ -1,171 +1,185 @@
 {
-  "gateways": [
-    {
-      "id": "openrouter",
-      "label": "OpenRouter",
-      "base_url": "https://openrouter.ai/api/v1",
-      "secret_key": "openrouter",
-      "env": "OPENROUTER_API_KEY",
-      "needs_key": true,
-      "free_marker": ":free",
-      "routers": [
-        "openrouter/free"
-      ],
-      "notes": "17+ моделей с суффиксом :free. 50 RPD на аккаунт, 20 RPM. Цены проверяются в usage.cost.",
-      "supports_responses": true,
-      "verified": "2026-10-05"
-    },
-    {
-      "id": "groq",
-      "label": "Groq",
-      "base_url": "https://api.groq.com/openai/v1",
-      "secret_key": "groq",
-      "env": "GROQ_API_KEY",
-      "needs_key": true,
-      "free_models": [
-        "openai/gpt-oss-120b",
-        "openai/gpt-oss-20b",
-        "qwen/qwen3.8-27b",
-        "openai/gpt-oss-safeguard-20b",
-        "meta-llama/llama-prompt-guard-2-86m",
-        "meta-llama/llama-prompt-guard-2-22m"
-      ],
-      "notes": "Free plan без карты. ~30 RPM, 1000 RPD. Reasoning-модели отдают пустой текст при малом max_tokens.",
-      "supports_responses": true,
-      "verified": "2026-10-05"
-    },
-    {
-      "id": "z_ai",
-      "label": "Z.ai / GLM",
-      "base_url": "https://api.z.ai/api/paas/v4",
-      "secret_key": "z_ai",
-      "env": "Z_AI_API_KEY",
-      "needs_key": true,
-      "free_models": [
-        "glm-4.7-flash",
-        "glm-4.5-flash",
-        "glm-4.6v-flash"
-      ],
-      "notes": "Flash-модели бесплатны бессрочно ($0 во всех колонках прайса). Регистрация по email, карта не нужна.",
-      "supports_responses": true,
-      "verified": "2026-10-05"
-    },
-    {
-      "id": "mistralai",
-      "label": "Mistral La Plateforme",
-      "base_url": "https://api.mistral.ai/v1",
-      "secret_key": "mistralai",
-      "env": "MISTRAL_API_KEY",
-      "needs_key": true,
-      "free_models": [
-        "codestral-latest",
-        "ministral-3b-latest",
-        "ministral-8b-latest"
-      ],
-      "notes": "Free mode: $10/мес кредитов, ~1 RPS. Промпты могут идти в обучение (есть opt-out).",
-      "supports_responses": true,
-      "verified": "2026-10-05"
-    },
-    {
-      "id": "cloudflare",
-      "label": "Cloudflare Workers AI",
-      "base_url": "https://api.cloudflare.com/client/v4/accounts/{cloudflare_account_id}/ai/v1",
-      "secret_key": "cloudflare_token",
-      "env": "CLOUDFLARE_API_TOKEN",
-      "extra_secret_keys": [
-        "cloudflare_account_id"
-      ],
-      "needs_key": true,
-      "free_models": [
-        "@cf/openai/gpt-oss-120b",
-        "@cf/openai/gpt-oss-20b",
-        "@cf/meta/llama-3.1-8b-instruct-fp8-fast",
-        "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
-        "@cf/qwen/qwen3-30b-a3b-fp8",
-        "@cf/google/gemma-4-26b-a4b-it",
-        "@cf/mistralai/mistral-small-3.1-24b-instruct",
-        "@cf/ibm-granite/granite-4.0-h-micro"
-      ],
-      "paid_only_models": [
-        "@cf/zai-org/glm-5.3-flash",
-        "@cf/deepseek-ai/deepseek-v4-flash-0731",
-        "@cf/moonshotai/kimi-k2.7-code"
-      ],
-      "notes": "10 000 Neurons/день, сброс 00:00 UTC. Нужен Workers AI API Token (cfut_...), НЕ R2-ключи. За превышение не биллингует — запрос падает.",
-      "supports_responses": false,
-      "verified": "2026-10-05"
-    },
-    {
-      "id": "llm7",
-      "label": "llm7.io (keyless)",
-      "base_url": "https://api.llm7.io/v1",
-      "secret_key": null,
-      "env": null,
-      "needs_key": false,
-      "free_models": [
-        "DeepSeek-V4-Flash-0731",
-        "GLM-5.3-Flash",
-        "codestral-latest",
-        "minimax-m2.7"
-      ],
-      "notes": "Анонимный доступ: 1 RPS, 10 RPM, 60 req/час, 500K токенов/сутки. Остальные модели каталога требуют ключ с token.llm7.io.",
-      "supports_responses": false,
-      "verified": "2026-10-05"
-    },
-    {
-      "id": "zen",
-      "label": "OpenCode Zen",
-      "base_url": "https://opencode.ai/zen/v1",
-      "secret_key": null,
-      "env": "ZEN_API_KEY",
-      "needs_key": false,
-      "free_models": [
-        "space-bunny-free"
-      ],
-      "notes": "Из 14 моделей с суффиксом -free стороннему клиенту отвечает только эта: остальные 403 FreeTierError 'can only be used from within OpenCode'.",
-      "supports_responses": false,
-      "verified": "2026-10-05"
-    },
-    {
-      "id": "ollama",
-      "label": "Ollama (локально)",
-      "base_url": "http://localhost:11434/v1",
-      "secret_key": null,
-      "env": "OLLAMA_API_KEY",
-      "needs_key": false,
-      "api_key_literal": "ollama",
-      "free_models": [],
-      "discover_live": true,
-      "notes": "Локальный рантайм, ключ игнорируется. Список моделей читается из GET /models — их нужно сначала скачать через `ollama pull`. Поддерживает /responses.",
-      "supports_responses": true,
-      "verified": "2026-10-05"
-    },
-    {
-      "id": "nvidia",
-      "label": "NVIDIA NIM",
-      "base_url": "https://integrate.api.nvidia.com/v1",
-      "secret_key": "nvidia",
-      "env": "NVIDIA_API_KEY",
-      "needs_key": true,
-      "free_models": [
-        "meta/llama-3.2-90b-vision-instruct",
-        "nvidia/nemotron-3-super-120b-a12b",
-        "poolside/laguna-xs-2.1",
-        "meta/llama-3.2-11b-vision-instruct",
-        "nvidia/nemotron-3.5-lightning-30b-a3b",
-        "openai/gpt-oss-20b"
-      ],
-      "extra_body": {
-        "chat_template_kwargs": {
-          "enable_thinking": false
-        }
-      },
-      "extra_body_note": "Размышление у моделей NVIDIA включено по умолчанию: модель тратит на него несколько секунд и часть ответа, а в ответе размышление приходит отдельным полем reasoning_content. По замеру 06.10.2026 на nvidia/nemotron-3.5-lightning-30b-a3b отключение дало 2361 мс против 4733 мс на том же вопросе — вдвое быстрее. Поле из документации NIM (chat_template_kwargs.enable_thinking), не угадано.",
-      "rpm_per_account": 40,
-      "rpm_note": "Бесплатный уровень build.nvidia.com: 40 запросов в минуту на аккаунт, ограничений на токены нет (документация NVIDIA, 10.2026). Лимит именно на аккаунт: четыре ключа дают 160 запросов в минуту. Проверено замером — при 20 запросах на аккаунт подряд часть запросов отбивается с 429. Провайдер остаток не сообщает в заголовках, поэтому лимит задан здесь и учитывается сам.",
-      "notes": "build.nvidia.com, бесплатно по подписке NVIDIA, карта не нужна. Каталог шлюза отдаёт 80 моделей, но отвечают на запрос только 11: остальные либо сняты (410 Gone), либо в каталоге есть, а на сервере нет (404). Список моделей проверен живым запросом 06.10.2026, а не взяты из названия. Reasoning-модели кладут размышление в reasoning_content; при малом max_tokens ответ выглядит как обрывок размышления, а не как ответ.",
-      "supports_responses": true,
-      "verified": "2026-10-06"
+ "gateways": [
+  {
+   "id": "openrouter",
+   "label": "OpenRouter",
+   "base_url": "https://openrouter.ai/api/v1",
+   "secret_key": "openrouter",
+   "env": "OPENROUTER_API_KEY",
+   "needs_key": true,
+   "free_marker": ":free",
+   "routers": [
+    "openrouter/free"
+   ],
+   "notes": "17+ моделей с суффиксом :free. 50 RPD на аккаунт, 20 RPM. Цены проверяются в usage.cost.",
+   "supports_responses": true,
+   "verified": "2026-10-05"
+  },
+  {
+   "id": "groq",
+   "label": "Groq",
+   "base_url": "https://api.groq.com/openai/v1",
+   "secret_key": "groq",
+   "env": "GROQ_API_KEY",
+   "needs_key": true,
+   "free_models": [
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
+    "qwen/qwen3.8-27b",
+    "openai/gpt-oss-safeguard-20b",
+    "meta-llama/llama-prompt-guard-2-86m",
+    "meta-llama/llama-prompt-guard-2-22m"
+   ],
+   "notes": "Free plan без карты. ~30 RPM, 1000 RPD. Reasoning-модели отдают пустой текст при малом max_tokens.",
+   "supports_responses": true,
+   "verified": "2026-10-05"
+  },
+  {
+   "id": "z_ai",
+   "label": "Z.ai / GLM",
+   "base_url": "https://api.z.ai/api/paas/v4",
+   "secret_key": "z_ai",
+   "env": "Z_AI_API_KEY",
+   "needs_key": true,
+   "free_models": [
+    "glm-4.7-flash",
+    "glm-4.5-flash",
+    "glm-4.6v-flash"
+   ],
+   "notes": "Flash-модели бесплатны бессрочно ($0 во всех колонках прайса). Регистрация по email, карта не нужна.",
+   "supports_responses": true,
+   "verified": "2026-10-05"
+  },
+  {
+   "id": "mistralai",
+   "label": "Mistral La Plateforme",
+   "base_url": "https://api.mistral.ai/v1",
+   "secret_key": "mistralai",
+   "env": "MISTRAL_API_KEY",
+   "needs_key": true,
+   "free_models": [
+    "codestral-latest",
+    "ministral-3b-latest",
+    "ministral-8b-latest"
+   ],
+   "notes": "Free mode: $10/мес кредитов, ~1 RPS. Промпты могут идти в обучение (есть opt-out).",
+   "supports_responses": true,
+   "verified": "2026-10-05"
+  },
+  {
+   "id": "cloudflare",
+   "label": "Cloudflare Workers AI",
+   "base_url": "https://api.cloudflare.com/client/v4/accounts/{cloudflare_account_id}/ai/v1",
+   "secret_key": "cloudflare_token",
+   "env": "CLOUDFLARE_API_TOKEN",
+   "extra_secret_keys": [
+    "cloudflare_account_id"
+   ],
+   "needs_key": true,
+   "free_models": [
+    "@cf/openai/gpt-oss-120b",
+    "@cf/openai/gpt-oss-20b",
+    "@cf/meta/llama-3.1-8b-instruct-fp8-fast",
+    "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "@cf/qwen/qwen3-30b-a3b-fp8",
+    "@cf/google/gemma-4-26b-a4b-it",
+    "@cf/mistralai/mistral-small-3.1-24b-instruct",
+    "@cf/ibm-granite/granite-4.0-h-micro"
+   ],
+   "paid_only_models": [
+    "@cf/zai-org/glm-5.3-flash",
+    "@cf/deepseek-ai/deepseek-v4-flash-0731",
+    "@cf/moonshotai/kimi-k2.7-code"
+   ],
+   "notes": "10 000 Neurons/день, сброс 00:00 UTC. Нужен Workers AI API Token (cfut_...), НЕ R2-ключи. За превышение не биллингует — запрос падает.",
+   "supports_responses": false,
+   "verified": "2026-10-05"
+  },
+  {
+   "id": "llm7",
+   "label": "llm7.io (keyless)",
+   "base_url": "https://api.llm7.io/v1",
+   "secret_key": null,
+   "env": null,
+   "needs_key": false,
+   "free_models": [
+    "DeepSeek-V4-Flash-0731",
+    "GLM-5.3-Flash",
+    "codestral-latest",
+    "minimax-m2.7"
+   ],
+   "notes": "Анонимный доступ: 1 RPS, 10 RPM, 60 req/час, 500K токенов/сутки. Остальные модели каталога требуют ключ с token.llm7.io.",
+   "supports_responses": false,
+   "verified": "2026-10-05"
+  },
+  {
+   "id": "zen",
+   "label": "OpenCode Zen",
+   "base_url": "https://opencode.ai/zen/v1",
+   "secret_key": null,
+   "env": "ZEN_API_KEY",
+   "needs_key": false,
+   "free_models": [
+    "space-bunny-free"
+   ],
+   "notes": "Из 14 моделей с суффиксом -free стороннему клиенту отвечает только эта: остальные 403 FreeTierError 'can only be used from within OpenCode'.",
+   "supports_responses": false,
+   "verified": "2026-10-05"
+  },
+  {
+   "id": "ollama",
+   "label": "Ollama (локально)",
+   "base_url": "http://localhost:11434/v1",
+   "secret_key": null,
+   "env": "OLLAMA_API_KEY",
+   "needs_key": false,
+   "api_key_literal": "ollama",
+   "free_models": [],
+   "discover_live": true,
+   "notes": "Локальный рантайм, ключ игнорируется. Список моделей читается из GET /models — их нужно сначала скачать через `ollama pull`. Поддерживает /responses.",
+   "supports_responses": true,
+   "verified": "2026-10-05"
+  },
+  {
+   "id": "nvidia",
+   "label": "NVIDIA NIM",
+   "base_url": "https://integrate.api.nvidia.com/v1",
+   "secret_key": "nvidia",
+   "env": "NVIDIA_API_KEY",
+   "needs_key": true,
+   "free_models": [
+    "meta/llama-3.2-90b-vision-instruct",
+    "nvidia/nemotron-3-super-120b-a12b",
+    "poolside/laguna-xs-2.1",
+    "meta/llama-3.2-11b-vision-instruct",
+    "nvidia/nemotron-3.5-lightning-30b-a3b",
+    "openai/gpt-oss-20b"
+   ],
+   "extra_body": {
+    "chat_template_kwargs": {
+     "enable_thinking": false
     }
-  ]
+   },
+   "extra_body_note": "Размышление у моделей NVIDIA включено по умолчанию: модель тратит на него несколько секунд и часть ответа, а в ответе размышление приходит отдельным полем reasoning_content. По замеру 06.10.2026 на nvidia/nemotron-3.5-lightning-30b-a3b отключение дало 2361 мс против 4733 мс на том же вопросе — вдвое быстрее. Поле из документации NIM (chat_template_kwargs.enable_thinking), не угадано.",
+   "rpm_per_account": 40,
+   "rpm_note": "Бесплатный уровень build.nvidia.com: 40 запросов в минуту на аккаунт, ограничений на токены нет (документация NVIDIA, 10.2026). Лимит именно на аккаунт: четыре ключа дают 160 запросов в минуту. Проверено замером — при 20 запросах на аккаунт подряд часть запросов отбивается с 429. Провайдер остаток не сообщает в заголовках, поэтому лимит задан здесь и учитывается сам.",
+   "notes": "build.nvidia.com, бесплатно по подписке NVIDIA, карта не нужна. Каталог шлюза отдаёт 80 моделей, но отвечают на запрос только 11: остальные либо сняты (410 Gone), либо в каталоге есть, а на сервере нет (404). Список моделей проверен живым запросом 06.10.2026, а не взяты из названия. Reasoning-модели кладут размышление в reasoning_content; при малом max_tokens ответ выглядит как обрывок размышления, а не как ответ.",
+   "supports_responses": true,
+   "verified": "2026-10-06"
+  },
+  {
+   "id": "google",
+   "label": "Google AI Studio (Gemini)",
+   "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+   "secret_key": "google",
+   "env": "GOOGLE_API_KEY",
+   "needs_key": true,
+   "free_models": [
+    "gemini-3.8-flash"
+   ],
+   "notes": "Free tier без карты. Ключ валиден (проверено 2026-10-07), НО жёсткий геоблок: из РФ любой chat-запрос = 400 'User location is not supported for the API use' — нужен VPN. Линейка 2.5 закрыта для новых аккаунтов (404 'no longer available to new users'); актуальная модель gemini-3.8-flash; имена lite/pro уточнить через GET /models под VPN. OpenAI-совместимый endpoint: .../v1beta/openai/chat/completions, Authorization: Bearer.",
+   "supports_responses": false,
+   "verified": "2026-10-07"
+  }
+ ]
 }

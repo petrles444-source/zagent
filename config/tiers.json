@@ -1,297 +1,304 @@
 {
-  "_comment": "Ранги моделей для режима auto: меньше tier — лучше. Проверено замерами 2026-10-05.",
-  "models": [
-    {
-      "gateway": "openrouter",
-      "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
-      "tier": 1,
-      "notes": "550B MoE, контекст 1M. Самая крупная бесплатная модель в каталоге.",
-      "works": true,
-      "measured_ms": 3600
-    },
-    {
-      "gateway": "openrouter",
-      "model": "nvidia/nemotron-3-super-120b-a12b:free",
-      "tier": 1,
-      "notes": "120B MoE, быстрая, стабильно отвечает. Лучший дефолт для кодовых задач.",
-      "works": true,
-      "measured_ms": 2000
-    },
-    {
-      "gateway": "openrouter",
-      "model": "nvidia/nemotron-3.5-lightning:free",
-      "tier": 2,
-      "notes": "1M контекста, быстрая, иногда протухает на длинных ответах.",
-      "works": true,
-      "measured_ms": 28700
-    },
-    {
-      "gateway": "openrouter",
-      "model": "qwen/qwen3.8-27b:free",
-      "tier": 2,
-      "notes": "27B, хорошая скорость и стабильность."
-    },
-    {
-      "gateway": "openrouter",
-      "model": "cohere/north-mini-code:free",
-      "tier": 2,
-      "notes": "Специализированная кодовая модель.",
-      "works": true,
-      "measured_ms": 4000
-    },
-    {
-      "gateway": "openrouter",
-      "model": "poolside/laguna-s-2.1:free",
-      "tier": 3,
-      "notes": "Кодовая модель poolside.",
-      "works": true,
-      "measured_ms": 4100
-    },
-    {
-      "gateway": "openrouter",
-      "model": "dots-studio/dots-3-note-preview:free",
-      "tier": 3,
-      "vision": true,
-      "notes": "512K контекста, vision.",
-      "works": true,
-      "measured_ms": 9200
-    },
-    {
-      "gateway": "openrouter",
-      "model": "google/gemma-4-31b-it:free",
-      "tier": 3,
-      "vision": true,
-      "notes": "31B, vision."
-    },
-    {
-      "gateway": "openrouter",
-      "model": "google/gemma-4-26b-a4b-it:free",
-      "tier": 3,
-      "vision": true,
-      "notes": "MoE 26B/4B, vision. Проверена с картинкой через OpenRouter."
-    },
-    {
-      "gateway": "openrouter",
-      "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
-      "tier": 3,
-      "vision": true,
-      "notes": "Omni: vision + audio, reasoning.",
-      "works": true,
-      "measured_ms": 4100
-    },
-    {
-      "gateway": "openrouter",
-      "model": "inclusionai/ling-3.0-flash-sante:free",
-      "tier": 4,
-      "notes": "Flash-модель, быстрая.",
-      "works": true,
-      "measured_ms": 4100
-    },
-    {
-      "gateway": "openrouter",
-      "model": "liquid/lfm-2.5-2.6b:free",
-      "tier": 5,
-      "notes": "Замер 06.10.2026 на настоящей задаче: инструмент не вызвала.",
-      "tools": false
-    },
-    {
-      "gateway": "openrouter",
-      "model": "apodex/apodex-1.1-mini:free",
-      "tier": 5,
-      "notes": "Mini.",
-      "works": true,
-      "measured_ms": 18900
-    },
-    {
-      "gateway": "z_ai",
-      "model": "glm-4.7-flash",
-      "tier": 2,
-      "notes": "Бессрочно бесплатная, качество лучше других GLM Flash."
-    },
-    {
-      "gateway": "z_ai",
-      "model": "glm-4.5-flash",
-      "tier": 3,
-      "notes": "Бессрочно бесплатная."
-    },
-    {
-      "gateway": "z_ai",
-      "model": "glm-4.6v-flash",
-      "tier": 3,
-      "vision": true,
-      "notes": "Vision, бесплатна бессрочно. Проверена с картинкой."
-    },
-    {
-      "gateway": "cloudflare",
-      "model": "@cf/openai/gpt-oss-120b",
-      "tier": 2,
-      "notes": "Workers AI: 10 000 нейронов/день на все модели сразу."
-    },
-    {
-      "gateway": "cloudflare",
-      "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
-      "tier": 2,
-      "notes": "70B, быстрая."
-    },
-    {
-      "gateway": "cloudflare",
-      "model": "@cf/qwen/qwen3-30b-a3b-fp8",
-      "tier": 3,
-      "notes": "30B MoE."
-    },
-    {
-      "gateway": "cloudflare",
-      "model": "@cf/google/gemma-4-26b-a4b-it",
-      "tier": 3,
-      "vision": true,
-      "notes": "Vision. Проверена с картинкой: принимает изображение."
-    },
-    {
-      "gateway": "cloudflare",
-      "model": "@cf/meta/llama-3.1-8b-instruct-fp8-fast",
-      "tier": 4,
-      "notes": "8B."
-    },
-    {
-      "gateway": "cloudflare",
-      "model": "@cf/openai/gpt-oss-20b",
-      "tier": 4,
-      "notes": "20B."
-    },
-    {
-      "gateway": "cloudflare",
-      "model": "@cf/mistralai/mistral-small-3.1-24b-instruct",
-      "tier": 4,
-      "notes": "24B."
-    },
-    {
-      "gateway": "cloudflare",
-      "model": "@cf/ibm-granite/granite-4.0-h-micro",
-      "tier": 5,
-      "notes": "Микро-модель, очень дешёвая по нейронам."
-    },
-    {
-      "gateway": "mistralai",
-      "model": "codestral-latest",
-      "tier": 3,
-      "notes": "Кодовая специализация Mistral. ~1 RPS на free-режиме."
-    },
-    {
-      "gateway": "mistralai",
-      "model": "ministral-8b-latest",
-      "tier": 5,
-      "notes": "8B."
-    },
-    {
-      "gateway": "mistralai",
-      "model": "ministral-3b-latest",
-      "tier": 5,
-      "notes": "3B, самый быстрый резерв."
-    },
-    {
-      "gateway": "llm7",
-      "model": "DeepSeek-V4-Flash-0731",
-      "tier": 3,
-      "notes": "Без ключа! Анонимный лимит 1 RPS / 60 req в час."
-    },
-    {
-      "gateway": "llm7",
-      "model": "GLM-5.3-Flash",
-      "tier": 3,
-      "notes": "Без ключа."
-    },
-    {
-      "gateway": "llm7",
-      "model": "codestral-latest",
-      "tier": 4,
-      "notes": "Без ключа."
-    },
-    {
-      "gateway": "llm7",
-      "model": "minimax-m2.7",
-      "tier": 4,
-      "notes": "Без ключа."
-    },
-    {
-      "gateway": "zen",
-      "model": "space-bunny-free",
-      "tier": 2,
-      "notes": "Без ключа. Единственная free-модель Zen, доступная стороннему клиенту."
-    },
-    {
-      "gateway": "nvidia",
-      "model": "nvidia/nemotron-3-super-120b-a12b",
-      "tier": 1,
-      "notes": "120B MoE, 1.15 с по замеру. 3 из 4 задач на вызов инструмента. Быстрый дефолт.",
-      "works": true,
-      "measured_ms": 1800
-    },
-    {
-      "gateway": "nvidia",
-      "model": "poolside/laguna-xs-2.1",
-      "tier": 1,
-      "notes": "Модель для кода, 0.48 с по замеру, 3 из 4. Бывает временно недоступна.",
-      "works": true,
-      "measured_ms": 5600
-    },
-    {
-      "gateway": "nvidia",
-      "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
-      "tier": 2,
-      "notes": "30B MoE, 1.07 с по замеру, 2 из 4.",
-      "works": true,
-      "measured_ms": 2700
-    },
-    {
-      "gateway": "nvidia",
-      "model": "openai/gpt-oss-20b",
-      "tier": 3,
-      "notes": "3.25 с по замеру. Отвечает текстом, но вызов инструментов не выдаёт: 0 из 4. Оставлена ради отчёта. | Замер 06.10.2026 на настоящей задаче: выполнила, инструмент вызвала.",
-      "tools": true,
-      "works": true,
-      "measured_ms": 4600
-    },
-    {
-      "gateway": "nvidia",
-      "model": "meta/llama-3.2-11b-vision-instruct",
-      "tier": 2,
-      "vision": true,
-      "notes": "11B с картинкой, 0.44 с по замеру, 2 из 4. Быстрый зрящий.",
-      "works": true,
-      "measured_ms": 2300
-    },
-    {
-      "gateway": "nvidia",
-      "model": "meta/llama-3.2-90b-vision-instruct",
-      "tier": 3,
-      "vision": true,
-      "notes": "90B с картинкой, но 32.7 с по замеру — самый медленный ответ в реестре. Ранг 3, а не 1: умение видеть не окупает полминуты на каждом шаге. Используется, только когда картинка есть и ничего быстрого не осталось.",
-      "works": true,
-      "measured_ms": 31600
-    },
-    {
-      "gateway": "groq",
-      "model": "qwen/qwen3.8-27b",
-      "tier": 2,
-      "notes": "0.53 с по замеру. Быстрая и стабильная, но инструменты вызывает неровно.",
-      "works": true,
-      "measured_ms": 1000
-    },
-    {
-      "gateway": "groq",
-      "model": "openai/gpt-oss-120b",
-      "tier": 3,
-      "notes": "0.50 с по замеру — самая быстрая из крупных. Вызов инструментов 0 из 4: не годится агентом, оставлена ради скорости на простых вопросах. | Замер 06.10.2026 на настоящей задаче: выполнила, инструмент вызвала.",
-      "tools": true,
-      "works": true,
-      "measured_ms": 1400
-    },
-    {
-      "gateway": "groq",
-      "model": "openai/gpt-oss-20b",
-      "tier": 3,
-      "notes": "0.57 с по замеру. Инструменты 0 из 4.",
-      "tools": false
-    }
-  ]
+ "_comment": "Ранги моделей для режима auto: меньше tier — лучше. Проверено замерами 2026-10-05.",
+ "models": [
+  {
+   "gateway": "openrouter",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+   "tier": 1,
+   "notes": "550B MoE, контекст 1M. Самая крупная бесплатная модель в каталоге.",
+   "works": true,
+   "measured_ms": 3600
+  },
+  {
+   "gateway": "openrouter",
+   "model": "nvidia/nemotron-3-super-120b-a12b:free",
+   "tier": 1,
+   "notes": "120B MoE, быстрая, стабильно отвечает. Лучший дефолт для кодовых задач.",
+   "works": true,
+   "measured_ms": 2000
+  },
+  {
+   "gateway": "openrouter",
+   "model": "nvidia/nemotron-3.5-lightning:free",
+   "tier": 2,
+   "notes": "1M контекста, быстрая, иногда протухает на длинных ответах.",
+   "works": true,
+   "measured_ms": 28700
+  },
+  {
+   "gateway": "openrouter",
+   "model": "qwen/qwen3.8-27b:free",
+   "tier": 2,
+   "notes": "27B, хорошая скорость и стабильность."
+  },
+  {
+   "gateway": "openrouter",
+   "model": "cohere/north-mini-code:free",
+   "tier": 2,
+   "notes": "Специализированная кодовая модель.",
+   "works": true,
+   "measured_ms": 4000
+  },
+  {
+   "gateway": "openrouter",
+   "model": "poolside/laguna-s-2.1:free",
+   "tier": 3,
+   "notes": "Кодовая модель poolside.",
+   "works": true,
+   "measured_ms": 4100
+  },
+  {
+   "gateway": "openrouter",
+   "model": "dots-studio/dots-3-note-preview:free",
+   "tier": 3,
+   "vision": true,
+   "notes": "512K контекста, vision.",
+   "works": true,
+   "measured_ms": 9200
+  },
+  {
+   "gateway": "openrouter",
+   "model": "google/gemma-4-31b-it:free",
+   "tier": 3,
+   "vision": true,
+   "notes": "31B, vision."
+  },
+  {
+   "gateway": "openrouter",
+   "model": "google/gemma-4-26b-a4b-it:free",
+   "tier": 3,
+   "vision": true,
+   "notes": "MoE 26B/4B, vision. Проверена с картинкой через OpenRouter."
+  },
+  {
+   "gateway": "openrouter",
+   "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+   "tier": 3,
+   "vision": true,
+   "notes": "Omni: vision + audio, reasoning.",
+   "works": true,
+   "measured_ms": 4100
+  },
+  {
+   "gateway": "openrouter",
+   "model": "inclusionai/ling-3.0-flash-sante:free",
+   "tier": 4,
+   "notes": "Flash-модель, быстрая.",
+   "works": true,
+   "measured_ms": 4100
+  },
+  {
+   "gateway": "openrouter",
+   "model": "liquid/lfm-2.5-2.6b:free",
+   "tier": 5,
+   "notes": "Замер 06.10.2026 на настоящей задаче: инструмент не вызвала.",
+   "tools": false
+  },
+  {
+   "gateway": "openrouter",
+   "model": "apodex/apodex-1.1-mini:free",
+   "tier": 5,
+   "notes": "Mini.",
+   "works": true,
+   "measured_ms": 18900
+  },
+  {
+   "gateway": "z_ai",
+   "model": "glm-4.7-flash",
+   "tier": 2,
+   "notes": "Бессрочно бесплатная, качество лучше других GLM Flash."
+  },
+  {
+   "gateway": "z_ai",
+   "model": "glm-4.5-flash",
+   "tier": 3,
+   "notes": "Бессрочно бесплатная."
+  },
+  {
+   "gateway": "z_ai",
+   "model": "glm-4.6v-flash",
+   "tier": 3,
+   "vision": true,
+   "notes": "Vision, бесплатна бессрочно. Проверена с картинкой."
+  },
+  {
+   "gateway": "cloudflare",
+   "model": "@cf/openai/gpt-oss-120b",
+   "tier": 2,
+   "notes": "Workers AI: 10 000 нейронов/день на все модели сразу."
+  },
+  {
+   "gateway": "cloudflare",
+   "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+   "tier": 2,
+   "notes": "70B, быстрая."
+  },
+  {
+   "gateway": "cloudflare",
+   "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+   "tier": 3,
+   "notes": "30B MoE."
+  },
+  {
+   "gateway": "cloudflare",
+   "model": "@cf/google/gemma-4-26b-a4b-it",
+   "tier": 3,
+   "vision": true,
+   "notes": "Vision. Проверена с картинкой: принимает изображение."
+  },
+  {
+   "gateway": "cloudflare",
+   "model": "@cf/meta/llama-3.1-8b-instruct-fp8-fast",
+   "tier": 4,
+   "notes": "8B."
+  },
+  {
+   "gateway": "cloudflare",
+   "model": "@cf/openai/gpt-oss-20b",
+   "tier": 4,
+   "notes": "20B."
+  },
+  {
+   "gateway": "cloudflare",
+   "model": "@cf/mistralai/mistral-small-3.1-24b-instruct",
+   "tier": 4,
+   "notes": "24B."
+  },
+  {
+   "gateway": "cloudflare",
+   "model": "@cf/ibm-granite/granite-4.0-h-micro",
+   "tier": 5,
+   "notes": "Микро-модель, очень дешёвая по нейронам."
+  },
+  {
+   "gateway": "mistralai",
+   "model": "codestral-latest",
+   "tier": 3,
+   "notes": "Кодовая специализация Mistral. ~1 RPS на free-режиме."
+  },
+  {
+   "gateway": "mistralai",
+   "model": "ministral-8b-latest",
+   "tier": 5,
+   "notes": "8B."
+  },
+  {
+   "gateway": "mistralai",
+   "model": "ministral-3b-latest",
+   "tier": 5,
+   "notes": "3B, самый быстрый резерв."
+  },
+  {
+   "gateway": "llm7",
+   "model": "DeepSeek-V4-Flash-0731",
+   "tier": 3,
+   "notes": "Без ключа! Анонимный лимит 1 RPS / 60 req в час."
+  },
+  {
+   "gateway": "llm7",
+   "model": "GLM-5.3-Flash",
+   "tier": 3,
+   "notes": "Без ключа."
+  },
+  {
+   "gateway": "llm7",
+   "model": "codestral-latest",
+   "tier": 4,
+   "notes": "Без ключа."
+  },
+  {
+   "gateway": "llm7",
+   "model": "minimax-m2.7",
+   "tier": 4,
+   "notes": "Без ключа."
+  },
+  {
+   "gateway": "zen",
+   "model": "space-bunny-free",
+   "tier": 2,
+   "notes": "Без ключа. Единственная free-модель Zen, доступная стороннему клиенту."
+  },
+  {
+   "gateway": "nvidia",
+   "model": "nvidia/nemotron-3-super-120b-a12b",
+   "tier": 1,
+   "notes": "120B MoE, 1.15 с по замеру. 3 из 4 задач на вызов инструмента. Быстрый дефолт.",
+   "works": true,
+   "measured_ms": 1800
+  },
+  {
+   "gateway": "nvidia",
+   "model": "poolside/laguna-xs-2.1",
+   "tier": 1,
+   "notes": "Модель для кода, 0.48 с по замеру, 3 из 4. Бывает временно недоступна.",
+   "works": true,
+   "measured_ms": 5600
+  },
+  {
+   "gateway": "nvidia",
+   "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+   "tier": 2,
+   "notes": "30B MoE, 1.07 с по замеру, 2 из 4.",
+   "works": true,
+   "measured_ms": 2700
+  },
+  {
+   "gateway": "nvidia",
+   "model": "openai/gpt-oss-20b",
+   "tier": 3,
+   "notes": "3.25 с по замеру. Отвечает текстом, но вызов инструментов не выдаёт: 0 из 4. Оставлена ради отчёта. | Замер 06.10.2026 на настоящей задаче: выполнила, инструмент вызвала.",
+   "tools": true,
+   "works": true,
+   "measured_ms": 4600
+  },
+  {
+   "gateway": "nvidia",
+   "model": "meta/llama-3.2-11b-vision-instruct",
+   "tier": 2,
+   "vision": true,
+   "notes": "11B с картинкой, 0.44 с по замеру, 2 из 4. Быстрый зрящий.",
+   "works": true,
+   "measured_ms": 2300
+  },
+  {
+   "gateway": "nvidia",
+   "model": "meta/llama-3.2-90b-vision-instruct",
+   "tier": 3,
+   "vision": true,
+   "notes": "90B с картинкой, но 32.7 с по замеру — самый медленный ответ в реестре. Ранг 3, а не 1: умение видеть не окупает полминуты на каждом шаге. Используется, только когда картинка есть и ничего быстрого не осталось.",
+   "works": true,
+   "measured_ms": 31600
+  },
+  {
+   "gateway": "groq",
+   "model": "qwen/qwen3.8-27b",
+   "tier": 2,
+   "notes": "0.53 с по замеру. Быстрая и стабильная, но инструменты вызывает неровно.",
+   "works": true,
+   "measured_ms": 1000
+  },
+  {
+   "gateway": "groq",
+   "model": "openai/gpt-oss-120b",
+   "tier": 3,
+   "notes": "0.50 с по замеру — самая быстрая из крупных. Вызов инструментов 0 из 4: не годится агентом, оставлена ради скорости на простых вопросах. | Замер 06.10.2026 на настоящей задаче: выполнила, инструмент вызвала.",
+   "tools": true,
+   "works": true,
+   "measured_ms": 1400
+  },
+  {
+   "gateway": "groq",
+   "model": "openai/gpt-oss-20b",
+   "tier": 3,
+   "notes": "0.57 с по замеру. Инструменты 0 из 4.",
+   "tools": false
+  },
+  {
+   "gateway": "google",
+   "model": "gemini-3.8-flash",
+   "tier": 2,
+   "notes": "Проверено firsthand 2026-10-07: ключ валиден, модель существует, но из РФ геоблок 400 'User location' — работает ТОЛЬКО через VPN. Линейка 2.5 закрыта для новых аккаунтов.",
+   "works": false
+  }
+ ]
 }

@@ -1,8 +1,0 @@
-{
-  "openrouter": "sk-or-v1-...",
-  "mistralai": "mstrl_...",
-  "z_ai": "<id>.<secret>",
-  "groq": "gsk_...",
-  "cloudflare_token": "cfut_...",
-  "cloudflare_account_id": "..."
-}

@@ -2,15 +2,21 @@
 
 ## Файлы конфигурации
 
-- `config/keys.json` — **секретные ключи** (не коммитить!)
-- `config/keys.json.example` — пример структуры ключей
-- `config/routing.json` — маршрутизация провайдеров и моделей
-- `config/routing.json.example` — пример маршрутизации
+- `config/gateways.json` — шлюзы: адреса, переменные с ключами, лимиты, RPM
+- `config/secrets.local.json` — **секретные ключи** (не коммитить!)
+- `config/secrets.local.json.example` — пример структуры ключей
+- `config/models.json` — список моделей для статического режима
 - `config/models.json.example` — пример списка моделей
+- `config/tiers.json` — приоритеты и возможности моделей
+- `config/regions.json` — доступность шлюзов по регионам
+- `config/workspaces.json` — папки агента и их настройки
 
-Роли моделей (`config/agents.json`) и роутер по ролям удалены 07.10.2026:
-выбор моделей давно идёт через `hub/select.py` и `hub/failover.py`, и
-`agents.json` не читал никто.
+Удалены 07.10.2026, потому что их не читал никто:
+
+- `keys.json` и `routing.json` — ключи читаются из `secrets.local.json`,
+  порядок моделей задаёт `tiers.json`
+- `agents.json` и роутер по ролям — выбор моделей идёт через `hub/select.py`
+  и `hub/failover.py`
 
 ## Провайдеры
 
@@ -45,12 +51,14 @@
 
 ## Использование
 
-1. Скопируйте `config/keys.json.example` → `config/keys.json` и вставьте реальные ключи.
-2. Настройте маршрутизацию в `config/routing.json` при необходимости.
+1. Скопируйте `config/secrets.local.json.example` → `config/secrets.local.json`
+   и вставьте реальные ключи.
+2. Приоритет и возможности моделей настройте в `config/tiers.json`.
 3. Агент будет выбирать модели по tiers и доступности.
 
 ## Безопасность
 
-- `config/keys.json` добавлен в `.gitignore`
+- `config/secrets.local.json` добавлен в `.gitignore`
 - Никогда не коммитьте реальные ключи
+- Перед коммитом и пушем прогоняйте `tools/check_secrets.py`
 - Используйте переменные окружения или секретные хранилища в продакшене
