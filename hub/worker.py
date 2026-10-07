@@ -87,6 +87,14 @@ AGENT_TIMEOUT_S = 1800
 #: лишним запросом к модели на разбиение и сборку.
 MIN_SWARM_PARTS = 2
 
+#: Сколько раз задача может возобновиться после краха процесса.
+#:
+#: Один раз — и хватит: чекпоинт пишется в базу после каждого шага, так что
+#: первое возобновление продолжает работу почти с места обрыва. Если
+#: процесс упал второй раз, дело уже не в случайном сбое — третий запуск
+#: пошёл бы по той же петле, сжигая квоту и не приближаясь к концу.
+RESTART_LIMIT = 1
+
 #: Шагов на финальную сборку.
 #:
 #: Замер 06.10.2026 на шести страницах: из 44 запросов на прогон 30 сделали
@@ -349,13 +357,13 @@ class Worker:
             self._apply_vpn_preference()
             self._restore_model_state()
             self._refresh_snapshot()
-            # Задачи, оставшиеся в running после падения, больше не выполняются.
+            # Задачи, оставшиеся в running после падения. Раньше их всегда
+            # помечали failed — и полчаса работы пропадали из-за одного
+            # рестарта. Теперь задача с чекпоинтом возвращается в очередь
+            # (один раз, см. RESTART_LIMIT), а без чекпоинта закрывается
+            # честно: возобновлять в этом случае нечего.
             for task in self.store.list_tasks(status="running", limit=100):
-                self.store.update_task(
-                    task["id"], status="failed",
-                    error="прервано при перезапуске",
-                    finished_at=time.time(),
-                )
+                self._recover_interrupted(task)
             # Запросы на выход за воркспейс намеренно переживают перезапуск:
             # на них можно ответить и позже, а по ответу задача вернётся в
             # очередь и восстановится из чекпоинта.
@@ -387,6 +395,79 @@ class Worker:
             except Exception as exc:
                 self.last_error = f"{type(exc).__name__}: {exc}"
             self._ready.set()
+
+    def _store_checkpoint(self, task_id: int, checkpoint: dict[str, Any]) -> None:
+        """Дописать свежий чекпоинт задачи в базу.
+
+        Best effort: если запись не вышла (база занята, диск, гонка с
+        завершением задачи), работа продолжается — просто возобновление
+        после краха начнётся с более ранней точки. Ронять шаг агента из-за
+        этого нельзя, поэтому всё внутри try.
+
+        Payload перечитывается, а не берётся из того, что лежало в задаче
+        при старте: за десятки шагов туда могла прийти отмена или ответ
+        пользователя, и перетереть их копией из памяти — значит потерять
+        решение человека.
+        """
+        try:
+            task = self.store.get_task(task_id)
+            if task is None:
+                # Задачу уже закрыли, пока писался чекпоинт — дописывать
+                # больше некуда и не нужно.
+                return
+            payload = dict(task.get("payload") or {})
+            payload["checkpoint"] = checkpoint
+            self.store.update_task(task_id, payload=payload)
+        except Exception:
+            pass
+
+    def _recover_interrupted(self, task: dict[str, Any]) -> None:
+        """Решить судьбу задачи, прерванной крахом процесса.
+
+        Три исхода: отмена (уважаем волю человека, даже пришедшую до
+        краша), возобновление по чекпоинту (один раз, RESTART_LIMIT) и
+        честный провал — когда продолжать нечего или попытки кончились.
+
+        Одношаговые флаги продолжения (`resume_answer`, `approve_plan`,
+        `grant_path`, `deny_path`) при возобновлении сбрасываются: чекпоинт
+        в базе дописан **после** того, как они были применены, и повторное
+        применение продублировало бы ответ человека в диалоге. Если краш
+        случился раньше, чем флаг успел примениться, задача вернётся не в
+        очередь, а в состояние asking — пользователь ответит на вопрос
+        второй раз. Это осознанный выбор: переспросить безопаснее, чем
+        подставить чужой ответ дважды.
+        """
+        payload = dict(task.get("payload") or {})
+        task_id = task["id"]
+
+        if payload.get("cancel"):
+            # Отмена пришла до краха: возобновлять вопреки ей нельзя.
+            self.store.update_task(
+                task_id, status="cancelled",
+                error="отменено до перезапуска", finished_at=time.time(),
+            )
+            return
+
+        attempts = int(payload.get("restart_attempts") or 0)
+        if payload.get("checkpoint") and attempts < RESTART_LIMIT:
+            for flag in ("resume_answer", "approve_plan",
+                         "grant_path", "deny_path"):
+                payload.pop(flag, None)
+            payload["restart_attempts"] = attempts + 1
+            self.store.update_task(task_id, status="queued", payload=payload)
+            self.emit({
+                "type": "restarted_after_crash",
+                "task_id": task_id,
+                "attempt": attempts + 1,
+                "task": task.get("task"),
+            })
+            return
+
+        self.store.update_task(
+            task_id, status="failed",
+            error="прервано при перезапуске",
+            finished_at=time.time(),
+        )
 
     def _apply_vpn_preference(self) -> None:
         """Передать селектору список моделей, которым нужен VPN."""
@@ -698,6 +779,12 @@ class Worker:
         )
         agent.set_task(task["task"])
         self._agent = agent
+        # Свежий чекпоинт после каждого шага уезжает в базу (см.
+        # RESTART_LIMIT): без этого записи он жил только в памяти, и краш
+        # процесса убивал задачу целиком. Читаем payload из базы на каждый
+        # шаг нарочно — так мы не затираем чужие правки, например
+        # поступившую за это время отмену задачи.
+        agent.on_checkpoint = lambda ck: self._store_checkpoint(task["id"], ck)
 
         # Продолжение после лимита шагов. Шаги добавляются до восстановления
         # чекпоинта, потому что восстановление сбрасывает счётчик шагов цикла,

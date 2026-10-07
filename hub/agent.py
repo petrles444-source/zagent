@@ -768,6 +768,11 @@ class Agent:
         self.finished = False
         #: Диалог для восстановления после падения или вопроса пользователя.
         self.checkpoint: dict[str, Any] = {}
+        #: Кто слушает свежий чекпоинт. Воркер подписывается и дописывает
+        #: его в базу после каждого шага (worker._store_checkpoint): раньше
+        #: чекпоинт жил только в памяти и до БД доезжал исключительно на
+        #: границе вопроса, поэтому краш процесса убивал задачу целиком.
+        self.on_checkpoint: Callable[[dict[str, Any]], Any] | None = None
         #: Ожидающий запрос на выход за границу воркспейса (None — не ждём).
         self.pending_permission: dict[str, Any] | None = None
         #: Ожидающее подтверждение по режиму автономии:
@@ -950,6 +955,17 @@ class Agent:
             # заново, и без этого список пустел.
             "confirmed": sorted(self.guard.confirmed),
         }
+        # Чекпоинт свежий — отдаём его воркеру писать в базу. Best effort:
+        # сбой записи не должен ронять шаг агента, в худшем случае
+        # возобновление после краха начнётся с более ранней точки.
+        # Подсказка на будущее: сюда встанет logging, когда в проекте
+        # появится модульное логирование (пункт «системное логирование»
+        # из update/update-07-10-26.txt) — сейчас у нас print и SSE.
+        if self.on_checkpoint is not None:
+            try:
+                self.on_checkpoint(self.checkpoint)
+            except Exception:
+                pass
 
     def restore_checkpoint(self, data: dict[str, Any]) -> bool:
         """Восстановить диалог из чекпоинта. False — если он непригоден."""
