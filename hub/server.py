@@ -24,6 +24,8 @@
 
 from __future__ import annotations
 
+import gzip
+import hashlib
 import json
 import queue
 import re
@@ -85,6 +87,13 @@ _LOOPBACK_NETLOC = re.compile(
     re.IGNORECASE,
 )
 
+#: Сжимать только то, где есть что сжимать. Порог — килобайт: короткие
+#: ответы («ok», ошибки в пару строк) ужимаются почти в ноль, но хэш и
+#: заголовок на них стоят дороже выгоды. Страница интерфейса и `/api/state`
+#: — десятки и сотни килобайт, там gzip даёт пяти-десятикратную экономию
+#: на каждом опросе.
+GZIP_MIN_BYTES = 1024
+
 
 def _in_session(event: dict[str, Any], session_id: str) -> bool:
     """Событие относится к этой сессии.
@@ -118,21 +127,72 @@ class Handler(BaseHTTPRequestHandler):
         except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError, TimeoutError):
             self.close_connection = True
 
+    def _reply(self, body: bytes, ctype: str, status: int = 200) -> None:
+        """Отдать тело с ETag, сжатием и 304 на повтор (Волна 3 п.11).
+
+        Интерфейс раз в секунду опрашивает `/api/state` (состояние всех
+        моделей, задач и журнал) и раз за сессию грузит страницу целиком.
+        Без этой функции каждый раз по сети едут одни и те же байты. Теперь:
+
+        * клиент с `Accept-Encoding: gzip` (все браузеры) получает сжатый
+          JSON — обычно в 5–10 раз меньше;
+        * если `If-None-Match` совпал с нашим тегом, уходит один статус
+          304 и ни байта тела: клиент пользуется своей копией;
+        * `Cache-Control: no-cache` — не «не кэшировать», а «перед
+          использованием спроси меня»: данные живые, но спрашивать дёшево.
+
+        ETag считается по исходному телу, а для сжатого варианта получает
+        суффикс `-gzip`. Без разделения прокси-кэш, отдавший gzip по
+        несжатому тегу, ломает кэш классическим образом — клиент сверяет
+        тег сжатого тела с несжатым и либо вечно промахивается, либо
+        подкладывает не тот размер.
+
+        304 отдаём только на успех (status 200): условный повтор ошибки
+        или ответа на изменение данных смысла не имеет.
+        """
+        sha = hashlib.sha256(body).hexdigest()[:32]
+        raw_etag = f'"{sha}"'
+        gzip_etag = f'"{sha}-gzip"'
+        offered = {tag.strip()
+                   for tag in (self.headers.get("If-None-Match") or "").split(",")
+                   if tag.strip()}
+
+        if status == 200:
+            for tag in (raw_etag, gzip_etag):
+                if tag in offered:
+                    # Эхо того тега, что прислал клиент: он обновит своё
+                    # хранилище тем, что мы подтвердили, и следующий раз
+                    # снова придёт с ним же.
+                    self.send_response(304)
+                    self.send_header("ETag", tag)
+                    self.send_header("Cache-Control", "no-cache")
+                    self.end_headers()
+                    return
+
+        compressed = ("gzip" in (self.headers.get("Accept-Encoding") or "")
+                      and len(body) >= GZIP_MIN_BYTES)
+        payload = gzip.compress(body, 6) if compressed else body
+        etag = gzip_etag if compressed else raw_etag
+
+        self.send_response(status)
+        self.send_header("Content-Type", ctype)
+        if compressed:
+            self.send_header("Content-Encoding", "gzip")
+            # Ответ зависит от заголовка клиента: без Vary кэш смешал бы
+            # сжатую и несжатую версии для разных браузеров.
+            self.send_header("Vary", "Accept-Encoding")
+        self.send_header("ETag", etag)
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
     def _json(self, payload: Any, status: int = 200) -> None:
         body = json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        self._reply(body, "application/json; charset=utf-8", status)
 
     def _html(self, text: str) -> None:
-        body = text.encode("utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        self._reply(text.encode("utf-8"), "text/html; charset=utf-8")
 
     def _download(self, text: str, filename: str) -> None:
         """Отдать файл на скачивание: браузер сохранит его, а не откроет.
