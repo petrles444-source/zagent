@@ -3484,6 +3484,8 @@ function renderTasks() {
         <span class="dim mini">#${t.id}</span> ${chip(t.status)}
         <div style="flex:1"></div>
         ${can ? `<button class="btn sm danger" onclick="cancelTask(${t.id})">стоп</button>` : ''}
+        ${t.status !== 'queued'
+          ? `<button class="btn sm" onclick="blackBox(${t.id})">чёрный ящик</button>` : ''}
       </div>
       <div class="mini" style="padding:0">${esc((t.task||'').slice(0,90))}</div>
       ${t.status === 'asking' ? `<div class="row tight" style="padding:6px 0 0">
@@ -3495,6 +3497,11 @@ function renderTasks() {
   $('taskList').innerHTML = html;
 }
 async function cancelTask(id) { await api('/api/tasks/cancel', {task_id:id}); refresh(); }
+
+// Чёрный ящик задачи: .jsonl с трейсом — хопы, модели, ошибки, токены.
+// Скачивание, а не просмотр: файл открывают, когда задача уже кончилась,
+// чтобы разобрать, почему она шла так, а не иначе.
+function blackBox(id) { location.href = '/api/blackbox?task=' + id; }
 async function approveTask(id) {
   await api('/api/tasks/answer', {task_id:id, approve:true, answer:''});
   refresh();

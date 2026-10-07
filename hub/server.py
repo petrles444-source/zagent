@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+from hub import blackbox
 from hub.config import (
     ConfigError,
     build_settings,
@@ -129,6 +130,23 @@ class Handler(BaseHTTPRequestHandler):
         body = text.encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _download(self, text: str, filename: str) -> None:
+        """Отдать файл на скачивание: браузер сохранит его, а не откроет.
+
+        Имя файла приходит от нас же (номер задачи), посторонние строки в
+        заголовок не попадают. Тип `application/x-ndjson` — по одной записи
+        на строку: файл открывается редактором и граблится grep'ом.
+        """
+        body = text.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+        self.send_header(
+            "Content-Disposition", f'attachment; filename="{filename}"'
+        )
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -866,6 +884,21 @@ class Handler(BaseHTTPRequestHandler):
                 # Чтение вкладки «Настройки» — это состояние, а не правка,
                 # поэтому GET: интерфейс зовёт его при каждом открытии вкладки.
                 return self._json(build_settings(self.api.worker.root))
+            if parsed.path == "/api/blackbox":
+                # Чёрный ящик задачи: трейс (ходы, модели, ошибки) файлом.
+                # Скачивание, поэтому отдельный ответ с Content-Disposition,
+                # а не обычный JSON в новой вкладке.
+                try:
+                    task_id = int(query.get("task", ["0"])[0])
+                except (TypeError, ValueError):
+                    return self._json({"error": "номер задачи не число"}, 400)
+                try:
+                    text = blackbox.build(
+                        self.api.worker.store, task_id, root=self.api.worker.root
+                    )
+                except blackbox.BlackboxError as exc:
+                    return self._json({"error": str(exc)}, 404)
+                return self._download(text, blackbox.filename(task_id))
             if parsed.path == "/api/events":
                 return self._stream(query)
         except Exception as exc:
