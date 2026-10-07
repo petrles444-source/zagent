@@ -27,6 +27,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+# Писатели лежат в config.py: он владеет форматом файлов, а tiers.json —
+# лишь один из них. Цикла нет: config ни откуда не импортируется.
+from hub.config import (
+    ConfigWriteError,
+    atomic_write,
+    clean_model_id,
+    clean_secret_name,
+    detect_indent,
+)
+
 TIERS_FILE = "tiers.json"
 
 #: Сколько секунд задержки «стоят» одного шага ранга. Число выбрано по
@@ -250,3 +260,104 @@ def rank_models(
         return (tier + latency_of(model) / weight + penalty, model.model_id)
 
     return sorted(kept, key=score)
+
+
+# ================================================================ запись
+#
+# Правка config/tiers.json из интерфейса (вкладка «Настройки»). Значений
+# ключей здесь нет по построению — только ссылки на шлюз и модель.
+
+
+def edit_model(
+    gateway: Any,
+    model: Any,
+    *,
+    action: str = "add",
+    tier: Any = None,
+    notes: Any = "",
+    root: str | Path | None = None,
+) -> dict[str, Any]:
+    """Добавить паспорт модели в tiers.json или убрать его.
+
+    Без явного tier ранг достаётся из guess_tier() по имени — тот же
+    приём, которым TierBook() оценивает модели, не занесённые в файл.
+    """
+    if action not in ("add", "remove"):
+        raise ConfigWriteError(f"Неизвестное действие «{action}»")
+
+    gid = clean_secret_name(gateway)
+    m = clean_model_id(model)
+    if action == "add":
+        if tier is None:
+            rank = guess_tier(m, gid)
+        else:
+            try:
+                rank = int(tier)
+            except (TypeError, ValueError) as exc:
+                raise ConfigWriteError(
+                    f"Приоритет должен быть числом 1–5, а не «{tier}»"
+                ) from exc
+            if not 1 <= rank <= 5:
+                raise ConfigWriteError(f"Приоритет {rank} вне шкалы 1–5")
+        note = str(notes or "").strip()
+        if len(note) > 400:
+            raise ConfigWriteError("Заметка длиннее 400 знаков")
+
+    path = Path(root) if root is not None else Path(__file__).resolve().parent.parent
+    path = path / "config" / TIERS_FILE
+    text = path.read_text(encoding="utf-8") if path.is_file() else "{}\n"
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ConfigWriteError(f"Некорректный JSON в {path}: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ConfigWriteError(f"В {path} ожидался объект")
+    entries = data.get("models")
+    if not isinstance(entries, list):
+        entries = []
+        data["models"] = entries
+
+    index = next(
+        (
+            i for i, item in enumerate(entries)
+            if isinstance(item, dict)
+            and str(item.get("gateway")) == gid
+            and str(item.get("model")) == m
+        ),
+        None,
+    )
+
+    if action == "add":
+        entry = {
+            "gateway": gid,
+            "model": m,
+            "tier": rank,
+            "vision": _has_vision_hint(m),
+            "tools": True,
+            "notes": note,
+        }
+        if index is None:
+            entries.append(entry)
+            change = "added"
+        else:
+            entries[index] = {**entries[index], **entry}
+            change = "updated"
+        result: dict[str, Any] = {
+            "ok": True, "action": action, "gateway": gid, "model": m,
+            "tier": rank, "changed": change, "total": len(entries),
+        }
+    else:
+        if index is None:
+            return {
+                "ok": False, "action": action, "gateway": gid, "model": m,
+                "error": "Такой модели нет в tiers.json", "total": len(entries),
+            }
+        entries.pop(index)
+        result = {
+            "ok": True, "action": action, "gateway": gid, "model": m,
+            "removed": 1, "total": len(entries),
+        }
+
+    indent: int | str = detect_indent(text) if path.is_file() else 2
+    atomic_write(path, json.dumps(data, ensure_ascii=False, indent=indent) + "\n")
+    return result

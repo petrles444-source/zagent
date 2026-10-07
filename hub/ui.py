@@ -1041,9 +1041,11 @@ th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase
   <div class="ptabs">
     <button class="ptab on" data-p="models" onclick="ltab('models')">Модели</button>
     <button class="ptab" data-p="access" onclick="ltab('access')">Доступ</button>
+    <button class="ptab" data-p="settings" onclick="ltab('settings')">Настройки</button>
     <button class="ptab" data-p="space" onclick="ltab('space')">Папка и сессии</button>
     <button class="ptab" data-p="status" onclick="ltab('status')">Статус</button>
     <button class="ptab" data-p="queue" onclick="ltab('queue')">Очередь</button>
+    <button class="ptab" data-p="guide" onclick="ltab('guide')">Гайды по API</button>
   </div>
   <div class="pbody">
 
@@ -1182,6 +1184,108 @@ th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase
       <div id="wsList"></div>
     </div>
 
+    <!-- вкладка НАСТРОЙКИ
+
+         Ключи и модели заводятся отсюда, а не правкой файлов руками: сервер
+         пишет config/secrets.local.json, gateways.json и tiers.json и сам
+         пересобирает каталог. Значения ключей в интерфейс не возвращаются —
+         только имена полей и счётчики (build_settings). -->
+    <div class="psec" id="p-settings">
+
+      <div class="fold" data-open="1">
+        <button class="foldHead" onclick="fold(this)">
+          <span class="foldIc">▾</span>
+          <span>Ключи шлюзов</span>
+        </button>
+        <div class="foldBody">
+          <div class="hintBlock">
+            Вставьте ключи: по одному в строке — можно сразу несколько аккаунтов,
+            они пойдут в ротацию по кругу. Строки с запятыми тоже читаются.
+            Значения остаются в config/secrets.local.json (в .git) и обратно
+            в браузер не уходят.
+          </div>
+
+          <div class="field">
+            <label>Шлюз</label>
+            <select id="keyGw" onchange="renderKeySide()"></select>
+          </div>
+          <div class="field">
+            <label id="keyInfo">данные шлюза</label>
+          </div>
+          <div id="keyExtra"></div>
+          <div class="field">
+            <label>Ключи (по одному в строке)</label>
+            <textarea id="keyText" rows="4" spellcheck="false"
+                      placeholder="gsk_…&#10;gsk_…&#10;gsk_…"></textarea>
+          </div>
+          <div class="row tight">
+            <button class="btn sm pri" onclick="keysSend('add')">Добавить</button>
+            <button class="btn sm" onclick="keysSend('replace')">Заменить всё</button>
+            <button class="btn sm" onclick="keysSend('remove')">Удалить вставленные</button>
+          </div>
+          <div class="mini dim" id="keyMsg" style="padding:2px 10px 8px"></div>
+        </div>
+      </div>
+
+      <div class="fold">
+        <button class="foldHead" onclick="fold(this)">
+          <span class="foldIc">▸</span>
+          <span>Модели</span>
+        </button>
+        <div class="foldBody" hidden>
+          <div class="hintBlock">
+            Свою модель добавляют сразу в два места: tiers.json — приоритет
+            и заметка, free_models шлюза — каталог, без которого селектор её
+            не увидит. 1 — лучшая, 5 — запасная.
+          </div>
+          <div class="field">
+            <label>Шлюз</label>
+            <select id="modGw" onchange="renderModelList()"></select>
+          </div>
+          <div class="field">
+            <label>Идентификатор модели</label>
+            <input id="modId" spellcheck="false" placeholder="gemini-3.8-flash-lite">
+          </div>
+          <div class="field">
+            <label>Приоритет (тир)</label>
+            <select id="modTier">
+              <option value="1">1 — лучшая</option>
+              <option value="2">2 — сильная</option>
+              <option value="3" selected>3 — обычная</option>
+              <option value="4">4 — запасная</option>
+              <option value="5">5 — крайняя</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Заметка (необязательно)</label>
+            <input id="modNote" spellcheck="false" placeholder="почему этот ранг">
+          </div>
+          <div class="row tight">
+            <button class="btn sm pri" onclick="modelSend('add')">Добавить модель</button>
+            <button class="btn sm" onclick="modelSend('remove')">Удалить модель</button>
+          </div>
+          <div class="mini dim" id="modMsg" style="padding:2px 10px 8px"></div>
+          <div id="modList"></div>
+        </div>
+      </div>
+
+      <div class="fold">
+        <button class="foldHead" onclick="fold(this)">
+          <span class="foldIc">▸</span>
+          <span>Где брать ключи</span>
+        </button>
+        <div class="foldBody" hidden>
+          <div class="hintBlock">
+            Пошаговый гайд: где регистрироваться, где кнопка создания ключа,
+            лимиты, таблица VPN и диагностика ошибок.
+          </div>
+          <div class="row tight">
+            <button class="btn sm" onclick="ltab('guide')">Открыть «Гайды по API»</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- вкладка ПАПКА И СЕССИИ -->
     <div class="psec" id="p-space">
       <!-- Где мы сейчас. Это главный ответ на вопрос «что агент будет менять»,
@@ -1245,6 +1349,176 @@ th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase
          `asking` висела до перезапуска. -->
     <div class="psec" id="p-queue">
       <div id="taskList"></div>
+    </div>
+
+    <!-- вкладка ГАЙДЫ ПО API
+
+         Сводка firsthand-проверок от 2026-10-07: где брать ключи, лимиты
+         free-тарифов, гео-красные флаги (кому нужен VPN) и готовый curl.
+         Полная машинная версия — update/Api-guide.txt. -->
+    <div class="psec" id="p-guide">
+      <div class="mgroup">
+        <h4>Нужен ли VPN? (проверено 07.10.2026 с IP РФ)</h4>
+        <div class="kv">
+          <div>✅ без VPN: Z.ai, Mistral, Cloudflare, llm7, Zen</div>
+          <div>⚠️ нестабильно: Groq (403 с части подсетей)</div>
+          <div>🔒 только VPN: OpenRouter, NVIDIA, Google Gemini</div>
+        </div>
+        <div class="mini dim" style="padding:4px 10px 8px">
+          403 «security policy» / 451 / 400 «User location» — это блок по
+          региону, а не битый ключ: не удаляйте ключ, включите VPN и повторите.
+        </div>
+      </div>
+
+      <div class="mgroup">
+        <h4>Z.ai / GLM — ✅ работает без VPN</h4>
+        <dl class="kv">
+          <dt>регистрация</dt><dd>z.ai → email, без карты</dd>
+          <dt>ключ</dt><dd>z.ai/manage-apikey/apikey-list → Create API Key (показывается один раз)</dd>
+          <dt>формат</dt><dd>&lt;id&gt;.&lt;secret&gt; одной строкой</dd>
+          <dt>free</dt><dd>glm-4.7-flash, glm-4.5-flash, glm-4.6v-flash — бессрочно</dd>
+        </dl>
+        <pre>curl https://api.z.ai/api/paas/v4/chat/completions \
+  -H "Authorization: Bearer $Z_AI_KEY" -H "Content-Type: application/json" \
+  -d '{"model":"glm-4.5-flash","messages":[{"role":"user","content":"hi"}]}'</pre>
+        <div class="row tight" style="padding:0 10px 8px">
+          <button class="btn sm pri" data-copy="curl https://api.z.ai/api/paas/v4/chat/completions -H &quot;Authorization: Bearer $Z_AI_KEY&quot; -H &quot;Content-Type: application/json&quot; -d &apos;{&quot;model&quot;:&quot;glm-4.5-flash&quot;,&quot;messages&quot;:[{&quot;role&quot;:&quot;user&quot;,&quot;content&quot;:&quot;hi&quot;}]}'" onclick="copyAttr(this,'curl')">копировать curl</button>
+        </div>
+        <div class="mini dim" style="padding:0 10px 8px">Пустой text при малом max_tokens — это reasoning съел бюджет: ставьте 2000+.</div>
+      </div>
+
+      <div class="mgroup">
+        <h4>Mistral La Plateforme — ✅ работает без VPN</h4>
+        <dl class="kv">
+          <dt>регистрация</dt><dd>console.mistral.ai → email/Google/GitHub</dd>
+          <dt>ключ</dt><dd>console.mistral.ai/api-keys → Create new key</dd>
+          <dt>формат</dt><dd>mstrl_...</dd>
+          <dt>free</dt><dd>~$10 кредитов/мес, ~1 RPS: ministral-3b/8b, codestral</dd>
+        </dl>
+        <pre>curl https://api.mistral.ai/v1/chat/completions \
+  -H "Authorization: Bearer $MISTRAL_API_KEY" -H "Content-Type: application/json" \
+  -d '{"model":"ministral-3b-latest","messages":[{"role":"user","content":"hi"}]}'</pre>
+        <div class="mini dim" style="padding:4px 10px 8px">
+          401 «This is a paid model» = модель не для free-плана, ключ жив.
+          Opt-out из обучения: Settings → выключить «Allow data training».
+        </div>
+      </div>
+
+      <div class="mgroup">
+        <h4>Cloudflare Workers AI — ✅ работает без VPN</h4>
+        <dl class="kv">
+          <dt>регистрация</dt><dd>dash.cloudflare.com/sign-up, без карты</dd>
+          <dt>account id</dt><dd>дашборд → Workers AI → Use REST API</dd>
+          <dt>токен</dt><dd>profile/api-tokens → Create Token → шаблон «Workers AI API Token» (НЕ Global API Key!)</dd>
+          <dt>формат</dt><dd>cfut_... + Account ID (нужны ОБА)</dd>
+          <dt>free</dt><dd>10 000 neurons/день, сброс 00:00 UTC; сверх — запрос падает, не биллингует</dd>
+        </dl>
+        <pre>curl "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/ai/v1/chat/completions" \
+  -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" \
+  -d '{"model":"@cf/openai/gpt-oss-20b","messages":[{"role":"user","content":"hi"}]}'</pre>
+      </div>
+
+      <div class="mgroup">
+        <h4>llm7.io — ✅ без ключа и без VPN</h4>
+        <dl class="kv">
+          <dt>доступ</dt><dd>анонимный: turbo-модели (GLM-5.3-Flash, gpt-oss:20b, DeepSeek-V4-Flash)</dd>
+          <dt>токен</dt><dd>token.llm7.io — бесплатно, поднимает лимиты (60 RPM, 100K токенов/сутки)</dd>
+          <dt>лимиты</dt><dd>анонимно ~10 RPM / 60 запросов/час</dd>
+        </dl>
+        <pre>curl https://api.llm7.io/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"GLM-5.3-Flash","messages":[{"role":"user","content":"hi"}]}'</pre>
+        <div class="mini dim" style="padding:4px 10px 8px">Каталог моделей ротируется: модель может исчезнуть. Статус: status.llm7.io</div>
+      </div>
+
+      <div class="mgroup">
+        <h4>OpenCode Zen — ✅ без ключа, одна модель</h4>
+        <dl class="kv">
+          <dt>без ключа</dt><dd>только space-bunny-free (проверено, cost=0)</dd>
+          <dt>остальное</dt><dd>-free модели дают 403 «only from within OpenCode» — гейтвей проверяет origin родного CLI</dd>
+        </dl>
+        <pre>curl https://opencode.ai/zen/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"space-bunny-free","messages":[{"role":"user","content":"hi"}]}'</pre>
+      </div>
+
+      <div class="mgroup">
+        <h4>Groq — ⚠️ нестабильно (403 с части IP)</h4>
+        <dl class="kv">
+          <dt>регистрация</dt><dd>console.groq.com → Google/GitHub/email, без карты</dd>
+          <dt>ключ</dt><dd>console.groq.com/keys → Create API Key</dd>
+          <dt>формат</dt><dd>gsk_...</dd>
+          <dt>free</dt><dd>~30 RPM / 1000 RPD: gpt-oss-120b/20b, qwen3.8-27b</dd>
+        </dl>
+        <pre>curl https://api.groq.com/openai/v1/chat/completions \
+  -H "Authorization: Bearer $GROQ_API_KEY" -H "Content-Type: application/json" \
+  -d '{"model":"openai/gpt-oss-20b","messages":[{"role":"user","content":"hi"}],"max_tokens":2000}'</pre>
+        <div class="mini dim" style="padding:4px 10px 8px">При 403 сменить IP. Reasoning-модели: max_tokens 2000+, иначе пустой ответ.</div>
+      </div>
+
+      <div class="mgroup">
+        <h4>OpenRouter — 🔒 только VPN (403 security policy с IP РФ)</h4>
+        <dl class="kv">
+          <dt>регистрация</dt><dd>openrouter.ai → Google/GitHub/email</dd>
+          <dt>ключ</dt><dd>openrouter.ai/settings/keys → Create Key</dd>
+          <dt>формат</dt><dd>sk-or-v1-...</dd>
+          <dt>free</dt><dd>модели с суффиксом :free; 20 RPM / 50 RPD; депозит $10 → 1000 RPD</dd>
+        </dl>
+        <pre>curl https://openrouter.ai/api/v1/chat/completions \
+  -H "Authorization: Bearer $OPENROUTER_API_KEY" \
+  -H "HTTP-Referer: http://localhost" -H "X-Title: zagent" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"qwen/qwen3.8-27b:free","messages":[{"role":"user","content":"hi"}]}'</pre>
+        <div class="mini dim" style="padding:4px 10px 8px">402 = у модели кончился бесплатный пул на сегодня. Free-модели логируют промпты.</div>
+      </div>
+
+      <div class="mgroup">
+        <h4>NVIDIA NIM — 🔒 только VPN (451)</h4>
+        <dl class="kv">
+          <dt>регистрация</dt><dd>build.nvidia.com → аккаунт NVIDIA, без карты</dd>
+          <dt>ключ</dt><dd>на странице модели «Get API Key» или build.nvidia.com/settings/api-keys (показывается один раз)</dd>
+          <dt>формат</dt><dd>nvapi-...</dd>
+          <dt>free</dt><dd>40 RPM, дневного лимита нет (кредиты отменены)</dd>
+        </dl>
+        <pre>curl https://integrate.api.nvidia.com/v1/chat/completions \
+  -H "Authorization: Bearer $NVIDIA_API_KEY" -H "Content-Type: application/json" \
+  -d '{"model":"meta/llama-3.1-8b-instruct","messages":[{"role":"user","content":"hi"}]}'</pre>
+      </div>
+
+      <div class="mgroup">
+        <h4>Google Gemini — 🔒 только VPN, ключ новый</h4>
+        <dl class="kv">
+          <dt>регистрация</dt><dd>aistudio.google.com → кнопка Get API key</dd>
+          <dt>формат</dt><dd>AQ.... (новый формат с 2025, не AIza)</dd>
+          <dt>free</dt><dd>Flash ~15 RPM / 1500 RPD; Pro 2–5 RPM / 25–50 RPD; контекст до 1M</dd>
+          <dt>модели</dt><dd>актуальна gemini-3.8-flash; линейка 2.5 закрыта для новых аккаунтов (404)</dd>
+        </dl>
+        <pre>curl https://generativelanguage.googleapis.com/v1beta/openai/chat/completions \
+  -H "Authorization: Bearer $GOOGLE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"model":"gemini-3.8-flash","messages":[{"role":"user","content":"hi"}]}'</pre>
+        <div class="mini dim" style="padding:4px 10px 8px">
+          Ошибка 400 «User location is not supported» = геоблок, ключ жив.
+          RPD обновляется ~10:00 МСК. Для агентных цепочек RPM маловат — Gemini
+          лучше как консультант, а не основной конвейер.
+        </div>
+      </div>
+
+      <div class="mgroup">
+        <h4>Ollama — локально, VPN не нужен</h4>
+        <dl class="kv">
+          <dt>установка</dt><dd>ollama.com/download, затем ollama pull qwen3:8b</dd>
+          <dt>endpoint</dt><dd>http://localhost:11434/v1 (OpenAI-совместимый, ключа нет)</dd>
+        </dl>
+      </div>
+
+      <div class="mgroup">
+        <h4>Куда класть ключи</h4>
+        <div class="mini" style="padding:2px 10px 8px">
+          config/secrets.local.json (в .gitignore), формат — список для ротации:
+          "groq": ["gsk_...", ...]. Несколько ключей = карантин по 429 работает
+          автоматически. Полный гайд для агентов: update/Api-guide.txt
+        </div>
+      </div>
     </div>
 
   </div>
@@ -1734,6 +2008,9 @@ function ltab(name) {
     t.classList.toggle('on', t.dataset.p === name));
   document.querySelectorAll('#left .psec').forEach(s =>
     s.classList.toggle('on', s.id === 'p-' + name));
+  // Настройки тянут свежие счётчики при каждом открытии: ключи могли
+  // добавиться извне (правка файла руками, второй экземпляр софта).
+  if (name === 'settings') loadSettings();
 }
 // В правой панели была вторая вкладка «Модели и пинг» — дубль того, что уже
 // слева. Она убрана, поэтому переключателя вкладок здесь больше нет. Функция
@@ -2575,6 +2852,189 @@ function fold(what) {
   if (open) body.removeAttribute('hidden'); else body.setAttribute('hidden', '');
   const icon = head.querySelector('.foldIc');
   if (icon) icon.textContent = open ? '\u25be' : '\u25b8';
+}
+
+// ---------- настройки: ключи и модели ----------
+//
+// Вкладка живёт на /api/settings. Сервер отдаёт только имена полей и
+// счётчики: значений ключей в ответе нет по построению, и в разметке
+// они не должны появиться ни в одном месте — ни в списке, ни в плейсхолдере.
+
+let SETTINGS = null;
+
+async function loadSettings(force) {
+  if (!SETTINGS || !SETTINGS.ok || force) SETTINGS = await api('/api/settings');
+  renderSettings();
+  if (!SETTINGS || !SETTINGS.ok) {
+    setNote('keyMsg', (SETTINGS && SETTINGS.error) || 'нет данных от сервера', false);
+  }
+}
+
+function settingsGateways() {
+  return (SETTINGS && SETTINGS.ok) ? (SETTINGS.gateways || []) : [];
+}
+
+function pickGateway(selId) {
+  const list = settingsGateways();
+  const box = $(selId);
+  if (!box || !list.length) return null;
+  return list.find(g => g.id === box.value) || list[0];
+}
+
+function fillGatewaySelects() {
+  const list = settingsGateways();
+  if (!list.length) return;
+  const opts = list.map(g =>
+    `<option value="${esc(g.id)}">${esc(g.label)}${g.needs_key ? '' : ' · без ключа'}</option>`
+  ).join('');
+  for (const id of ['keyGw', 'modGw']) {
+    const box = $(id);
+    if (!box) continue;
+    const keep = box.value;
+    box.innerHTML = opts;
+    if (keep && list.some(g => g.id === keep)) box.value = keep;
+  }
+}
+
+function renderSettings() {
+  fillGatewaySelects();
+  renderKeySide();
+  renderModelList();
+}
+
+// Строка состояния шлюза плюс доп. поля: у Cloudflare второй секрет —
+// Account ID, он лежит в {placeholder} внутри base_url.
+function renderKeySide() {
+  const g = pickGateway('keyGw');
+  const info = $('keyInfo'), extra = $('keyExtra'), text = $('keyText');
+  if (!g) { info.textContent = 'нет данных'; extra.innerHTML = ''; return; }
+
+  // Четыре честных состояния: поле для ввода, встроенный литерал (Ollama),
+  // ключ только из переменной окружения, и шлюз без ключа вовсе. Раньше
+  // все четыре выглядели как «поле: — · ключей: 1», и человек не понимал,
+  // куда вообще вставлять.
+  if (g.key_field) {
+    info.textContent = `поле: ${g.key_field} · ключей: ${g.key_count}` +
+      (g.from_env ? ` · задан переменной ${g.env_var}, файл не используется` : '');
+    text.disabled = false;
+    text.placeholder = 'по одному ключу в строке';
+  } else if (g.literal) {
+    info.textContent = 'Ключ не нужен — шлюз использует встроенный литерал';
+    text.disabled = true;
+    text.placeholder = 'вводить нечего';
+  } else if (g.needs_key) {
+    info.textContent = 'Ключ задаётся переменной окружения — поля в файле нет';
+    text.disabled = true;
+    text.placeholder = 'вводить нечего';
+  } else {
+    info.textContent = 'Ключ не нужен — шлюз работает без него';
+    text.disabled = true;
+    text.placeholder = 'для этого шлюза ключи не нужны';
+  }
+
+  extra.innerHTML = (g.extra_fields || []).map(f => `
+    <div class="field">
+      <label>${esc(f.label)} — одиночное значение</label>
+      <div class="row tight" style="padding:0 0 6px">
+        <input data-x="${esc(f.name)}" spellcheck="false" style="flex:1"
+               placeholder="${esc(f.name)}">
+        <button class="btn sm" data-name="${esc(f.name)}"
+                onclick="extraSave(this)">Сохранить</button>
+      </div>
+    </div>`).join('');
+}
+
+function setNote(id, text, ok) {
+  const box = $(id);
+  if (!box) return;
+  box.textContent = (ok ? '' : '⚠ ') + text;
+}
+
+function keysSummary(r) {
+  if (r.action === 'add') {
+    return `добавлено ${r.added} из ${r.added + r.duplicates} · всего ${r.total}`;
+  }
+  if (r.action === 'replace') return `заменено: теперь ${r.total} (было ${r.was})`;
+  return `удалено ${r.removed} · осталось ${r.total}`;
+}
+
+async function keysSend(action) {
+  const g = pickGateway('keyGw');
+  if (!g || !g.key_field) {
+    setNote('keyMsg', 'у этого шлюза нет поля для ключа', false);
+    return;
+  }
+  if (action === 'replace') {
+    const yes = await askYes('Заменить все ключи?',
+      `Шлюз «${g.label}»: сейчас ${g.key_count} ключ(ей). ` +
+      'Вставленные строки затрут список целиком.');
+    if (!yes) return;
+  }
+  const r = await api('/api/keys', {name: g.key_field, keys: $('keyText').value, action});
+  setNote('keyMsg', r.ok ? keysSummary(r) : (r.error || 'ошибка сервера'), r.ok);
+  if (r.ok) {
+    $('keyText').value = '';
+    await loadSettings(true);
+    if (r.scan) toast(`Каталог пересобран: ${r.scan.models ?? 0} моделей`);
+  }
+}
+
+// Сохранение одиночного значения (Account ID у Cloudflare): replace + single,
+// иначе сервер сложил бы поле в список, а список в base_url подставить нельзя.
+async function extraSave(btn) {
+  const name = btn.dataset.name;
+  const input = document.querySelector(`input[data-x="${name}"]`);
+  if (!input || !input.value.trim()) { setNote('keyMsg', 'значение пустое', false); return; }
+  const r = await api('/api/keys', {
+    name, keys: input.value.trim(), action: 'replace', single: true,
+  });
+  setNote('keyMsg', r.ok ? `${name}: сохранено` : (r.error || 'ошибка сервера'), r.ok);
+  if (r.ok) { input.value = ''; await loadSettings(true); }
+}
+
+function renderModelList() {
+  const g = pickGateway('modGw');
+  const box = $('modList');
+  if (!box) return;
+  if (!g) { box.innerHTML = ''; return; }
+  const models = g.free_models || [];
+  const catalog = (g.catalog || []).join(' + ') || 'статический';
+  const mono = 'font-family:var(--mono);font-size:11.5px';
+  box.innerHTML = `<div class="mini dim" style="padding:2px 10px">
+      Ручные модели: ${esc(g.label)} · каталог ${esc(catalog)}</div>` +
+    (models.length
+      ? models.map(m => `<div class="row tight">
+          <span style="flex:1;${mono}">${esc(m)}</span>
+          <button class="btn sm" data-gw="${esc(g.id)}" data-model="${esc(m)}"
+                  onclick="modelDrop(this)">убрать</button></div>`).join('')
+      : `<div class="mini dim" style="padding:0 10px 8px">Пока пусто.</div>`);
+}
+
+async function modelDrop(btn) {
+  const m = btn.dataset.model, gw = btn.dataset.gw;
+  const yes = await askYes('Убрать модель?',
+    `${m} · шлюз ${gw}: уйдёт из каталога и из tiers.json.`);
+  if (!yes) return;
+  const r = await api('/api/models', {gateway: gw, model: m, action: 'remove'});
+  setNote('modMsg', r.ok ? `удалена: ${m}` : (r.error || 'ошибка сервера'), r.ok);
+  if (r.ok) await loadSettings(true);
+}
+
+async function modelSend(action) {
+  const g = pickGateway('modGw');
+  const id = (($('modId') || {}).value || '').trim();
+  if (!g) return;
+  if (!id) { setNote('modMsg', 'впишите идентификатор модели', false); return; }
+  const tier = +$('modTier').value;
+  const notes = (($('modNote') || {}).value || '').trim();
+  const r = await api('/api/models', {gateway: g.id, model: id, action, tier, notes});
+  setNote('modMsg', r.ok
+    ? (action === 'add' ? `добавлена: ${id} · тир ${tier}` : `удалена: ${id}`)
+    : (r.error || 'ошибка сервера'), r.ok);
+  if (r.ok) {
+    if (action === 'add') { $('modId').value = ''; $('modNote').value = ''; }
+    await loadSettings(true);
+  }
 }
 
 // Полный ключ, а не маска. Сервер отдаёт ключи замаскированными

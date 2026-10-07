@@ -35,12 +35,19 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+from hub.config import (
+    ConfigError,
+    build_settings,
+    edit_gateway_models,
+    edit_secret,
+)
 from hub.failover import AutoCaller, FailoverError
 from hub.registry import collect, probe_models
 from hub.regions import RegionBook, summarize as region_summary
 from hub.report import build_snapshot, render_legend
 from hub.sanity import build_probe_prompt, evaluate
 from hub.tools import capture_screen, image_to_data_url
+from hub.tiers import edit_model
 from hub.ui import UI_HTML
 from hub.worker import Worker
 
@@ -276,6 +283,11 @@ class Handler(BaseHTTPRequestHandler):
                 "/api/geo": self._region,
                 "/api/files": self._files,
                 "/api/permissions": self._permissions,
+                # Вкладка «Настройки»: читает поля секретов (без значений)
+                # и пишет ключи/модели в конфигурацию.
+                "/api/settings": self._settings,
+                "/api/keys": self._keys,
+                "/api/models": self._models,
             }
             handler = routes.get(path)
             if handler is None:
@@ -289,6 +301,82 @@ class Handler(BaseHTTPRequestHandler):
 
     def _scan(self, body: dict[str, Any]) -> dict[str, Any]:
         return self.api.worker.scan()
+
+    def _settings(self, body: dict[str, Any]) -> dict[str, Any]:
+        """Что показывает вкладка «Настройки»: поля и счётчики, без значений."""
+        return build_settings(self.api.worker.root)
+
+    def _keys(self, body: dict[str, Any]) -> dict[str, Any]:
+        """Добавить/заменить/удалить ключи одного поля secrets.local.json.
+
+        После успешной записи каталог пересобирается: `ring()` перечитывает
+        список ключей сам, но модели шлюза попадут в реестр только вместе
+        с новым collect() — первый ключ открывает шлюзу и его модели.
+        """
+        worker = self.api.worker
+        single = body.get("single")
+        try:
+            result = edit_secret(
+                body.get("name") or body.get("gateway"),
+                body.get("keys"),
+                action=str(body.get("action") or "add"),
+                single=single if isinstance(single, bool) else None,
+                root=worker.root,
+            )
+        except ConfigError as exc:
+            return {"ok": False, "error": str(exc)}
+        if result.get("ok"):
+            result["scan"] = worker.scan()
+        return result
+
+    def _models(self, body: dict[str, Any]) -> dict[str, Any]:
+        """Добавить/убрать модель: tiers.json (ранг) + free_models (каталог).
+
+        Правятся оба файла сразу — иначе хвост: модель есть в каталоге, но
+        без паспорта, или паспорт есть, а селектор её не видит.
+        """
+        worker = self.api.worker
+        action = str(body.get("action") or "add")
+        gateway = body.get("gateway")
+        model = body.get("model")
+        try:
+            if action == "add":
+                spec = edit_model(
+                    gateway, model,
+                    action="add",
+                    tier=body.get("tier"),
+                    notes=str(body.get("notes") or ""),
+                    root=worker.root,
+                )
+                try:
+                    catalog = edit_gateway_models(
+                        gateway, model, action="add", root=worker.root
+                    )
+                except ConfigError:
+                    # Шлюза не оказалось — откатываем паспорт, чтобы файлы
+                    # не разъехались.
+                    if spec.get("changed") == "added":
+                        edit_model(gateway, model, action="remove", root=worker.root)
+                    raise
+                ok = bool(spec.get("ok")) and bool(catalog.get("ok"))
+            else:
+                spec = edit_model(gateway, model, action="remove", root=worker.root)
+                catalog = edit_gateway_models(
+                    gateway, model, action="remove", root=worker.root
+                )
+                # Убрать достаточно в одном из двух: модель может быть только
+                # в каталоге (живая) или только в паспорте (ручная).
+                ok = bool(spec.get("ok")) or bool(catalog.get("ok"))
+        except ConfigError as exc:
+            return {"ok": False, "error": str(exc)}
+
+        result: dict[str, Any] = {
+            "ok": ok, "action": action, "gateway": str(gateway or ""),
+            "model": str(model or ""), "spec": spec, "catalog": catalog,
+        }
+        if ok:
+            result["scan"] = worker.scan()
+        return result
 
     def _ping(self, body: dict[str, Any]) -> dict[str, Any]:
         # ref не задан — пингуется весь реестр. Раньше интерфейс слал ref
@@ -774,6 +862,10 @@ class Handler(BaseHTTPRequestHandler):
                 # Список неотвеченных запросов на выход за воркспейс.
                 # Через GET его удобно опрашивать, пока агент ждёт ответа.
                 return self._json(self.api.worker.permissions())
+            if parsed.path == "/api/settings":
+                # Чтение вкладки «Настройки» — это состояние, а не правка,
+                # поэтому GET: интерфейс зовёт его при каждом открытии вкладки.
+                return self._json(build_settings(self.api.worker.root))
             if parsed.path == "/api/events":
                 return self._stream(query)
         except Exception as exc:

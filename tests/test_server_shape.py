@@ -27,7 +27,7 @@ REQUIRED_HANDLERS = {
     "_scan", "_ping", "_ping_status", "_sanity", "_ask", "_mode",
     "_config", "_enqueue", "_region", "_sessions", "_answer", "_cancel",
     "_pause", "_shot", "_connect", "_permissions", "_workspaces",
-    "_files", "_read_view_file",
+    "_files", "_read_view_file", "_settings", "_keys", "_models",
 }
 
 

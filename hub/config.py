@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import time
 from pathlib import Path
 from typing import Any
 
@@ -305,3 +307,410 @@ def model_label(models: list[dict[str, str]], model_id: str) -> str:
         if item.get("id") == model_id:
             return item.get("label") or model_id
     return model_id
+
+
+# ================================================================ запись
+#
+# Ниже — то, чего в проекте не было: правка конфигурации из интерфейса.
+# Раньше ключи заводили руками в secrets.local.json, а модели — руками в
+# gateways.json и tiers.json; вкладка «Настройки» вызывает именно эти
+# функции. Правило всех писателей: в ответ не попадают значения — только
+# имена полей и счётчики. Ответ уходит в интерфейс, а интерфейс может
+# оказаться на скриншоте или в логе.
+
+#: Потолки на запись: ввод приходит из браузера, и враждебная строка не
+#: должна раздовать файлы или валить парсер.
+MAX_SECRET_NAME = 64
+MAX_KEYS_PER_EDIT = 500
+MAX_KEY_LENGTH = 512
+MAX_SECRETS_FILE = 128 * 1024
+
+_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]*$")
+_MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@+\-\[\]]{0,199}$")
+_PLACEHOLDER_RE = re.compile(r"\{([A-Za-z0-9_.\-]+)\}")
+
+#: Шлюзы, у которых `secret_key: null`, но ключ всё-таки читается особым
+#: legacy-путём (load_api_key): имя поля в файле и переменная окружения.
+#: Без этого zen не получит поля для ввода — в файле он лежит под
+#: zen_api_key, а переменная у него своя (не _env_name, тот добавил бы
+#: второй _API_KEY к уже готовому имени).
+_LEGACY_SECRET = {"zen": ("zen_api_key", ENV_KEY)}
+
+
+class ConfigWriteError(ConfigError):
+    """Запись конфигурации отклонена: плохой ввод или нечитаемый файл."""
+
+
+def clean_secret_name(name: Any) -> str:
+    """Имя поля секрета (оно же — id шлюза): одно слово, без мусора."""
+    text = str(name or "").strip()
+    if not _NAME_RE.match(text) or len(text) > MAX_SECRET_NAME:
+        raise ConfigWriteError(
+            f"Недопустимое имя поля: {text[:40]!r}. "
+            "Годятся буквы, цифры, точка, дефис, подчёркивание."
+        )
+    return text
+
+
+def clean_model_id(model: Any) -> str:
+    """Идентификатор модели: как настоящий id, но без кавычек и скобок."""
+    text = str(model or "").strip()
+    if not _MODEL_RE.match(text):
+        raise ConfigWriteError(
+            "Плохой идентификатор модели: до 200 знаков, "
+            "только буквы, цифры и . _ : / @ + - [ ]"
+        )
+    return text
+
+
+def split_new_keys(value: Any) -> list[str]:
+    """Разобрать вставленные ключи: строка (по переводу строки или запятой) или список.
+
+    Возвращает уникальные ключи в порядке вставки. Ротация не любит дублей:
+    два одинаковых ключа в круге означают, что один аккаунт крутится вдвое
+    чаще остальных и счётчик лимита уходит вперёд.
+    """
+    if isinstance(value, (list, tuple)):
+        raw = [str(v) for v in value]
+    else:
+        raw = str(value or "").replace(",", "\n").splitlines()
+
+    keys: list[str] = []
+    seen: set[str] = set()
+    for number, line in enumerate(raw, start=1):
+        text = line.strip()
+        if not text or text in seen:
+            continue
+        if len(text) > MAX_KEY_LENGTH:
+            raise ConfigWriteError(
+                f"Ключ №{number} длиннее {MAX_KEY_LENGTH} знаков — это не ключ"
+            )
+        if any(ord(ch) < 32 for ch in text):
+            raise ConfigWriteError(
+                f"Ключ №{number} содержит управляющие символы"
+            )
+        seen.add(text)
+        keys.append(text)
+
+    if not keys:
+        raise ConfigWriteError("Ни одного ключа не вставлено")
+    if len(keys) > MAX_KEYS_PER_EDIT:
+        raise ConfigWriteError(
+            f"За раз можно вставить не больше {MAX_KEYS_PER_EDIT} ключей"
+        )
+    return keys
+
+
+def detect_indent(text: str) -> int | str:
+    """Какой отступ у файла — пишем тем же.
+
+    Конфиги переформатировали по-разному (2 пробела, 1 пробел, табуляция),
+    и запись с фиксированным indent=2 превращала бы добавление одной строки
+    в правку всего файла: diff нечитаем, ревью бессмысленно.
+    """
+    for line in text.splitlines():
+        stripped = line.lstrip()
+        if not stripped or stripped[0] in "{}[]":
+            continue
+        lead = line[: len(line) - len(stripped)]
+        if "\t" in lead:
+            return "\t"
+        return len(lead) if lead else 2
+    return 2
+
+
+def atomic_write(path: Path, text: str) -> None:
+    """Записать файл так, чтобы читатель не увидел половину записи.
+
+    На Windows `os.replace()` иногда падает Access is denied: свежий .tmp
+    уже подхватил антивирус или индексатор. Замена повторяется с паузой —
+    падать сразу значило бы изредка терять вставленный ключ из-за чужого
+    сканера (живой прогон поймал именно такой отказ).
+    """
+    tmp = path.with_name(path.name + ".tmp")
+    with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(text)
+    error: OSError | None = None
+    for attempt in range(5):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError as exc:
+            error = exc
+            time.sleep(0.03 * (attempt + 1))
+    assert error is not None
+    # Хвостовой .tmp не оставляем: в папке с ключами чужие файлы не годятся.
+    try:
+        tmp.unlink(missing_ok=True)
+    except OSError:
+        pass
+    raise error
+
+
+def _dump_json(data: Any, indent: int | str) -> str:
+    return json.dumps(data, ensure_ascii=False, indent=indent) + "\n"
+
+
+def save_secrets(secrets: dict[str, Any], root: str | Path | None = None) -> Path:
+    """Записать config/secrets.local.json атомарно."""
+    path = config_dir(root) / SECRETS_FILE
+    indent: int | str = 2
+    if path.is_file():
+        try:
+            indent = detect_indent(path.read_text(encoding="utf-8"))
+        except OSError:
+            indent = 2
+    text = _dump_json(secrets, indent)
+    if len(text.encode("utf-8")) > MAX_SECRETS_FILE:
+        raise ConfigWriteError(
+            "secrets.local.json разросся больше 128 КБ — почистите его руками"
+        )
+    atomic_write(path, text)
+    try:
+        # На POSIX файл с ключами читает только владелец; на Windows
+        # chmod отсутствует, и это не ошибка.
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+    return path
+
+
+def _single_value_fields(root: str | Path | None = None) -> set[str]:
+    """Поля, которые обязаны лежать строкой, а не списком ротации.
+
+    Это ровно те имена, что подставляются в base_url как {cloudflare_account_id}:
+    подстановка делает str(value), и список превратился бы в «['abc']» — URL
+    сломался бы молча. Правило узнаётся из конфига, а не из запомненного
+    списка: новое поле-плейсхолдер не придётся объявлять в двух местах.
+    """
+    path = config_dir(root) / GATEWAYS_FILE
+    if not path.is_file():
+        return set()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return set()
+    raw = data.get("gateways") if isinstance(data, dict) else None
+    if not isinstance(raw, list):
+        return set()
+    fields: set[str] = set()
+    for item in raw:
+        if isinstance(item, dict):
+            fields.update(_PLACEHOLDER_RE.findall(str(item.get("base_url") or "")))
+    return fields
+
+
+def edit_secret(
+    name: Any,
+    keys: Any,
+    *,
+    action: str = "add",
+    single: bool | None = None,
+    root: str | Path | None = None,
+) -> dict[str, Any]:
+    """Добавить, заменить или удалить ключи одного поля в secrets.local.json.
+
+    `add` — дописать новые в конец (так добавляют ключи других аккаунтов),
+    `replace` — списком затереть всё поле, `remove` — выкинуть вставленные.
+
+    `single` — одиночное значение вместо списка (Account ID у Cloudflare).
+    Если не передан, выводится из формы текущего значения и из того,
+    подставляется ли поле в base_url. Из списка в строку ничего не
+    превращается.
+    """
+    if action not in ("add", "replace", "remove"):
+        raise ConfigWriteError(f"Неизвестное действие «{action}»")
+
+    field = clean_secret_name(name)
+    incoming = split_new_keys(keys)
+    secrets = load_secrets(root)
+    value = secrets.get(field)
+    if single is None:
+        single = isinstance(value, str) or field in _single_value_fields(root)
+    current = _keys_from_value(value)
+
+    if action == "add":
+        if single:
+            raise ConfigWriteError(
+                "Это одиночное значение: вставьте одно и сохраните"
+            )
+        known = set(current)
+        added = [k for k in incoming if k not in known]
+        updated = current + added
+        result: dict[str, Any] = {
+            "ok": True, "action": action, "name": field,
+            "added": len(added),
+            "duplicates": len(incoming) - len(added),
+            "total": len(updated),
+        }
+    elif action == "replace":
+        updated = incoming[:1] if single else incoming
+        result = {
+            "ok": True, "action": action, "name": field,
+            "total": len(updated), "was": len(current),
+        }
+    else:
+        drop = set(incoming)
+        kept = [k for k in current if k not in drop]
+        removed = len(current) - len(kept)
+        if not removed:
+            return {
+                "ok": False, "action": action, "name": field,
+                "error": "Ни один из вставленных ключей не найден",
+                "total": len(current),
+            }
+        updated = kept
+        result = {
+            "ok": True, "action": action, "name": field,
+            "removed": removed, "total": len(updated),
+        }
+
+    if updated:
+        secrets[field] = updated[0] if single else updated
+    else:
+        secrets.pop(field, None)
+    save_secrets(secrets, root)
+    return result
+
+
+def edit_gateway_models(
+    gateway_id: Any,
+    model: Any,
+    *,
+    action: str = "add",
+    root: str | Path | None = None,
+) -> dict[str, Any]:
+    """Добавить или убрать модель из ручного списка free_models шлюза.
+
+    Список вручную добавленных моделей — вторая половина вкладки «Настройки»:
+    tiers.json задаёт ранг модели, а здесь она попадает в каталог, без
+    этого селектор её просто не увидит.
+    """
+    if action not in ("add", "remove"):
+        raise ConfigWriteError(f"Неизвестное действие «{action}»")
+
+    gid = clean_secret_name(gateway_id)
+    m = clean_model_id(model)
+    path = config_dir(root) / GATEWAYS_FILE
+    text = path.read_text(encoding="utf-8")
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ConfigWriteError(f"Некорректный JSON в {path}: {exc}") from exc
+
+    raw = data.get("gateways")
+    if not isinstance(raw, list):
+        raise ConfigWriteError(f"В {path} список gateways отсутствует")
+    item = next(
+        (g for g in raw if isinstance(g, dict) and str(g.get("id")) == gid), None
+    )
+    if item is None:
+        known = ", ".join(str(g.get("id")) for g in raw if isinstance(g, dict))
+        raise ConfigWriteError(f"Неизвестный шлюз «{gid}». Есть: {known}")
+
+    free = [
+        str(x).strip() for x in (item.get("free_models") or []) if str(x).strip()
+    ]
+
+    if action == "add":
+        if m in free:
+            return {
+                "ok": True, "action": action, "gateway": gid, "model": m,
+                "added": 0, "total": len(free), "note": "уже есть в списке",
+            }
+        if not item.get("catalog"):
+            # _default_catalog() решает по наличию free_models: «список есть»
+            # значит статический каталог. То есть первая же ручная модель
+            # молча выключила бы живой каталог шлюза — а это модели, которые
+            # сеть приносит сама. Явный catalog сохраняет и то, и другое.
+            before = _default_catalog(item)
+            item["free_models"] = free + [m]
+            after = _default_catalog(item)
+            if before != after:
+                item["catalog"] = sorted(set(before) | set(after))
+        else:
+            item["free_models"] = free + [m]
+        result: dict[str, Any] = {
+            "ok": True, "action": action, "gateway": gid, "model": m,
+            "added": 1, "total": len(free) + 1,
+        }
+    else:
+        if m not in free:
+            return {
+                "ok": False, "action": action, "gateway": gid, "model": m,
+                "error": "Такой модели нет в ручном списке шлюза "
+                         "(её приносит живой каталог — правьте tiers.json)",
+                "total": len(free),
+            }
+        kept = [x for x in free if x != m]
+        if kept:
+            item["free_models"] = kept
+        else:
+            item.pop("free_models", None)
+        result = {
+            "ok": True, "action": action, "gateway": gid, "model": m,
+            "removed": 1, "total": len(kept),
+        }
+
+    atomic_write(path, _dump_json(data, detect_indent(text)))
+    return result
+
+
+def build_settings(
+    root: str | Path | None = None, env: dict[str, str] | None = None
+) -> dict[str, Any]:
+    """Что показывает вкладка «Настройки»: шлюзы, поля секретов, их счётчики.
+
+    Значений ключей здесь нет по построению — только имена полей и сколько
+    ключей лежит. `key_field` — как поле называется в secrets.local.json
+    (у Cloudflare их два: токен и Account ID, второй берётся из {placeholder}
+    в base_url), `env_var` — куда положить тот же ключ переменной окружения.
+
+    Поля не всегда очевидны: у zen `secret_key: null`, но ключ читается
+    legacy-путём (`load_api_key`), а у ollama ключ и вовсе литерал — там
+    вводить нечего, и интерфейс обязан это сказать, а не показывать пустое
+    поле с нулём ключей.
+    """
+    environ = os.environ if env is None else env
+    gateways = load_gateways(root, env=env)
+    out: list[dict[str, Any]] = []
+    for g in gateways:
+        raw_field = g.get("secret_key") if "secret_key" in g else g.get("id")
+        legacy = _LEGACY_SECRET.get(g["id"])
+        if raw_field:
+            field = str(raw_field)
+            env_var = _env_name(field)
+        elif legacy:
+            field, env_var = legacy
+        else:
+            field = env_var = None
+        base = str(g.get("base_url") or "")
+        extra: list[dict[str, str]] = []
+        for holder in dict.fromkeys(_PLACEHOLDER_RE.findall(base)):
+            extra.append({"name": holder, "label": holder.replace("_", " ")})
+        if field:
+            # Счётчик считаем сами, а не берём key_count из load_gateways:
+            # у zen поле лежит под zen_api_key, сам шлюз о нём в конфиге не
+            # знает — интерфейс показывал бы ноль при двух ключах в файле.
+            count = len(resolve_keys(field, root=root, env=env))
+            has_key = count > 0
+        else:
+            # Без поля остаётся то, что дал сам шлюз: литерал Ollama (1) или
+            # ничего у анонимного llm7.
+            count = int(g.get("key_count") or 0)
+            has_key = bool(g.get("has_key"))
+        out.append({
+            "id": g["id"],
+            "label": str(g.get("label") or g["id"]),
+            "key_field": field,
+            "key_count": count,
+            "has_key": has_key,
+            "needs_key": bool(g.get("needs_key") or g.get("env")),
+            "literal": bool(g.get("api_key_literal")),
+            "from_env": bool(env_var and env_var in environ),
+            "env_var": env_var,
+            "extra_fields": extra,
+            "free_models": [str(m) for m in (g.get("free_models") or [])],
+            "catalog": [str(c) for c in (g.get("catalog") or [])],
+        })
+    return {"ok": True, "gateways": out}
