@@ -1335,6 +1335,9 @@ th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase
         <button class="btn sm" onclick="pingUnavailable()">Пинг недоступных</button>
         <button class="btn sm" onclick="scan()">Обновить каталог</button>
         <button class="btn sm" onclick="sanityAll()">Проверить ответы</button>
+        <!-- Голос статуса: конец задачи вслух. Выключен по умолчанию,
+             состояние — в localStorage, без сервера и без запросов. -->
+        <button class="btn sm" id="voiceBtn" onclick="voiceToggle()">🔈 голос: выкл</button>
       </div>
       <div class="hintBlock" style="margin:8px 12px">
         Автоматическая проверка сама пингует недоступные модели раз в 12 минут
@@ -3863,6 +3866,34 @@ function renderWard() {
   box.innerHTML = html;
 }
 
+// Голос статуса: конец задачи — вслух, если включено. Синтеза речи может
+// не оказаться ни в системе, ни в текущем контексте браузера — тогда
+// молчим, а не падаем: голос приятное добавление, а не условие работы.
+function voiceSay(text) {
+  try {
+    if (localStorage.getItem('zagent.voice') !== 'on') return;
+    const synth = window.speechSynthesis;
+    if (!synth || !window.SpeechSynthesisUtterance) return;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ru-RU';
+    synth.speak(u);
+  } catch (err) { /* без голоса всё равно работает */ }
+}
+
+function voiceToggle() {
+  const on = localStorage.getItem('zagent.voice') === 'on';
+  localStorage.setItem('zagent.voice', on ? 'off' : 'on');
+  renderVoiceBtn();
+  if (!on) voiceSay('Голос включён');
+}
+
+function renderVoiceBtn() {
+  const btn = $('voiceBtn');
+  if (!btn) return;
+  btn.textContent = localStorage.getItem('zagent.voice') === 'on'
+    ? '🔊 голос: вкл' : '🔈 голос: выкл';
+}
+
 function renderPing() {
   // `S` появляется только после первого ответа состояния, а событие из
   // потока может прийти раньше. Без проверки это `TypeError` в обработчике
@@ -4343,8 +4374,12 @@ function handleEvent(e, replay) {
     if (e.status === 'done') {
       addMsg({who:'готово', text:'Задача выполнена.', kind:'sys'});
       renderArtifacts(e.artifacts || []);
+      voiceSay('Задача выполнена');
     }
-    else if (e.status === 'failed') addMsg({who:'сбой', text:e.result?.last || 'не удалось', kind:'sys'});
+    else if (e.status === 'failed') {
+      addMsg({who:'сбой', text:e.result?.last || 'не удалось', kind:'sys'});
+      voiceSay('Задача не удалась');
+    }
     else if (e.status === 'cancelled') addMsg({who:'отмена', text:'Задача отменена.', kind:'sys'});
     if (!replay) { curTask = null; $('stopBtn').style.display = 'none'; }
     progressOff();
@@ -4417,6 +4452,7 @@ async function refresh() {
   checkPermissions();
   renderPing();
   renderWard();
+  renderVoiceBtn();
   // Число субагентов зависит от свободных аккаунтов, а они меняются сами:
   // модель могла выбиться по лимиту. Пересчитываем на каждом обновлении,
   // иначе режим предлагал бы шесть субагентов при двух живых аккаунтах.
