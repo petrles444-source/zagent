@@ -36,9 +36,14 @@ from pathlib import Path
 from typing import Any, Iterator
 from urllib.parse import parse_qs, urlparse
 
+import httpx
+
 from hub import blackbox
 from hub import diag
 from hub import local_llm
+# Порт моста берём из него самого: расхождение с serve.py было бы
+# источником тихих «мост не отвечает» при смене порта.
+from hub.bridge import DEFAULT_PORT as BRIDGE_PORT
 from hub.config import (
     ConfigError,
     build_settings,
@@ -385,6 +390,10 @@ class Handler(BaseHTTPRequestHandler):
                 # Локальные модели (Ollama): список и потоковый чат.
                 "/api/local/models": self._local_models,
                 "/api/local/chat": self._local_chat,
+                # Мост (8784) из отладчика: общий статус всех
+                # модели и разговор со всеми разом.
+                "/api/models/status": self._bridge_status,
+                "/api/models/ask_all": self._models_ask_all,
             }
             handler = routes.get(path)
             if handler is None:
@@ -413,6 +422,105 @@ class Handler(BaseHTTPRequestHandler):
         if "on" in body:
             return self.api.worker.set_dev_mode(bool(body["on"]))
         return self.api.worker.dev_info()
+
+    # ----------------------------------------------- мост: статус и опрос
+
+    #: Порт моста. Константа в bridge, но сервер запускается и без
+    #: импорта моста (тесты), поэтому адрес берём из настроек портов.
+    BRIDGE_TIMEOUT_S = 20.0
+
+    def _bridge_url(self, path: str) -> str:
+        return f"http://127.0.0.1:{BRIDGE_PORT}{path}"
+
+    def _bridge_call(self, path: str, payload: dict[str, Any] | None = None,
+                     timeout: float | None = None) -> dict[str, Any]:
+        """Спросить мост. Любая неудача — словарь, а не исключение.
+
+        Мост живёт отдельным процессом и может быть не поднят вовсе:
+        тогда ответ должен описывать это состояние словами, иначе панель
+        отладчика покажет «ошибка» вместо «мост выключен».
+        """
+        try:
+            if payload is None:
+                request = httpx.Request("GET", self._bridge_url(path))
+            else:
+                request = httpx.Request(
+                    "POST", self._bridge_url(path),
+                    content=json.dumps(payload).encode("utf-8"),
+                    headers={"Content-Type": "application/json"})
+            with httpx.Client(timeout=timeout or self.BRIDGE_TIMEOUT_S) as client:
+                response = client.send(request)
+            data = response.json()
+        except httpx.HTTPError as exc:
+            return {"ok": False, "error": f"мост не отвечает: {type(exc).__name__}"}
+        except (ValueError, OSError) as exc:
+            return {"ok": False, "error": f"мост ответил мусором: {exc}"}
+        return data if isinstance(data, dict) else {"ok": False,
+                                                   "error": "мост ответил не объектом"}
+
+    def _bridge_status(self) -> dict[str, Any]:
+        """Одна таблица: донорские модели плюс локальные Ollama."""
+        bridge = self._bridge_call("/status", timeout=30.0)
+        donor_rows = bridge.get("models") or []
+        rows: list[dict[str, Any]] = []
+        for row in donor_rows:
+            if not isinstance(row, dict):
+                continue
+            rows.append({**row, "source": "bridge"})
+
+        local = self._local_models({})
+        if local.get("ok") and local.get("running"):
+            for item in local.get("models") or []:
+                if not isinstance(item, dict):
+                    continue
+                rows.append({
+                    "id": str(item.get("name") or item.get("id") or ""),
+                    "provider": "ollama",
+                    "source": "ollama",
+                    "state": "local",
+                    "reason": "",
+                    "cooldown_left_s": 0,
+                    "last_ms": 0,
+                    "last_ok": None,
+                    "last_via": "ollama",
+                })
+
+        # Мост бывает один, и он же держит free-модели opencode: без него
+        # половина моделей в интерфейсе просто исчезла бы из таблицы.
+        return {
+            "ok": True,
+            "bridge": {
+                "ok": bool(bridge.get("ok")),
+                "port": bridge.get("port"),
+                "uptime_s": bridge.get("uptime_s", 0),
+                "requests": bridge.get("requests", 0),
+                "failures": bridge.get("failures", 0),
+                "local_opencode": bridge.get("local_opencode") or {},
+                "error": str(bridge.get("error") or "")[:300],
+            },
+            "local_llm": {
+                "ok": bool(local.get("ok")),
+                "running": bool(local.get("running")),
+                "error": str(local.get("error") or "")[:300],
+            },
+            "models": rows,
+        }
+
+    def _models_ask_all(self, body: dict[str, Any]) -> dict[str, Any]:
+        """Один вопрос всем моделям через мост."""
+        prompt = str(body.get("text") or "").strip()
+        if not prompt:
+            return {"ok": False, "error": "пустой вопрос"}
+        payload: dict[str, Any] = {"text": prompt}
+        wanted = body.get("models")
+        if isinstance(wanted, list):
+            payload["models"] = [str(m) for m in wanted if str(m).strip()]
+        try:
+            timeout = float(body.get("timeout") or 0) or 180.0
+        except (TypeError, ValueError):
+            timeout = 180.0
+        payload["timeout"] = timeout
+        return self._bridge_call("/ask_all", payload, timeout=timeout + 20.0)
 
     def _local_models(self, body: dict[str, Any]) -> dict[str, Any]:
         """Какие локальные модели установлены и запущен ли рантайм.
@@ -1059,6 +1167,11 @@ class Handler(BaseHTTPRequestHandler):
                         return self._json({"error": str(exc)}, 500)
                 return self._json({"ok": True, **diag.DIAG.stats(),
                                    "recent": diag.DIAG.recent()})
+            if parsed.path == "/api/models/status":
+                # Статус всех моделей: донорские через мост плюс
+                # локальные Ollama. Ответ всегда 200 — «мост не
+                # поднят» это состояние, а не поломка.
+                return self._json(self._bridge_status())
             if parsed.path == "/api/local/models":
                 # Список локальных моделей вкладки «Локальные модели».
                 # Обработчик общий с POST: он ничего не меняет, только

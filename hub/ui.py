@@ -54,6 +54,11 @@ UI_HTML = r"""<!doctype html>
   --shadow:0 12px 32px rgba(0,0,0,.45);
   --glow:0 0 0 1px var(--edge), 0 0 18px -6px var(--accent);
   --radius:9px;
+  /* Граница, которой рисуют разделители и полосу прогресса.
+     Объявлена через --edge, чтобы не расходилась с темой: раньше
+     переменной не существовало вовсе, и border вырождался в
+     currentColor, а фон трека — в прозрачность. */
+  --line: var(--edge);
 }
 
 /* Чёрная — OLED, края сливаются с фоном окна */
@@ -778,6 +783,23 @@ code.inl { font-family:var(--mono); font-size:11.5px; background:var(--panel2);
   padding:1px 5px; border-radius:4px; }
 
 .muted { color:var(--muted); } .dim { color:var(--dim); }
+
+  /* Таблица всех моделей в отладчике. Цвета — только из токенов темы:
+     иначе блок выглядел бы чужеродно в светлой и серой темах. */
+  .modelsTable { display:flex; flex-direction:column; gap:4px; margin-top:6px; }
+  .modelsRow {
+    display:grid; grid-template-columns:minmax(120px,1fr) auto;
+    gap:2px 10px; padding:6px 8px; border:1px solid var(--line);
+    border-radius:var(--radius); background:var(--panel2);
+  }
+  .modelsRow .mini { grid-column:1 / -1; white-space:pre-wrap;
+    word-break:break-word; }
+  .modelsName {
+    font-family:var(--mono, ui-monospace, Consolas, monospace);
+    font-size:11.5px; color:var(--text); overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap;
+  }
+  .modelsName:hover { color:var(--accent); }
 .mini { font-size:11.5px; }
 .note { background:color-mix(in srgb,var(--info) 10%,var(--panel));
   border-left:2px solid var(--info); padding:8px 10px;
@@ -1257,6 +1279,30 @@ th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase
             <span class="mini dim" id="devMsg"></span>
           </div>
           <div id="devBox" style="padding:6px 10px 4px" hidden></div>
+
+          <!-- Все модели: статус и общий вопрос. Данные приходят с
+               сервера, который сам ходит в мост на 8784. -->
+          <div class="hintBlock">
+            Статус каждой модели: «отвечает», «отказала», «на остывании»
+            или «ещё не проверена», с временем последнего ответа и
+            причиной отказа. Кнопка ниже отправляет один вопрос сразу
+            всем моделям — они отвечают параллельно, ждать по очереди
+            не нужно. Модели на остывании в опрос не идут: они и так
+            известно не отвечают, но в таблице остаются со своей
+            причиной.
+          </div>
+          <div class="row tight">
+            <button class="btn sm pri" onclick="modelsStatus()">Статус всех моделей</button>
+            <button class="btn sm" onclick="modelsAskAll()">Спросить всех</button>
+            <span class="mini dim" id="modelsMsg"></span>
+          </div>
+          <div class="field">
+            <label>Вопрос для всех моделей</label>
+            <textarea id="modelsAsk" rows="2"
+              placeholder="Ответь одним предложением: ты работаешь?">(текст)</textarea>
+          </div>
+          <div id="modelsBox" style="padding:4px 10px 8px" hidden></div>
+
           <div id="diagBox" style="padding:4px 10px 8px" hidden></div>
         </div>
       </div>
@@ -1891,16 +1937,39 @@ document.addEventListener('keydown', e => {
 });
 
 // ---------- утилиты ----------
+// Строка для подстановки в JS-литерал внутри HTML-атрибута.
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g,
   c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// Строка для подстановки в JS-литерал внутри HTML-атрибута (onclick и т.п.).
+// esc() здесь не годится: он кладёт &#39;, а парсер декодирует сущности до
+// компиляции JS и апостроф снова рвёт литерал. Сначала экранируем спецсимволы
+// JS, потом HTML — так атрибут не разрывается, а JS получает целую строку.
+function jsq(s) {
+  return esc(String(s ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, '\\u0027')
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n')
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e'));
+}
 function chip(v) { return `<span class="chip ${esc(v)}">${esc(v)}</span>`; }
 async function api(path, body) {
-  const r = await fetch(path, {
-    method: body === undefined ? 'GET' : 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: body === undefined ? undefined : JSON.stringify(body)
-  });
-  try { return await r.json(); } catch { return {error:'плохой ответ сервера'}; }
+  // try на всём запросе, а не только на разборе JSON: раньше отказ
+  // сети или упавший сервер вылетал из функции наверх, и вызывающие
+  // оставались с вечно «ставлю в очередь…» и без следующего refresh.
+  let r;
+  try {
+    r = await fetch(path, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: body === undefined ? undefined : JSON.stringify(body)
+    });
+  } catch (e) {
+    return {ok:false, error:'сервер недоступен (' + (e && e.message || e) + ')'};
+  }
+  try { return await r.json(); }
+  catch { return {ok:false, error:'плохой ответ сервера'}; }
 }
 // Данные для обработчика кладутся в data-атрибут, а не внутрь onclick.
 //
@@ -2046,7 +2115,10 @@ function renderArtifacts(list) {
     html += '<div class="artRow">';
     html += `<span class="artIcon">${isDir ? '▸' : '·'}</span>`;
     // Просмотр есть у всего, что интерфейс умеет показывать.
-    html += `<a class="artName" href="#" onclick="showArtifact(event, ${JSON.stringify(a.path)})"`
+    // Путь — в data-атрибут, а не в onclick. JSON.stringify внутри
+    // атрибута, уже обрамлённого кавычками, ломал разметку на
+    // любом имени файла с кавычкой внутри.
+    html += `<a class="artName" href="#" data-art="${esc(a.path)}"`
       + ` title="показать в панели справа">${esc(name)}</a>`;
     if (a.open) {
       html += `<a class="artGo" href="${esc(a.open)}" target="_blank"`
@@ -2057,8 +2129,14 @@ function renderArtifacts(list) {
     html += '</div>';
   }
   html += '</div>';
-  $('msgs').insertAdjacentHTML('beforeend', html);
-  $('msgs').scrollTop = $('msgs').scrollHeight;
+  const box = $('msgs');
+  box.insertAdjacentHTML('beforeend', html);
+  // Клик по ссылке вешаем явно: путь лежит в data-art, а не в onclick,
+  // где кавычка в имени файла закрывала бы атрибут.
+  box.querySelectorAll('[data-art]').forEach(el => {
+    el.addEventListener('click', ev => showArtifact(ev, el.dataset.art));
+  });
+  box.scrollTop = box.scrollHeight;
 }
 
 // Показать созданный файл в панели справа: и код, и результат в одном месте.
@@ -2532,7 +2610,7 @@ function subsBox() {
 function subCardHtml(sub, data) {
   const files = (data.files || []).join(', ') || 'файлы не указаны';
   return `<div class="subCard" data-sub="${esc(sub)}">
-    <div class="subHead" onclick="toggleSub('${esc(sub)}')">
+    <div class="subHead" onclick="toggleSub('${jsq(sub)}')">
       <span class="subDot"></span>
       <span class="subName">${esc(sub)}</span>
       <span class="subTitle">${esc(data.title || '')}</span>
@@ -2872,7 +2950,13 @@ function renderModelPick() {
 
 // ---------- разделители панелей ----------
 (function setupGrips() {
-  const saved = JSON.parse(localStorage.getItem('zagent.layout') || '{}');
+  // Разбор в try: значение в localStorage можно испортить самому
+  // (или старой версией записать иначе), и раньше такая ошибка
+  // роняла весь скрипт на верхнем уровне — вместе с навешиванием
+  // всех остальных обработчиков.
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('zagent.layout') || '{}') || {}; }
+  catch (e) { saved = {}; }
   if (saved.lw) document.documentElement.style.setProperty('--lw', saved.lw + 'px');
   if (saved.rw) document.documentElement.style.setProperty('--rw', saved.rw + 'px');
 
@@ -3001,14 +3085,14 @@ function renderGateways() {
     html += `<div class="mgroup">
       <h4>${esc(info.label || gw)} <span class="dim">\u00b7 ${ok}/${rows.length} \u0440\u0430\u0431\u043e\u0442\u0430\u044e\u0442</span></h4>
       <dl class="kv">
-        <dt>provider id</dt><dd class="copy" onclick="copy('${esc(info.provider_id || gw)}','provider id')">${esc(info.provider_id || gw)}</dd>
-        <dt>base URL</dt><dd class="copy" onclick="copy('${esc(info.base_url || '')}','base URL')">${esc(info.base_url || '')}</dd>
+        <dt>provider id</dt><dd class="copy" onclick="copy('${jsq(info.provider_id || gw)}','provider id')">${esc(info.provider_id || gw)}</dd>
+        <dt>base URL</dt><dd class="copy" onclick="copy('${jsq(info.base_url || '')}','base URL')">${esc(info.base_url || '')}</dd>
         ${info.keyless
           ? '<dt>\u043a\u043b\u044e\u0447</dt><dd class="dim">\u043d\u0435 \u043d\u0443\u0436\u0435\u043d</dd>'
-          : `<dt>api key</dt><dd class="copy" onclick="copyKey('${esc(gw)}')">${info.api_key
+          : `<dt>api key</dt><dd class="copy" onclick="copyKey('${jsq(gw)}')">${info.api_key
               ? esc(info.api_key.slice(0,10)) + '\u2026' + esc(info.api_key.slice(-4))
               : '<span class="dim">\u043d\u0435 \u0437\u0430\u0434\u0430\u043d</span>'}</dd>
-            <dt>\u043f\u0435\u0440\u0435\u043c\u0435\u043d\u043d\u0430\u044f</dt><dd class="copy" onclick="copy('${esc(info.env_var || '')}','\u0438\u043c\u044f \u043f\u0435\u0440\u0435\u043c\u0435\u043d\u043d\u043e\u0439')">${esc(info.env_var || '')}</dd>`}
+            <dt>\u043f\u0435\u0440\u0435\u043c\u0435\u043d\u043d\u0430\u044f</dt><dd class="copy" onclick="copy('${jsq(info.env_var || '')}','\u0438\u043c\u044f \u043f\u0435\u0440\u0435\u043c\u0435\u043d\u043d\u043e\u0439')">${esc(info.env_var || '')}</dd>`}
       </dl>
       <div class="mini dim" style="padding:0 12px 6px">${rows.map(r => esc(r.model)).join(', ')}</div>
     </div>`;
@@ -3048,6 +3132,137 @@ let SETTINGS = null;
 // и перезагружать одно из-за другого незачем (заодно вкладка Настроек
 // не мигает при каждом открытии).
 let DEV = null;
+
+// ---------- все модели: статус и общий вопрос ----------
+//
+// Отладчик должен показывать не «шлюз отвечает», а каждую модель
+// отдельно: донорские идут через мост на 8784, локальные — из Ollama,
+// и сервер сводит их в один ответ (/api/models/status).
+let MODELS_STATE = null, modelsBusy = false;
+
+const MODEL_STATES = {
+  ok:       {text:'отвечает',      cls:'ok'},
+  local:    {text:'локально',      cls:'ok'},
+  fail:     {text:'отказала',      cls:'bad'},
+  cooling:  {text:'на остывании',  cls:'warn'},
+  unknown:  {text:'не проверена',  cls:'dim'},
+};
+
+function modelStateMark(state) {
+  const item = MODEL_STATES[state] || MODEL_STATES.unknown;
+  return `<span class="chip ${item.cls}">${esc(item.text)}</span>`;
+}
+
+async function modelsStatus() {
+  const box = $('modelsBox'), msg = $('modelsMsg');
+  if (msg) msg.textContent = 'спрашиваю мост…';
+  if (box) box.hidden = false;
+  const r = await api('/api/models/status');
+  MODELS_STATE = r;
+  if (msg) msg.textContent = '';
+  renderModelsStatus();
+}
+
+// Мост отвечает мгновенно, локальный opencode — нет: показываем, что
+// идёт ожидание, иначе пустая таблица выглядит как «моделей нет».
+async function modelsAskAll() {
+  const input = $('modelsAsk');
+  const text = (input && input.value || '').trim();
+  const msg = $('modelsMsg'), box = $('modelsBox');
+  if (!text) {
+    if (msg) msg.textContent = 'вопрос пустой';
+    return;
+  }
+  if (modelsBusy) return;
+  modelsBusy = true;
+  if (msg) msg.textContent = 'спрашиваю все модели…';
+  if (box) {
+    box.hidden = false;
+    box.innerHTML = '<div class="hintBlock">Жду ответы… Модели отвечают параллельно,'
+      + ' но запрос у каждой занимает секунды, а отказавшиеся ждут таймаут.</div>';
+  }
+  const started = Date.now();
+  const r = await api('/api/models/ask_all', {text: text, timeout: 180});
+  modelsBusy = false;
+  if (msg) msg.textContent = '';
+  renderAskAll(r, Date.now() - started);
+  // Статус после опроса обязательно перечитываем: он изменился.
+  modelsStatus();
+}
+
+function renderModelsStatus() {
+  const box = $('modelsBox');
+  if (!box) return;
+  const r = MODELS_STATE || {};
+  const bridge = r.bridge || {};
+  const local = r.local_llm || {};
+  const rows = r.models || [];
+
+  let head = '<div class="row tight mini dim">';
+  head += `<span>мост ${bridge.ok ? 'отвечает' : 'не отвечает'}`;
+  if (bridge.uptime_s) head += `, работает ${fmtLeft(bridge.uptime_s)}`;
+  if (bridge.requests) head += `, запросов ${esc(bridge.requests)}, отказов ${esc(bridge.failures)}`;
+  head += '</span>';
+  head += `<span>Ollama ${local.running ? 'запущен' : 'выключен'}</span>`;
+  if (bridge.error) head += `<span class="bad">${esc(bridge.error)}</span>`;
+  if (local.error) head += `<span class="dim">${esc(local.error)}</span>`;
+  head += '</div>';
+
+  if (!rows.length) {
+    // Пустая таблица — это тоже результат, и молчать о нём нельзя:
+    // человек поймёт не «моделей нет», а «мост не поднят».
+    box.innerHTML = head + '<div class="hintBlock">Моделей в таблице нет.'
+      + ' Мост поднимается вместе с основным сервером (zagent.bat).'
+      + (bridge.error ? ' Причина: ' + esc(bridge.error) : '') + '</div>';
+    return;
+  }
+
+  let html = head + '<div class="modelsTable">';
+  for (const row of rows) {
+    const id = String(row.id || '');
+    const reason = row.reason ? `<div class="mini dim">${esc(row.reason)}</div>` : '';
+    const cooling = row.cooldown_left_s > 0
+      ? `<span class="mini dim"> ещё ${esc(fmtLeft(row.cooldown_left_s))}</span>` : '';
+    const ms = row.last_ms ? `<span class="mini dim">${esc(row.last_ms)} мс</span>` : '';
+    html += `<div class="modelsRow">`
+      + `<div class="modelsName" title="${esc(id)}">${esc(id)}</div>`
+      + `<div>${modelStateMark(row.state)}${cooling} ${ms}`
+      + `<span class="mini dim"> ${esc(row.source || row.provider || '')}</span></div>`
+      + `${reason}</div>`;
+  }
+  html += '</div>';
+  box.innerHTML = html;
+}
+
+function renderAskAll(r, waited_ms) {
+  const box = $('modelsBox');
+  if (!box) return;
+  if (!r || r.ok === false) {
+    box.innerHTML = '<div class="hintBlock bad">'
+      + esc((r && r.error) || 'мост не ответил') + '</div>';
+    return;
+  }
+  const results = r.results || [];
+  if (!results.length) {
+    box.innerHTML = '<div class="hintBlock">Мост не вернул ни одной строки.'
+      + ' Проверьте, что он поднят.</div>';
+    return;
+  }
+  let html = '<div class="hintBlock">Ответили ' + esc(r.answered || 0) + ' из '
+    + esc(r.asked || 0) + ' за ' + esc(Math.round((r.duration_ms || waited_ms) / 100) / 10)
+    + ' с</div><div class="modelsTable">';
+  for (const item of results) {
+    const ok = item.ok;
+    html += `<div class="modelsRow">`
+      + `<div class="modelsName" title="${esc(item.id || '')}">${esc(item.id || '')}</div>`
+      + `<div>${ok ? '<span class="chip ok">ответила</span>' : '<span class="chip bad">отказ</span>'}`
+      + ` <span class="mini dim">${esc(item.ms || 0)} мс${item.via ? ' · ' + esc(item.via) : ''}</span></div>`
+      + `<div class="mini">${esc(ok ? (item.answer || '') : (item.error || ''))}</div>`
+      + '</div>';
+  }
+  html += '</div>';
+  box.innerHTML = html;
+}
 
 async function loadDev(force) {
   if (!DEV || !DEV.ok || force) DEV = await api('/api/dev');
@@ -3368,6 +3583,9 @@ const THEMES = ['dark','black','light','blue','gray'];
 function setTheme(name) {
   if (!THEMES.includes(name)) return;
   document.documentElement.dataset.theme = name;
+  // Пишем обычной строкой. Раньше здесь был JSON.parse при чтении,
+  // а запись была без кавычек: JSON.parse('dark') падал, исключение
+  // глоталось, и выбор темы молча терялся при каждом F5.
   try { localStorage.setItem('zagent.theme', name); } catch {}
   document.querySelectorAll('.themeDot').forEach(d =>
     d.classList.toggle('on', d.dataset.t === name));
@@ -3376,7 +3594,9 @@ function initTheme() {
   let saved = null;
   try {
     const raw = localStorage.getItem('zagent.theme');
-    saved = raw ? JSON.parse(raw) : null;
+    // Значение — простая строка, а не JSON: проверяем по списку
+    // тем, иначе в localStorage может лежать что угодно.
+    saved = THEMES.includes(raw) ? raw : null;
   } catch {}
   // При первом запуске берём тему системы: ночью тёмная, днём светлая.
   if (!saved && window.matchMedia) {
@@ -3522,16 +3742,16 @@ async function loadGuide(target) {
     html += `<div class="mgroup">
       <h4>${esc(e.label)}</h4>
       <dl class="kv">
-        <dt>provider</dt><dd class="copy" onclick="copy('${esc(e.provider_id)}','provider id')">${esc(e.provider_id)}</dd>
-        <dt>base URL</dt><dd class="copy" onclick="copy('${esc(e.base_url)}','base URL')">${esc(e.base_url)}</dd>
-        ${e.keyless ? '' : `<dt>api key</dt><dd class="copy" onclick="copyKey('${esc(e.gateway)}')">${
+        <dt>provider</dt><dd class="copy" onclick="copy('${jsq(e.provider_id)}','provider id')">${esc(e.provider_id)}</dd>
+        <dt>base URL</dt><dd class="copy" onclick="copy('${jsq(e.base_url)}','base URL')">${esc(e.base_url)}</dd>
+        ${e.keyless ? '' : `<dt>api key</dt><dd class="copy" onclick="copyKey('${jsq(e.gateway)}')">${
             e.api_key ? esc(e.api_key.slice(0,10)) + '…' + esc(e.api_key.slice(-4))
                       : '<span class="dim">—</span>'}</dd>`}
       </dl>
       <pre>${esc(e.instruction)}</pre>
       <div class="row tight" style="padding:0 10px 8px">
         <button class="btn sm pri" data-copy="${esc(e.instruction)}" onclick="copyAttr(this,'инструкция')">копировать</button>
-        <button class="btn sm" onclick="copyModels('${esc(e.gateway)}')">только модели</button>
+        <button class="btn sm" onclick="copyModels('${jsq(e.gateway)}')">только модели</button>
       </div>
     </div>`;
   }
@@ -3567,7 +3787,7 @@ async function loadTree(path) {
   const icons = {dir:'\u25b8', image:'\ud83d\udcbe', text:'\u00b7', binary:'\u25a1'};
   let html = '';
   if (r.path !== '.') {
-    html += `<div class="fitem" onclick="loadTree('${esc(parentOf(r.path))}')">
+    html += `<div class="fitem" onclick="loadTree('${jsq(parentOf(r.path))}')">
       <span class="ic">\u2191</span><span class="nm">\u043d\u0430\u0437\u0430\u0434</span></div>`;
   }
   for (const e of r.entries) {
@@ -3580,7 +3800,7 @@ async function loadTree(path) {
     // результат из дерева нечем.
     html += `<div class="fitem${fFile === full ? ' on' : ''}"
                  oncontextmenu="fileMenu(event, '${esc(full)}', ${isDir})"
-                 onclick="openEntry('${esc(full)}',${isDir})"
+                 onclick="openEntry('${jsq(full)}',${isDir})"
                  title="${esc(full)}">
       <span class="ic">${isDir ? '\u25b8' : (icons[kind] || '\u00b7')}</span>
       <span class="nm">${esc(e.name)}</span>
@@ -3639,7 +3859,7 @@ function renderCrumbs(path) {
     const target = acc;
     const last = i === parts.length - 1;
     html += `<span class="sep">/</span><span class="crumb${last ? ' on' : ''}"
-             onclick="loadTree('${esc(target)}')">${esc(part)}</span>`;
+             onclick="loadTree('${jsq(target)}')">${esc(part)}</span>`;
   });
   $('fcrumbs').innerHTML = html;
 }
@@ -3718,9 +3938,20 @@ async function send() {
   $('sendInfo').textContent = 'ставлю в очередь…';
   const r = await api('/api/tasks', body);
   $('sendInfo').textContent = '';
-  if (!r.ok) { toast('Ошибка: ' + r.error); return; }
+  if (!r.ok) {
+    // Текст не принят — возвращаем его в поле. Раньше он исчезал
+    // вместе с очисткой и не оставался нигде.
+    box.value = text;
+    toast('Ошибка: ' + r.error); return;
+  }
   curTask = r.task_id;
   $('stopBtn').style.display = '';
+  // Вложения уходят в задачу и возвращаются в исходное состояние.
+  // Раньше список не очищался, и каждая следующая задача молча
+  // переотправляла картинки предыдущей. Чистим только здесь:
+  // выше по коду стоит ранний выход при ошибке сервера, и тогда
+  // вложения у человека остаются.
+  ATTACH = [];
   renderAttachments();
   refresh();
 }
@@ -3958,13 +4189,13 @@ function renderSpace() {
 
   $('sessionList').innerHTML = sessions.length
     ? sessions.map(s => `<div class="sess ${s.id===activeId?'on':''}"
-            onclick="switchSession('${esc(s.id)}')"
+            onclick="switchSession('${jsq(s.id)}')"
             oncontextmenu="renameSession('${esc(s.id)}');return false"
             title="ПКМ — переименовать">
         <span class="ic" style="color:${s.id===activeId?'var(--accent)':'var(--muted)'}">
           ${s.id===activeId?'●':'○'}</span>
         <span class="nm">${esc(s.name)}<div>${s.task_count||0} задач</div></span>
-        <button class="x" onclick="dropSession('${esc(s.id)}', event)"
+        <button class="x" onclick="dropSession('${jsq(s.id)}', event)"
                 title="Удалить сессию">✕</button>
       </div>`).join('')
     : '<div class="empty">Сессий пока нет</div>';
@@ -3975,7 +4206,7 @@ function renderSpace() {
       w.autonomy, w.max_steps + ' шагов',
     ].join(' · ');
     return `<div class="fitem ${w.id===ws.active?'on':''}"
-                 onclick="switchWs('${esc(w.id)}')"
+                 onclick="switchWs('${jsq(w.id)}')"
                  title="${esc(w.path)}">
       <span class="ic">${w.id===ws.active?'●':'○'}</span>
       <span class="nm">${esc(w.name)}
@@ -3983,7 +4214,7 @@ function renderSpace() {
         <div class="dim mini">${esc(info)}</div></span>
       ${w.exists ? '' : chip('нет')}
       ${w.id !== ws.active
-        ? `<button class="x" onclick="dropWs('${esc(w.id)}', event)"
+        ? `<button class="x" onclick="dropWs('${jsq(w.id)}', event)"
                   title="Убрать из списка (файлы останутся)">✕</button>` : ''}
     </div>`;
   }).join('');
@@ -4226,7 +4457,7 @@ function renderPing() {
         <td>${chip(state)}</td>
         <td class="mini">${p.duration_ms ? (p.duration_ms/1000).toFixed(1)+'s' : '\u2014'}</td>
         <td class="mini">${p.tokens_in ? p.tokens_in+'+'+p.tokens_out : '\u2014'}</td>
-        <td><button class="btn sm" onclick="pingOne('${esc(r.ref)}', this)"
+        <td><button class="btn sm" onclick="pingOne('${jsq(r.ref)}', this)"
             title="\u043f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u0442\u043e\u043b\u044c\u043a\u043e \u044d\u0442\u0443 \u043c\u043e\u0434\u0435\u043b\u044c">\u043f\u0438\u043d\u0433</button></td></tr>`;
     }).join('') + '</table>';
 }

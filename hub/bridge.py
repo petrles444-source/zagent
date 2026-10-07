@@ -49,6 +49,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -87,6 +88,15 @@ ASK_TIMEOUT_S = 120.0
 
 #: Сколько последних запросов держим для панели.
 RECENT_LIMIT = 20
+
+#: Сколько моделей опрашиваем одновременно в ask_all. Больше потоков
+#: не даёт выигрыша: запрос идёт по сети, а не считает на ядре, и
+#: лишние потоки только расходуют соединения к zen.
+ASK_ALL_WORKERS = 6
+
+#: Сколько символов ответа показываем на модель. Всё целиком ответы
+#: всех моделей в панели не нужны, а таблица от них расползается.
+ASK_ALL_TEXT = 600
 
 #: Признак бесплатной модели: цена отсутствует либо нулевая.
 _FREE_IN_NAME = re.compile(r"free", re.IGNORECASE)
@@ -574,6 +584,130 @@ class Bridge:
         self.health.ok(model)
         return answer, time.perf_counter() - started, "local"
 
+    # ------------------------------------------------- общение со всеми
+
+    def status(self) -> dict[str, Any]:
+        """Строка на каждую модель: что с ней и почему.
+
+        Состояние собирается из трёх источников, и порядок важен:
+        модель на остывании показываем как остывающую, даже если её
+        последний запрос был успешным — иначе человек увидит «ок» и
+        не поймёт, почему задача её не выбирает.
+        """
+        snap = self.snapshot()
+        blocked: dict[str, Any] = snap.get("blocked") or {}
+        recent: list[dict[str, Any]] = snap.get("recent") or []
+
+        # recent[0] — самый свежий, поэтому первый попавшийся выигрывает.
+        last: dict[str, dict[str, Any]] = {}
+        for item in reversed(recent):
+            last[str(item.get("model") or "")] = item
+
+        rows: list[dict[str, Any]] = []
+        for model in self.models():
+            model_id = str(model.get("id") or "")
+            if not model_id:
+                continue
+            cooldown = blocked.get(model_id) or {}
+            seen = last.get(model_id) or {}
+            if cooldown:
+                state = "cooling"
+                reason = str(cooldown.get("reason") or "")
+                left_s = int(cooldown.get("left_s") or 0)
+            elif seen:
+                state = "ok" if seen.get("ok") else "fail"
+                reason = str(seen.get("error") or "")
+                left_s = 0
+            else:
+                state = "unknown"
+                reason = ""
+                left_s = 0
+            rows.append({
+                "id": model_id,
+                "provider": str(model.get("provider") or ""),
+                "state": state,
+                "reason": reason[:300],
+                "cooldown_left_s": left_s,
+                "last_ms": int(seen.get("ms") or 0) if seen else 0,
+                "last_ok": bool(seen.get("ok")) if seen else None,
+                "last_via": str(seen.get("via") or "") if seen else "",
+            })
+        return {
+            "ok": True,
+            "port": self.port,
+            "uptime_s": int(time.time() - self.started_at),
+            "models": rows,
+            "requests": int(snap.get("requests") or 0),
+            "failures": int(snap.get("failures") or 0),
+            "local_opencode": snap.get("local_opencode") or {},
+        }
+
+    def ask_all(self, prompt: str, *, timeout: float = ASK_TIMEOUT_S,
+                models: list[str] | None = None) -> dict[str, Any]:
+        """Один вопрос — всем моделям сразу.
+
+        Потоки вместо очереди: иначе четырнадцать моделей по очереди дали
+        бы сумму их таймаутов, а половина из них всё равно не отвечает.
+        Каждая модель получает одинаковый вопрос, ответы не мешают
+        друг другу, и порядок в таблице не зависит от скоростей.
+        """
+        text_prompt = str(prompt or "").strip()
+        if not text_prompt:
+            raise ValueError("пустой вопрос")
+        if models is None:
+            targets = [str(m.get("id") or "") for m in self.models()]
+            targets = [m for m in targets if m]
+        else:
+            targets = [str(m) for m in models if str(m).strip()]
+        if not targets:
+            return {"ok": True, "results": [], "asked": 0}
+
+        started = time.perf_counter()
+        workers = max(1, min(ASK_ALL_WORKERS, len(targets)))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = [pool.submit(self._ask_one, model, text_prompt, timeout)
+                       for model in targets]
+            results = [f.result() for f in futures]
+        results.sort(key=lambda item: (not item["ok"], item["ms"], item["id"]))
+        return {
+            "ok": True,
+            "asked": len(targets),
+            "answered": sum(1 for r in results if r["ok"]),
+            "duration_ms": int((time.perf_counter() - started) * 1000),
+            "results": results,
+        }
+
+    def _ask_one(self, model: str, prompt: str, timeout: float) -> dict[str, Any]:
+        """Одна модель в ask_all: всегда возвращает строку, не поднимает.
+
+        Отсюда идут и /status, и панель: строка результата обязана быть
+        всегда — иначе обрыв сети у одной модели уронил бы весь опрос,
+        а это ровно тот случай, ради которого человек и открывает панель.
+        """
+        messages = [{"role": "user", "content": prompt}]
+        try:
+            answer, seconds, via = self.ask(model, messages, timeout=timeout)
+        except ModelBlocked as blocked:
+            self.record(model, 0.0, False, blocked.reason)
+            return {"id": model, "ok": False, "ms": 0, "via": "",
+                    "state": "cooling", "error": blocked.reason,
+                    "cooldown_left_s": int(blocked.seconds), "answer": ""}
+        except DonorUnavailable as exc:
+            self.record(model, 0.0, False, str(exc))
+            return {"id": model, "ok": False, "ms": 0, "via": "",
+                    "state": "fail", "error": str(exc)[:300],
+                    "cooldown_left_s": 0, "answer": ""}
+        except Exception as exc:  # noqa: BLE001 - строка отчёта важнее стека
+            # Неизвестная ошибка не должна уносить остальные модели.
+            self.record(model, 0.0, False, f"{type(exc).__name__}: {exc}")
+            return {"id": model, "ok": False, "ms": 0, "via": "",
+                    "state": "fail", "error": f"{type(exc).__name__}: {exc}"[:300],
+                    "cooldown_left_s": 0, "answer": ""}
+        self.record(model, seconds, True, via=via)
+        return {"id": model, "ok": True, "ms": int(seconds * 1000), "via": via,
+                "state": "ok", "error": "", "cooldown_left_s": 0,
+                "answer": answer[:ASK_ALL_TEXT]}
+
     @staticmethod
     def _text_of(response: Any) -> str:
         """Текст из ответа zen.
@@ -725,6 +859,9 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             return self._json({"ok": True,
                                "errors": diag.DIAG.stats(),
                                "recent": diag.DIAG.recent()})
+        if path == "/status":
+            # Отладчик рисует это таблицей: модель, состояние, время.
+            return self._json(self.bridge.status())
         if path == "/v1/models":
             return self._json({
                 "object": "list",
@@ -742,6 +879,24 @@ class _BridgeHandler(BaseHTTPRequestHandler):
         body = self._body()
         if path == "/v1/chat/completions":
             return self._chat(body)
+        if path == "/ask_all":
+            # Один вопрос всем моделям. Ошибка — только пустой вопрос
+            # или список без идентификаторов; отказы моделей сюда не
+            # попадают, они в results.
+            prompt = str(body.get("text") or "").strip()
+            if not prompt:
+                return self._json({"ok": False, "error": "пустой вопрос"}, 400)
+            wanted = body.get("models")
+            selected = None
+            if isinstance(wanted, list):
+                selected = [str(m) for m in wanted if str(m).strip()]
+            try:
+                answer = self.bridge.ask_all(
+                    prompt, timeout=float(body.get("timeout") or ASK_TIMEOUT_S),
+                    models=selected)
+            except ValueError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            return self._json(answer)
         if path == "/ask":
             # Тот же вызов для панели: отличается только формой ответа.
             model = str(body.get("model") or "")

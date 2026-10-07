@@ -1,8 +1,9 @@
 @echo off
-REM  Кодировка консоли — UTF-8. Файл сохранён в UTF-8, а cmd.exe без chcp
-REM  читает байты в кодовой странице консоли (на русской Windows — 866), и весь
-REM  русский текст в этом файле превращается в кашу. Меняем страницу сразу,
-REM  до первого echo, иначе первая же строка уже испорчена.
+REM  Кодировка консоли — UTF-8. Файл сохранён в UTF-8 БЕЗ BOM, иначе
+REM  первая строка превратится в "п»ї@echo off" и cmd не поймёт её.
+REM  cmd.exe без chcp читает байты в кодовой странице консоли (на русской
+REM  Windows — 866), и весь русский текст в этом файле превращается в кашу.
+REM  Меняем страницу сразу, до первого echo.
 chcp 65001 >nul
 
 REM ============================================================
@@ -33,32 +34,24 @@ REM ============================================================
 
 REM  Без enabledelayedexpansion: опция портит всё, что содержит «!», уже на
 REM  этапе set. Путь «C:\work\!wip\zagent» или аргумент «почини!баг!» теряли
-REM  символы молча, а в файле нет ни одного обращения к !, которые требовали
-REM  бы отложенного раскрытия.
+REM  символы молча.
 setlocal
 cd /d "%~dp0"
 
 set "PY=.venv\Scripts\python.exe"
 set "CMD=%~1"
-
 if not defined CMD set "CMD=ui"
 
-REM  Хвост аргументов собираем сами. SHIFT двигает %0-%9, но никогда %*,
-REM  поэтому подпарсеры argparse получали имя команды первым аргументом
-REM  повторно: `ask "вопрос"` уходил как `ask ask "вопрос"` и падал с
-REM  unrecognized arguments. Девять команд из пятнадцати были сломаны,
-REM  а двойной клик работал — он идёт без аргументов, и поэтому поломку
-REM  никто не видел.
+REM  Хвост аргументов собираем ПОСЛЕ shift: имя команды уже не %1, поэтому
+REM  в REST попадут только аргументы. Без этого `ask "вопрос"` уходил в
+REM  python как `ask ask "вопрос"`, `ws list` — как `ws ws list`, а `web`
+REM  превращался в `serve.py web` и падал на argparse.
+shift
+
 set "REST="
 :collectargs
 if "%~1"=="" goto :argsready
-REM  Подкомандам (`ask`, `agent`, `consult`) аргументы нужны, а `:ui` —
-REM  нет: serve.py не знает таких имён и падал на argparse с
-REM  «unrecognized arguments», то есть не запускался вовсе. Сбрасываем
-REM  хвост для команд без аргументов, иначе двойной клик по файлу
-REM  (где подкоманды нет) всё равно испортил бы запуск.
-if "%CMD%"=="ui" goto :argsready
-set "REST=%REST %1"
+set "REST=%REST% %1"
 shift
 goto :collectargs
 :argsready
@@ -176,18 +169,26 @@ set "code=%errorlevel%"
 echo.
 if "%code%"=="0" (echo   Всё работает. Запуск: zagent.bat) else (echo   Есть проблемы, смотрите выше.)
 echo.
-if /i "%ZAGENT_NO_PAUSE%"=="" pause
+if not defined ZAGENT_NO_PAUSE pause
 exit /b %code%
 
 REM ---------------------------------------------------------------- ask
 :ask
-if "%~1"=="" (echo   Использование: zagent.bat ask "вопрос" & pause & exit /b 1)
+if "%REST%"=="" (
+    echo   Использование: zagent.bat ask "вопрос"
+    pause
+    exit /b 1
+)
 "%PY%" tools\agent.py ask %REST%
 exit /b %errorlevel%
 
 REM ---------------------------------------------------------------- agent
 :agent
-if "%~1"=="" (echo   Использование: zagent.bat agent [--access 1-3] [--autonomy yolo^|normal^|strict^|plan] "задача" & pause & exit /b 1)
+if "%REST%"=="" (
+    echo   Использование: zagent.bat agent [--access 1-3] [--autonomy yolo^|normal^|strict^|plan] "задача"
+    pause
+    exit /b 1
+)
 "%PY%" tools\agent.py %REST%
 exit /b %errorlevel%
 
@@ -208,13 +209,17 @@ exit /b %errorlevel%
 
 REM ---------------------------------------------------------------- consult
 :consult
-if "%~1"=="" (echo   Использование: zagent.bat consult "вопрос" [-n 3] & pause & exit /b 1)
+if "%REST%"=="" (
+    echo   Использование: zagent.bat consult "вопрос" [-n 3]
+    pause
+    exit /b 1
+)
 "%PY%" tools\agent.py consult %REST%
 exit /b %errorlevel%
 
 REM ---------------------------------------------------------------- connect
 :connect
-if "%~1"=="" (
+if "%REST%"=="" (
     echo.
     echo   Инструкции по подключению моделей в другой софт.
     echo.
@@ -231,13 +236,17 @@ exit /b %errorlevel%
 
 REM ---------------------------------------------------------------- export
 :export
-if "%~1"=="" (echo   Использование: zagent.bat export opencode^|codex^|zed^|cline^|plain & pause & exit /b 1)
+if "%REST%"=="" (
+    echo   Использование: zagent.bat export opencode^|codex^|zed^|cline^|plain
+    pause
+    exit /b 1
+)
 "%PY%" tools\cli.py export %REST%
 exit /b %errorlevel%
 
 REM ---------------------------------------------------------------- geo
 :geo
-if "%~1"=="" (
+if "%REST%"=="" (
     echo.
     echo   Доступность моделей из России измеряется в двух режимах.
     echo.
@@ -253,14 +262,14 @@ if "%~1"=="" (
 )
 "%PY%" tools\geo.py %REST%
 set "code=%errorlevel%"
-if /i "%ZAGENT_NO_PAUSE%"=="" pause
+if not defined ZAGENT_NO_PAUSE pause
 exit /b %code%
 
 REM ---------------------------------------------------------------- ws
 :ws
 "%PY%" tools\workspace.py %REST%
 set "code=%errorlevel%"
-if /i "%ZAGENT_NO_PAUSE%"=="" pause
+if not defined ZAGENT_NO_PAUSE pause
 exit /b %code%
 
 REM ---------------------------------------------------------------- bench
@@ -268,13 +277,13 @@ REM  Стенд проверки агента: задания в tasks\, эта�
 REM  Без аргументов показывает список заданий - как приём, который ничего не
 REM  тратит. Аргументы после bench уходят скрипту как есть.
 :bench
-if "%~1"=="" (
+if "%REST%"=="" (
     "%PY%" tools\bench.py list
 ) else (
     "%PY%" tools\bench.py %REST%
 )
 set "code=%errorlevel%"
-if /i "%ZAGENT_NO_PAUSE%"=="" pause
+if not defined ZAGENT_NO_PAUSE pause
 exit /b %code%
 
 REM ---------------------------------------------------------------- test
@@ -326,9 +335,9 @@ exit /b 0
 
 REM ============================================================
 :install
-    REM  Код возврата pip передаётся вызывающему: раньше обе ошибки
-    REM  проглатывались, bat печатал «Готово» после неудачной установки,
-    REM  а потом запускал serve.py и закрывал окно с ModuleNotFoundError.
+    REM  Код возврата pip передаётся вызывающему: иначе bat печатал
+    REM  «Готово» после неудачной установки, а потом запускал serve.py
+    REM  и закрывал окно с ModuleNotFoundError.
     "%PY%" -m pip install --quiet --upgrade pip
     if errorlevel 1 exit /b 1
     "%PY%" -m pip install --quiet -r requirements.txt
