@@ -52,6 +52,12 @@ REM  никто не видел.
 set "REST="
 :collectargs
 if "%~1"=="" goto :argsready
+REM  Подкомандам (`ask`, `agent`, `consult`) аргументы нужны, а `:ui` —
+REM  нет: serve.py не знает таких имён и падал на argparse с
+REM  «unrecognized arguments», то есть не запускался вовсе. Сбрасываем
+REM  хвост для команд без аргументов, иначе двойной клик по файлу
+REM  (где подкоманды нет) всё равно испортил бы запуск.
+if "%CMD%"=="ui" goto :argsready
 set "REST=%REST %1"
 shift
 goto :collectargs
@@ -134,10 +140,33 @@ if not exist "config\secrets.local.json" (
     echo.
     timeout /t 6 /nobreak >nul
 )
-echo   Панель откроется в браузере: http://127.0.0.1:8783
+
+REM Браузер ищется в типовых местах Chrome и передаётся serve.py явно:
+REM открывать «по умолчанию» нельзя — в Windows по умолчанию нередко
+REM стоит Edge, а человек работает именно в Chrome. Если Chrome не
+REM найден, serve.py откроет адрес браузером системы.
+set "CHROME="
+for %%P in (
+  "%ProgramFiles%\Google\Chrome\Application\chrome.exe"
+  "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"
+  "%LocalAppData%\Google\Chrome\Application\chrome.exe"
+  "%LocalAppData%\Chromium\Application\chrome.exe"
+) do if exist "%%~P" if not defined CHROME set "CHROME=%%~P"
+
+echo   Интерфейс:      http://127.0.0.1:8783
+echo   Панель шлюза:   http://127.0.0.1:8784  ^(дебагер и модели^)
+if defined CHROME (
+    echo   Браузер:       Chrome ^(оба адреса откроются сами^)
+) else (
+    echo   Браузер:       по умолчанию ^(Chrome не найден^)
+)
 echo   Остановить: закройте это окно или Ctrl+C
 echo.
-"%PY%" tools\serve.py %REST%
+if defined CHROME (
+    "%PY%" tools\serve.py --browser "%CHROME%" %REST%
+) else (
+    "%PY%" tools\serve.py %REST%
+)
 exit /b %errorlevel%
 
 REM ---------------------------------------------------------------- check

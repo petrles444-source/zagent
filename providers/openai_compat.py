@@ -7,7 +7,10 @@
 
 from __future__ import annotations
 
+import math
 import time
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx
@@ -311,6 +314,61 @@ _LIMIT_FIELDS = {
     "reset_at": ("x-ratelimit-reset", "ratelimit-reset"),
 }
 
+#: Заголовки, которыми провайдер говорит, когда его можно повторить. Стандартный
+#: `Retry-After` (RFC 9110) шлют почти все, `x-ratelimit-retry-after` — отдельные
+#: шлюзы поверх него.
+RETRY_AFTER_HEADERS = ("retry-after", "x-ratelimit-retry-after")
+
+
+def retry_after_seconds(headers: Any) -> float | None:
+    """Секунды ожидания, которые просит провайдер, или None.
+
+    None значит именно «не сообщили», и это не то же самое, что ноль. По нулю
+    вызывающий код снял бы карантин с ключа сразу — то есть сделал бы то, о чём
+    провайдер не просил, и начал бы долбить в уже закрытую дверь.
+
+    Значение по стандарту бывает и числом секунд, и датой по Гринвичу; шлюзы
+    пользуют обе формы, поэтому разбираются обе.
+    """
+    for name in RETRY_AFTER_HEADERS:
+        raw = headers.get(name)
+        if raw is None:
+            continue
+        seconds = _retry_after_value(raw)
+        if seconds is not None:
+            return seconds
+    return None
+
+
+def _retry_after_value(raw: Any) -> float | None:
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    try:
+        seconds = float(text)
+    except ValueError:
+        seconds = _http_date_delta(text)
+    if seconds is None or not math.isfinite(seconds) or seconds <= 0:
+        # Уже прошедшая дата и отрицательное число — не «повтори сейчас», а
+        # бессмыслица: 429 на руках. Пусть сработает обычный карантин. То же
+        # с не-числом (`nan`, `inf`): NaN сравнивается с чем угодно как False
+        # и пролез бы в карантин, а карантин со значением NaN ключ не
+        # выпускал бы из ротации вообще.
+        return None
+    return seconds
+
+
+def _http_date_delta(text: str) -> float | None:
+    """Дата вида `Wed, 21 Oct 2026 07:28:00 GMT` → секунд от текущего момента."""
+    try:
+        moment = parsedate_to_datetime(text)
+    except (TypeError, ValueError):
+        return None
+    if moment.tzinfo is None:
+        # Дата без часового пояса по стандарту считается гринвичской.
+        moment = moment.replace(tzinfo=timezone.utc)
+    return (moment - datetime.now(timezone.utc)).total_seconds()
+
 
 def rate_limits(headers: Any) -> dict[str, Any]:
     """Остаток квоты из заголовков ответа. Пусто — провайдер не сообщает.
@@ -327,6 +385,9 @@ def rate_limits(headers: Any) -> dict[str, Any]:
                 continue
             out[field] = _limit_value(raw)
             break
+    wait = retry_after_seconds(headers)
+    if wait is not None:
+        out["retry_after_s"] = wait
     return {k: v for k, v in out.items() if v is not None}
 
 

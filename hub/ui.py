@@ -1045,6 +1045,7 @@ th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase
     <button class="ptab" data-p="space" onclick="ltab('space')">Папка и сессии</button>
     <button class="ptab" data-p="status" onclick="ltab('status')">Статус</button>
     <button class="ptab" data-p="queue" onclick="ltab('queue')">Очередь</button>
+    <button class="ptab" data-p="local" onclick="ltab('local')">Локальные модели</button>
     <button class="ptab" data-p="guide" onclick="ltab('guide')">Гайды по API</button>
   </div>
   <div class="pbody">
@@ -1389,6 +1390,30 @@ th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase
          `asking` висела до перезапуска. -->
     <div class="psec" id="p-queue">
       <div id="taskList"></div>
+    </div>
+
+    <!-- вкладка ЛОКАЛЬНЫЕ МОДЕЛИ
+
+         Чат с моделями, которые живут на этом же компьютере (Ollama).
+         Отдельный разговор, а не задача агенту: локальная модель не
+         умеет ходить по файлам и звать инструменты, зато не тратит
+         квоту и работает без интернета. Ответ приходит потоком, слова
+         за словом, — локальная модель думает секундами, и молчание
+         без потока выглядит как зависание. -->
+
+    <div class="psec" id="p-local" hidden>
+      <div class="row tight" style="padding:8px 10px">
+        <select id="localModel" style="flex:1"></select>
+        <button class="btn sm" onclick="localClear()">Очистить</button>
+        <span class="mini dim" id="localMsg"></span>
+      </div>
+      <div id="localChat"
+           style="max-height:52vh;overflow:auto;padding:8px 10px"></div>
+      <div class="row tight" style="padding:8px 10px;border-top:1px solid var(--dim)">
+        <textarea id="localText" rows="2" style="flex:1"
+                  placeholder="Спросите локальную модель (Enter — отправить, Shift+Enter — строка)"></textarea>
+        <button class="btn sm pri" id="localSend" onclick="localSend()">Спросить</button>
+      </div>
     </div>
 
     <!-- вкладка ГАЙДЫ ПО API
@@ -2042,6 +2067,119 @@ function showArtifact(ev, path) {
   openEntry(path, /\/$/.test(path));
 }
 
+// ---------- локальные модели (Ollama) ----------
+// История живёт в браузере и целиком уходит в каждый запрос: локальный
+// рантайм не помнит ничего между вызовами, поэтому «память» разговора
+// держим мы. Отдельный массив, чтобы не мешать переписке агента.
+let LOCAL_MSG = [];
+let LOCAL_BUSY = false;
+
+async function loadLocalModels(force) {
+  const box = $('localModel'), note = $('localMsg');
+  const r = await api('/api/local/models');
+  // Сервер отвечает 200 даже когда рантайм выключен: «не запущен» — это
+  // состояние, которое надо показать словами, а не ошибкой.
+  if (!r.ok || !r.running) {
+    if (note) note.textContent = (r && r.error) || 'Ollama не запущен (ollama serve)';
+    if (box) box.innerHTML = '<option value="">— нет моделей —</option>';
+    return;
+  }
+  const keep = box ? box.value : '';
+  if (box) {
+    box.innerHTML = r.models.map(m =>
+      `<option value="${esc(m.id)}">${esc(m.id)}` +
+      `${m.parameters ? ' · ' + esc(m.parameters) : ''}` +
+      `${m.size_gb ? ' · ' + esc(m.size_gb) + ' ГБ' : ''}</option>`
+    ).join('') || '<option value="">— нет моделей —</option>';
+    if (keep && r.models.some(m => m.id === keep)) box.value = keep;
+  }
+  if (note) note.textContent = `${r.models.length} моделей · локально, без квоты`;
+}
+
+function localBubble(role, text) {
+  const box = $('localChat');
+  const div = document.createElement('div');
+  div.className = role === 'user' ? 'msg user' : 'msg assistant';
+  div.style.cssText = 'max-width:82%;padding:9px 12px;border-radius:10px;' +
+    'margin:6px 0;white-space:pre-wrap;line-height:1.45;' +
+    (role === 'user'
+      ? 'background:#2563eb;color:#fff;margin-left:auto'
+      : 'background:#1b1f28;border:1px solid var(--dim)');
+  div.textContent = text;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+  return div;
+}
+
+async function localSend() {
+  const input = $('localText'), model = $('localModel').value;
+  const text = input.value.trim();
+  if (!text || LOCAL_BUSY) return;
+  if (!model) { setNote('localMsg', 'сначала выберите модель', false); return; }
+
+  LOCAL_BUSY = true;
+  $('localSend').disabled = true;
+  input.value = '';
+  LOCAL_MSG.push({role: 'user', content: text});
+  localBubble('user', text);
+  const out = localBubble('assistant', '');
+
+  try {
+    const resp = await fetch('/api/local/chat', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({model, messages: LOCAL_MSG}),
+    });
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '', full = '', failed = '';
+    while (true) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, {stream: true});
+      // Поток режет ответ по переводу строки целиком: часть строки между
+      // чтениями — это ещё не событие, и разбирать её рано.
+      const parts = buf.split('\n\n');
+      buf = parts.pop();
+      for (const part of parts) {
+        const line = part.split('\n').find(l => l.startsWith('data: '));
+        if (!line) continue;
+        const payload = line.slice(6).trim();
+        if (payload === '[DONE]') continue;
+        const ev = JSON.parse(payload);
+        if (ev.error) { failed = ev.error; continue; }
+        full += ev.text || '';
+        out.textContent = full;
+        $('localChat').scrollTop = $('localChat').scrollHeight;
+      }
+    }
+    if (failed) out.textContent += '\n[ошибка: ' + failed + ']';
+    if (full.trim()) LOCAL_MSG.push({role: 'assistant', content: full});
+  } catch (e) {
+    out.textContent += '\n[ошибка соединения: ' + e.message + ']';
+  } finally {
+    LOCAL_BUSY = false;
+    $('localSend').disabled = false;
+    input.focus();
+  }
+}
+
+function localClear() {
+  LOCAL_MSG = [];
+  $('localChat').innerHTML = '';
+  loadLocalModels();
+}
+
+// Enter отправляет, Shift+Enter — новая строка. Поведение то же, что у
+// основного поля ввода: человек не должен запоминать два правила.
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || e.shiftKey) return;
+  const box = e.target;
+  if (box && box.id === 'localText') {
+    e.preventDefault();
+    localSend();
+  }
+});
+
 // ---------- вкладки ----------
 function ltab(name) {
   document.querySelectorAll('#left .ptab').forEach(t =>
@@ -2051,6 +2189,9 @@ function ltab(name) {
   // Настройки тянут свежие счётчики при каждом открытии: ключи могли
   // добавиться извне (правка файла руками, второй экземпляр софта).
   if (name === 'settings') loadSettings();
+  // Список локальных моделей меняется на лету: `ollama pull` могли
+  // выполнить, пока вкладка была закрыта.
+  if (name === 'local') loadLocalModels();
 }
 // В правой панели была вторая вкладка «Модели и пинг» — дубль того, что уже
 // слева. Она убрана, поэтому переключателя вкладок здесь больше нет. Функция

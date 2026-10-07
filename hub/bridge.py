@@ -333,6 +333,97 @@ class LocalOpencode:
         return self.call("/api/info", timeout=5.0)
 
 
+#: На сколько модель уходит из ротации после отказа. Отказ «только из
+#: opencode» или «недоступна в вашей стране» не исчезнет через минуту, но
+#: и не факт, что не вернётся завтра: утром девять часов — и можно пробовать
+#: снова. Поэтому такой срок, а не «навсегда».
+MODEL_COOLDOWN_S = 9 * 3600.0
+
+#: Короткая пауза после временной ошибки (модель занята, провайдер
+#: перегружен). Ждать почти бесполезно: минута ответа не стоит минуты
+#: ожидания.
+MODEL_RETRY_S = 120.0
+
+
+class ModelBlocked(RuntimeError):
+    """Модель отказала и ушла из ротации на время остывания."""
+
+    def __init__(self, model: str, reason: str, seconds: float) -> None:
+        super().__init__(reason)
+        self.model = model
+        self.reason = reason
+        self.seconds = seconds
+
+
+class _ModelHealth:
+    """Что известно о каждой модели: работает, отказала, когда попробовать.
+
+    Зачем это: бесплатные модели zen делятся на две половины. Часть
+    отвечает напрямую, а часть отвечает отказом «free tier can only be
+    used from within OpenCode» или «недоступна в вашей стране». Без памяти
+    об этих отказах каждый запрос агента снова упирался бы в модель,
+    которая не заработает, и ждал бы полный таймаут — то есть задача
+    вставала бы на каждом шаге.
+    """
+
+    def __init__(self) -> None:
+        self._bad: dict[str, tuple[float, str]] = {}
+        self._lock = threading.Lock()
+
+    def check(self, model: str) -> None:
+        """Проверить, можно ли пробовать модель. Иначе — ModelBlocked."""
+        with self._lock:
+            entry = self._bad.get(model)
+        if not entry:
+            return
+        until, reason = entry
+        left = until - time.time()
+        if left <= 0:
+            with self._lock:
+                self._bad.pop(model, None)
+            return
+        raise ModelBlocked(model, reason, left)
+
+    def fail(self, model: str, reason: str,
+             retry_after: float | None = None) -> None:
+        """Запомнить отказ и определить, на сколько забыть модель.
+
+        `retry_after` — то, что попросил провайдер. Оно важнее любой
+        нашей задержки: провайдер знает про свою квоту точнее, чем
+        мы, и подставлять своё вместо его слов — значит ждать дольше
+        нужного или раньше нужного.
+        """
+        text = (reason or "").lower()
+        # Постоянные отказы опознаются по словам, а не по коду ответа:
+        # провайдер отвечает 403 на всё подряд, и по коду нельзя понять,
+        # что именно не так.
+        permanent = ("within opencode" in text
+                     or "not available in your country" in text
+                     or "has been deprecated" in text
+                     or "model is unavailable" in text)
+        if retry_after and retry_after > 0 and not permanent:
+            pause = float(retry_after)
+        else:
+            pause = MODEL_COOLDOWN_S if permanent else MODEL_RETRY_S
+        with self._lock:
+            self._bad[model] = (time.time() + pause, reason or "отказ модели")
+        raise ModelBlocked(model, reason or "отказ модели", pause)
+
+    def ok(self, model: str) -> None:
+        with self._lock:
+            self._bad.pop(model, None)
+
+    def snapshot(self) -> dict[str, dict[str, Any]]:
+        """Состояние известных моделей — для панели и /health."""
+        now = time.time()
+        with self._lock:
+            return {
+                model: {"reason": reason, "left_s": max(0, int(until - now))}
+                for model, (until, reason) in self._bad.items()
+                if until > now
+            }
+
+
 class Bridge:
     """Состояние моста: модели, счётчики, последние запросы."""
 
@@ -341,6 +432,7 @@ class Bridge:
         self.port = int(port)
         self.zen = ZenClient()
         self.local = LocalOpencode()
+        self.health = _ModelHealth()
         self.started_at = time.time()
         self.requests = 0
         self.failures = 0
@@ -405,6 +497,10 @@ class Bridge:
                     "free_models": len(models)},
             "local_opencode": local_state,
             "requests": self.requests,
+            # Модели на остывании видны сразу и с причиной: иначе в
+            # списке они выглядят как обычные, и человек гадает, почему
+            # задача их не выбирает.
+            "blocked": self.health.snapshot(),
             "failures": self.failures,
             "recent": recent,
             "errors": diag.DIAG.stats(),
@@ -422,15 +518,22 @@ class Bridge:
         своя квота, и отказ вместо второй попытки был бы напрасливой.
         """
         started = time.perf_counter()
+        # Модель, которая только что отказала, второй раз не пробуется:
+        # иначе каждый запрос агента ждал бы полный таймаут на модели,
+        # которая не заработает (проверено: 12 из 14 бесплатных моделей
+        # zen отвечают отказом «только из opencode» или «недоступна в
+        # вашей стране»).
+        self.health.check(model)
         try:
             answer = self._text_of(self.zen.chat(
                 model, messages, max_tokens=max_tokens,
                 temperature=temperature))
+            self.health.ok(model)
             return answer, time.perf_counter() - started, "zen"
         except DonorUnavailable as exc:
             diag.note("bridge_zen", exc, model=model)
             if not self.local.ready:
-                raise
+                self.health.fail(model, str(exc), exc.retry_after)
 
         # Запасной путь. Текст берём из сообщения ассистента сессии.
         prompt = ""
@@ -468,6 +571,7 @@ class Bridge:
             time.sleep(1.0)
         if not answer:
             raise DonorUnavailable("локальный opencode не вернул текст")
+        self.health.ok(model)
         return answer, time.perf_counter() - started, "local"
 
     @staticmethod
@@ -533,6 +637,22 @@ class _BridgeHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "zagent-bridge"
     bridge: Bridge  # type: ignore[assignment]
+
+    def handle_one_request(self) -> None:
+        """Оборванное соединение — обычное дело, а не падение.
+
+        Клиент (это обычно сам zagent) отменяет запрос, когда модель не
+        ответила вовремя: сокет закрывается, а http.server печатает на
+        консоль трейсбек на каждое такое прерывание. При десятке отменённых
+        запросов окно забивается стенами трассировок, и главная информация
+        — «модель не ответила» — теряется. В основном сервере приём тот
+        же (hub/server.py), здесь повторяем.
+        """
+        try:
+            super().handle_one_request()
+        except (ConnectionAbortedError, ConnectionResetError,
+                BrokenPipeError, TimeoutError):
+            self.close_connection = True
 
     def log_message(self, fmt: str, *args: Any) -> None:
         # Обычный лог http.server уходит в stderr на каждый запрос. Тишина
@@ -650,6 +770,15 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 model, messages,
                 max_tokens=int(body.get("max_tokens") or 0),
                 temperature=body.get("temperature"))
+        except ModelBlocked as blocked:
+            # Модель на остывании: отвечаем сразу и честно, с Retry-After.
+            # zagent трактует это как карантин ключа и идёт к другой
+            # модели, вместо того чтобы ждать таймаут на каждом шаге.
+            self.bridge.record(model, 0.0, False, blocked.reason)
+            return self._json({"error": {
+                "message": f"{model}: {blocked.reason}",
+                "type": "model_unavailable",
+            }}, 503, {"Retry-After": str(int(blocked.seconds))})
         except DonorUnavailable as exc:
             self.bridge.record(model, 0.0, False, str(exc))
             extra = {}

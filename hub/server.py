@@ -33,11 +33,12 @@ import time
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 from urllib.parse import parse_qs, urlparse
 
 from hub import blackbox
 from hub import diag
+from hub import local_llm
 from hub.config import (
     ConfigError,
     build_settings,
@@ -381,6 +382,9 @@ class Handler(BaseHTTPRequestHandler):
                 "/api/dev": self._dev,
                 # Журнал ошибок: посмотреть, скачать, очистить.
                 "/api/diag": self._diag,
+                # Локальные модели (Ollama): список и потоковый чат.
+                "/api/local/models": self._local_models,
+                "/api/local/chat": self._local_chat,
             }
             handler = routes.get(path)
             if handler is None:
@@ -409,6 +413,61 @@ class Handler(BaseHTTPRequestHandler):
         if "on" in body:
             return self.api.worker.set_dev_mode(bool(body["on"]))
         return self.api.worker.dev_info()
+
+    def _local_models(self, body: dict[str, Any]) -> dict[str, Any]:
+        """Какие локальные модели установлены и запущен ли рантайм.
+
+        Ответ всегда 200 с признаком `running`: «Ollama не запущен» — это
+        не ошибка сервера, а состояние, которое человек видит на вкладке
+        и чинит сам (`ollama serve`). Ошибкой 500 мы бы показали красную
+        плашку вместо подсказки.
+        """
+        try:
+            models = local_llm.models()
+            return {"ok": True, "running": True, "models": models}
+        except local_llm.LocalLLMError as exc:
+            return {"ok": True, "running": False, "models": [],
+                    "error": str(exc)}
+
+    def _local_chat(self, body: dict[str, Any]) -> None:
+        """Потоковый ответ локальной модели.
+
+        Отдаётся как text/event-stream по одной строке на кусок текста:
+        тот же приём, что в основном интерфейсе, и по той же причине —
+        локальная модель думает секундами, и молчание без потока выглядит
+        как зависание.
+
+        История берётся из тела запроса: она уже в руках интерфейса и уже
+        сохранена в сессии, а второй источник правды завёл бы к тому, что
+        переписка в интерфейсе и у модели разошлись.
+        """
+        model = str(body.get("model") or "").strip()
+        messages = body.get("messages") or []
+        if not model or not isinstance(messages, list) or not messages:
+            return self._json({"error": "нужны model и messages"}, 400)
+
+        def chunks() -> Iterator[str]:
+            try:
+                for piece in local_llm.stream_chat(model, messages):
+                    yield f"data: {json.dumps({'text': piece}, ensure_ascii=False)}\n\n"
+            except local_llm.LocalLLMError as exc:
+                # Ошибку отдаём событием, а не разрывом потока: клиент
+                # должен показать причину («не запущен» / «нет такой
+                # модели»), а не молча остановиться.
+                payload = json.dumps({"error": str(exc)}, ensure_ascii=False)
+                yield f"data: {payload}\n\n"
+            finally:
+                yield "data: [DONE]\n\n"
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.close_connection = True
+        for chunk in chunks():
+            self.wfile.write(chunk.encode("utf-8"))
+            self.wfile.flush()
 
     def _diag(self, body: dict[str, Any]) -> dict[str, Any]:
         """Журнал ошибок: посмотреть, скачать файл, очистить.
@@ -1000,6 +1059,11 @@ class Handler(BaseHTTPRequestHandler):
                         return self._json({"error": str(exc)}, 500)
                 return self._json({"ok": True, **diag.DIAG.stats(),
                                    "recent": diag.DIAG.recent()})
+            if parsed.path == "/api/local/models":
+                # Список локальных моделей вкладки «Локальные модели».
+                # Обработчик общий с POST: он ничего не меняет, только
+                # читает, и отвечает всегда 200 — см. _local_models.
+                return self._json(self._local_models({}))
             if parsed.path == "/api/blackbox":
                 # Чёрный ящик задачи: трейс (ходы, модели, ошибки) файлом.
                 # Скачивание, поэтому отдельный ответ с Content-Disposition,

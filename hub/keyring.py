@@ -21,9 +21,11 @@
 
 from __future__ import annotations
 
+import math
 import threading
 import time
 from dataclasses import dataclass, field
+from typing import Any
 
 #: На сколько секунд отключить ключ, если провайдер не сказал Retry-After.
 #: Для дневных лимитов OpenRouter это разумно: лучше не долбить до вечера.
@@ -53,9 +55,31 @@ def gateway_key(gateway: dict) -> str:
     return str(gateway.get("api_key") or "")
 
 
-def note_gateway_error(gateway: dict, key: str, error: str) -> None:
+def note_gateway_error(gateway: dict, key: str, error: str, *,
+                       retry_after: float | None = None) -> None:
     """Отметить ошибку ключа шлюза (429, 401) — короткое имя для вызовов."""
-    REGISTRY.note_error(gateway, key, error)
+    REGISTRY.note_error(gateway, key, error, retry_after=retry_after)
+
+
+def retry_after_of(limits: dict[str, Any] | None) -> float | None:
+    """Секунды ожидания из заголовков ответа, если провайдер их сообщил.
+
+    Единственное место, где ожидание достаётся из результата провайдера:
+    и `failover`, и всё, что захочет учесть `Retry-After`, должны читать одно
+    и то же поле, иначе один путь лимит уважает, а другой нет.
+
+    `None` — «не сообщили» (и заодно «сказали бессмыслицу»: ноль, отрицательное
+    значение или не-число — это не «повтори сейчас», а сбой разбора; по нулю
+    ключ снялся бы с карантина сам и запрос ушёл бы в уже закрытую дверь).
+    """
+    value = (limits or {}).get("retry_after_s")
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(seconds) or seconds <= 0:
+        return None
+    return seconds
 
 
 def note_gateway_ok(gateway: dict, key: str) -> None:
@@ -251,10 +275,21 @@ class KeyRing:
         Возвращает `(None, причина)`, если ни один аккаунт не выдержит `need`
         запросов. Причина перечисляет, чего не хватило: по ней решается, надо
         ли ждать минуту или это бессмысленно (например, осталось 0 у всех).
+
+        Правила выбора, если провайдер сообщает остаток не про все аккаунты:
+
+        * известный остаток важнее незнакомого — ноль виден сразу, а у
+          незнакомого он может быть каким угодно;
+        * если неизвестен ни один, берётся наименее использованный ключ —
+          ровно то, что сделал бы выбор по кругу. Раньше здесь брался
+          *наиболее* использованный: счётчик `used` рос у выбранного ключа,
+          и одно направление сравнения превращало умный выбор в
+          концентрацию всего трафика на одном аккаунте.
         """
         best: tuple[str | None, str] = (None, "нет доступных ключей")
         best_left = -1
         thin: list[str] = []
+        unknown: list[str] = []
         for key in self.available():
             ok, note = self.capacity(key, need)
             if not ok:
@@ -264,13 +299,34 @@ class KeyRing:
             try:
                 score = int(left)
             except (TypeError, ValueError):
-                score = self.used.get(key, 0)
+                unknown.append(key)
+                continue
             if score > best_left:
                 best_left = score
                 best = (key, note)
+        if best[0] is None and unknown:
+            return min(unknown, key=lambda k: self.used.get(k, 0)), ""
         if best[0] is None and thin:
             best = (None, "; ".join(thin[:4]))
         return best
+
+    def take_best(self, need: int = 1) -> str | None:
+        """Лучший доступный ключ с учётом выдачи: счётчик и курсор.
+
+        Отдельно от `best_key`, потому что выбор и учёт требуют разных
+        замков: выбор читает квоту, учёт её меняет. Выбран, но не выдан ключ
+        не бывает — иначе в интерфейсе расход выглядел бы так, будто умный
+        выбор не работает.
+        """
+        key, _note = self.best_key(need)
+        if key is None:
+            return None
+        with self._lock:
+            if key not in self.keys:
+                return None
+            if self.blocked_until.get(key, 0.0) > time.time():
+                return None
+            return self._take(self.keys.index(key))
 
     def next_key(self) -> str | None:
         """Следующий доступный ключ по кругу.
@@ -283,12 +339,16 @@ class KeyRing:
             now = time.time()
             for offset in range(len(self.keys)):
                 index = (self._cursor + offset) % len(self.keys)
-                key = self.keys[index]
-                if self.blocked_until.get(key, 0.0) <= now:
-                    self._cursor = (index + 1) % max(1, len(self.keys))
-                    self.used[key] = self.used.get(key, 0) + 1
-                    return key
+                if self.blocked_until.get(self.keys[index], 0.0) <= now:
+                    return self._take(index)
         return None
+
+    def _take(self, index: int) -> str:
+        """Отметить выдачу ключа: курсор и счётчик расхода. Под замком."""
+        key = self.keys[index]
+        self._cursor = (index + 1) % max(1, len(self.keys))
+        self.used[key] = self.used.get(key, 0) + 1
+        return key
 
     def penalize(self, key: str, *, seconds: float | None = None,
                  why: str = "") -> float:
@@ -361,7 +421,8 @@ class KeyRing:
             "keys": rows,
         }
 
-    def note_error(self, key: str, error: str) -> None:
+    def note_error(self, key: str, error: str, *,
+                   retry_after: float | None = None) -> None:
         """Отключить ключ по тексту ошибки от провайдера.
 
         Разбор текста вместо проверки кода: код ответа в этом слое уже
@@ -372,6 +433,11 @@ class KeyRing:
         пустым до пополнения. Помечать такой ключ как выбитый по лимиту
         нельзя — иначе через час выбитым окажется весь провайдер, а в отчёте
         будет написано «429», и человек пойдёт искать лимит там, где его нет.
+
+        Параметр:
+            retry_after: сколько секунд просил подождать сам провайдер.
+                Учитывается только для настоящего лимита: «нет баланса» и 401
+                ожиданием не лечатся, каким бы коротким его ни назначили.
         """
         text = str(error or "").lower()
         if not key or not text:
@@ -386,7 +452,12 @@ class KeyRing:
             self.penalize(key, seconds=MAX_QUARANTINE, why="401")
             return
         if "429" in text or "rate limit" in text or "лимит" in text:
-            self.penalize(key, why="429")
+            # Провайдер сказал, когда отпустит, — верим ему вместо часа по
+            # умолчанию: минутная квота возвращается через минуту, и держать
+            # аккаунт в стороне весь этот час значит выбрасывать рабочую
+            # ёмкость. None оставляет DEFAULT_QUARANTINE: не сообщили — ждём
+            # как раньше. Слишком большое значение обрезает penalize.
+            self.penalize(key, seconds=retry_after, why="429")
             return
         # Раньше сюда попадало и `if "invalid" in text`, и это была самая
         # дорогая ошибка в модуле: любая 400 вида
@@ -475,11 +546,36 @@ class KeyRegistry:
             return min(range(len(ring.keys)),
                        key=lambda i: ring.used.get(ring.keys[i], 0))
 
-    def note_error(self, gateway: dict, key: str, error: str) -> None:
+    def best_key(self, gateway: dict, need: int = 1) -> str | None:
+        """Ключ с наибольшим известным остатком у шлюза. None — нечего брать.
+
+        Зовётся перед кругом: аккаунт, у которого осталось ноль запросов, не
+        должен получать работу, пока есть наполненный. `None` здесь — не
+        «работать нельзя», а «умного выбора не вышло»: вызывающий обязан
+        опуститься до `next_key`, иначе шлюз с неизвестной квотой останется
+        без ключа вообще.
+        """
+        ring = self.ring(str(gateway.get("id")), self.keys_of(gateway))
+        return ring.take_best(need)
+
+    def penalize(self, gateway: dict, key: str, seconds: float | None, *,
+                 why: str = "") -> float:
+        """Вывести ключ шлюза из ротации на указанное время.
+
+        Нужен для отказов, где вины аккаунта нет, но ожидание всё равно
+        нужно: `503` с `Retry-After`. Текстом ошибки такое не выразить —
+        `note_error` решает судьбу ключа по словам ответа, а здесь решение
+        уже принято провайдером.
+        """
+        ring = self.ring(str(gateway.get("id")), self.keys_of(gateway))
+        return ring.penalize(key, seconds=seconds, why=why)
+
+    def note_error(self, gateway: dict, key: str, error: str, *,
+                   retry_after: float | None = None) -> None:
         """Отметить ошибку по ключу конкретного шлюза."""
         keys = gateway.get("api_keys") or ([gateway["api_key"]] if gateway.get("api_key") else [])
         ring = self.ring(str(gateway.get("id")), list(keys))
-        ring.note_error(key, error)
+        ring.note_error(key, error, retry_after=retry_after)
 
     def note_quota(self, gateway: dict, key: str,
                  limits: dict[str, Any] | None) -> None:

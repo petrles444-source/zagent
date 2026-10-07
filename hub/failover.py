@@ -64,6 +64,35 @@ async def _classify(provider: OpenAICompatProvider, result: dict[str, Any]) -> s
     return "down"
 
 
+def _note_result(gateway: dict[str, Any], api_key: str,
+                 result: dict[str, Any], status: str) -> None:
+    """Записать ответ провайдера в кольцо ключей.
+
+    Один путь для обычного вызова и для повтора после пустого ответа: оба
+    они расходуют аккаунт, и оба обязаны учесть `Retry-After`. Расхождение
+    двух копий означало бы, что основной запрос уводит ключ по слову
+    провайдера, а повтор — по часу по умолчанию, и как раз повтор долбил бы
+    тот же ключ, который только что попросил подождать.
+    """
+    limits = result.get("limits")
+    REGISTRY.note_quota(gateway, api_key, limits)
+    if status == "ok":
+        REGISTRY.note_ok(gateway, api_key)
+        return
+    wait = retry_after_of(limits)
+    if status == "limited":
+        REGISTRY.note_error(gateway, api_key, result.get("error") or "429",
+                            retry_after=wait)
+        return
+    if status == "down" and result.get("status") == 503 and wait:
+        # 503 с Retry-After. Лимита аккаунта тут нет и ключ не виноват, но
+        # крутить его вхолостую нельзя: провайдер сам сказал, когда
+        # вернуться. Причина в отчёте — «503», а не «429»: искать надо не
+        # квоту, а доступность шлюза. Без заголовка ключ не трогаем —
+        # решение за селектором, который и так поставит модель на паузу.
+        REGISTRY.penalize(gateway, api_key, wait, why="503")
+
+
 class AutoCaller:
     """Обёртка над Selector: одна попытка = один вызов с переключением."""
 
@@ -164,7 +193,14 @@ class AutoCaller:
                     ring = REGISTRY.ring(str(gateway.get("id")), REGISTRY.keys_of(gateway))
                     if ring.is_blocked(self.pinned_key):
                         self.pinned_key = None
-                api_key = self.pinned_key or REGISTRY.next_key(gateway)
+                # Умный выбор вместо слепого круга: аккаунт с известным
+                # остатком получает запрос в первую очередь, а аккаунт с
+                # нулём — не получает вовсе, пока есть наполненный. Круг
+                # остаётся запасным ходом: остаток провайдер не сообщает
+                # всем, и отказывать в работе из-за незнания нельзя.
+                api_key = (self.pinned_key
+                           or REGISTRY.best_key(gateway)
+                           or REGISTRY.next_key(gateway))
                 # Расход отмечается до запроса: при отказе по лимиту неизвестно,
                 # учтён ли этот запрос провайдером, и счётчик расползается.
                 # Точнее нельзя — провайдер отвечает постфактум, а решение
@@ -212,11 +248,7 @@ class AutoCaller:
             # Остаток из заголовков запоминаем всегда, даже при успехе:
             # именно он позволяет до запроса решить, выдержит ли аккаунт
             # порученную часть из двадцати шагов.
-            REGISTRY.note_quota(gateway, api_key, result.get("limits"))
-            if status == "limited":
-                REGISTRY.note_error(gateway, api_key, result.get("error") or "429")
-            elif status == "ok":
-                REGISTRY.note_ok(gateway, api_key)
+            _note_result(gateway, api_key, result, status)
 
             # Пустой ответ у reasoning-модели — не отказ модели, а нехватка
             # токенов. Повторяем с увеличенным лимитом, прежде чем считать отказом.
@@ -251,13 +283,7 @@ class AutoCaller:
                 max_tokens = grown
 
                 # Повтор мог упереться в лимит — аккаунт тогда надо пометить.
-                REGISTRY.note_quota(gateway, api_key, result.get("limits"))
-                if status == "limited":
-                    REGISTRY.note_error(
-                        gateway, api_key, result.get("error") or "429"
-                    )
-                elif status == "ok":
-                    REGISTRY.note_ok(gateway, api_key)
+                _note_result(gateway, api_key, result, status)
 
             if status == "ok" and duration_ms >= self.slow_after_ms:
                 status = "slow"
