@@ -397,19 +397,14 @@ def _safe_loads(raw: str) -> tuple[list[dict[str, Any]], str]:
     Возвращает вызовы и описание ошибки. Пустое описание — разобралось.
     Ошибка нужна вызывающему, чтобы отличить испорченный формат от обычного
     текста: раньше оба случая выглядели одинаково — как «вызовов нет».
+
+    Сам разбор — общий ремонтник load_json_any (BOM, хвостовые запятые,
+    Python-литералы): держать здесь собственную цепочку означало бы, что
+    агент и рой понимают один и тот же ответ модели по-разному.
     """
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        # Питоновский словарь — самая частая форма поломки, и она лечится
-        # простым разбором литерала.
-        repaired = _try_python_literal(raw)
-        if repaired is not None:
-            data, error = repaired, ""
-        else:
-            return [], _json_error(raw, exc)
-    else:
-        error = ""
+    data, error = load_json_any(raw)
+    if error:
+        return [], error
 
     if isinstance(data, dict) and data.get("tool"):
         args = data.get("args")
@@ -487,6 +482,120 @@ def _single_to_double_quotes(raw: str) -> str:
             continue
         out.append(char)
     return "".join(out)
+
+
+def _strip_trailing_commas(raw: str) -> str:
+    """Убрать запятые-хвосты **вне строк**: `{"a": null,}` → `{"a": null}`.
+
+    Python так умеет, JSON — нет, а модель не различает эти синтаксисы и
+    пишет как получится. Регулярка здесь не годится: запятая внутри строки
+    (`"конец,}"`) — это содержимое, а не синтаксис, и наивная замена
+    портила бы ровно те текстовые значения, которые модель вставляет в
+    ответ. Поэтому сканируем вручную, отслеживая кавычки и экранирование —
+    та же механика, что в _scan_json_objects и _single_to_double_quotes.
+
+    Запятая сразу после `{` или `[` — не хвост, а мусор (`{,}`, `[, ]`),
+    и её мы сознательно оставляем: такая поломка обязана дойти до
+    вызывающего как ошибка, а не превратиться в рабочий вызов с пустыми
+    аргументами — агент получил бы `read_file` без пути и упёрся бы в
+    него уже внутри шага, потеряв сообщение «формат испорчен».
+    """
+    out: list[str] = []
+    in_string = False
+    quote = ""
+    escaped = False
+    prev_nonspace = ""
+    index = 0
+    length = len(raw)
+
+    while index < length:
+        char = raw[index]
+        if in_string:
+            out.append(char)
+            if not char.isspace():
+                prev_nonspace = char
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                in_string = False
+            index += 1
+            continue
+        if char in ('"', "'"):
+            in_string = True
+            quote = char
+            out.append(char)
+            prev_nonspace = char
+            index += 1
+            continue
+        if char == ",":
+            # Смотрим вперёд: запятая «хвостом» — та, после которой сразу
+            # (через пробелы) идёт закрывающая скобка. И назад: после
+            # открывающей скобки это не хвост, а порча.
+            peek = index + 1
+            while peek < length and raw[peek] in " \t\r\n":
+                peek += 1
+            if peek < length and raw[peek] in "}]" and prev_nonspace not in "{[":
+                index += 1
+                continue
+        out.append(char)
+        if not char.isspace():
+            prev_nonspace = char
+        index += 1
+
+    return "".join(out)
+
+
+def load_json_any(raw: str) -> tuple[Any, str]:
+    """Разобрать фрагмент ответа модели в JSON — в любой форме, какая вышла.
+
+    Единый ремонтник для **всех** читателей ответов модели: цикл агента
+    (вызовы инструментов через _safe_loads) и разбиение на части в
+    subagents раньше держали у себя два разных разбора, причём у
+    subagents — более узкий: `json.loads` и `ast.literal_eval` без снятия
+    BOM и без починки хвостовой запятой. Из-за этого задачи, которые агент
+    честно понимал, рой откатывал в одиночный режим («разбить не вышло» →
+    минус параллелизм и минус экономия по аккаунтам). Пункт 5 Волны 2
+    плана update/update-07-10-26.txt.
+
+    Возвращает `(значение, ошибка)`: пустая ошибка — разобралось.
+    `None` как успех не бывает по договорённости: модель, ответившая
+    `null`, не сказала ничего полезного, и вызывающий спокойно считает
+    это провалом (иначе придётся в каждом месте гадать, разбился парсер
+    или модель честно ответила «нет данных»).
+
+    Цепочка ремонта — от дешёвых к редким:
+      1. BOM: метка кодировки, а не содержимое (Windows Notepad и часть
+         терминалов кладут её в начало выхлопа).
+      2. `json.loads` — честный JSON, самый частый случай.
+      3. Хвостовая запятая + `json.loads`: `literal_eval` тут не спасает,
+         потому что `null`/`true`/`false` — не литералы Python.
+      4. Python-литерал: одинарные кавычки, `None`/`True`, хвосты —
+         то, что модели пишут, думая про Python.
+    """
+    if raw.startswith(BOM):
+        raw = raw.lstrip(BOM)
+    raw = raw.strip()
+    if not raw:
+        return None, "пустой фрагмент"
+
+    try:
+        return json.loads(raw), ""
+    except json.JSONDecodeError as exc:
+        first_error = exc
+
+    cleaned = _strip_trailing_commas(raw)
+    if cleaned != raw:
+        try:
+            return json.loads(cleaned), ""
+        except json.JSONDecodeError:
+            pass
+
+    repaired = _try_python_literal(raw)
+    if repaired is not None:
+        return repaired, ""
+    return None, _json_error(raw, first_error)
 
 
 def _json_error(raw: str, exc: json.JSONDecodeError) -> str:

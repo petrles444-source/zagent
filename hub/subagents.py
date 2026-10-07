@@ -22,13 +22,16 @@
 from __future__ import annotations
 
 import asyncio
-import ast
-import json
 import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+# Общий ремонтник JSON и обходчик скобок живут в агенте: он читает ответы
+# модели каждый шаг, и именно там эти алгоритмы обросли проверками.
+# Импорт односторонний (агент про рой не знает), цикла не получается.
+from hub.agent import _scan_json_objects, load_json_any
 
 #: Сколько частей просим у модели. Больше шести — уже не параллельная
 #: работа, а очередь: запросы выстраиваются в линию и ждут аккаунт.
@@ -152,7 +155,16 @@ def parse_parts(text: str, *, limit: int = MAX_PARTS) -> list[Part]:
 
 
 def _candidates(text: str) -> list[str]:
+    """Куски текста, среди которых может лежать JSON-ответ.
+
+    Порядок — от наиболее вероятного: сначала fenced-блоки ```json, потом
+    сбалансированные объекты (точные, по балансу скобок — та же механика,
+    что у агента в _parse_calls), и только затем жадные срезы от первой
+    `[`/`{` до последней. Жадные срезы в конце неспроста: если в тексте
+    два объекта, срез склеит их в мусор, а точный обход вернёт оба.
+    """
     blocks = re.findall(r"```(?:json)?\s*(.+?)```", text, re.S)
+    blocks.extend(_scan_json_objects(text))
     blocks.append(text.strip())
     start, end = text.find("["), text.rfind("]")
     if 0 <= start < end:
@@ -164,15 +176,16 @@ def _candidates(text: str) -> list[str]:
 
 
 def _loads(text: str) -> Any:
-    """JSON, а если не вышло — как Python-литерал. Никакого `eval`."""
-    try:
-        return json.loads(text)
-    except ValueError:
-        pass
-    try:
-        return ast.literal_eval(text)
-    except (ValueError, SyntaxError):
-        return None
+    """Разобрать кусок ответа модели. None — не разобралось.
+
+    Общий ремонтник из hub.agent (п.5 Волны 2 плана update): снимает BOM,
+    чинит хвостовые запятые, понимает одинарные кавычки и Python-литералы.
+    Собственный узкий разбор здесь был причиной того, что один и тот же
+    ответ агент принимал, а рой — откатывал: «разбить не вышло», и
+    параллельная работа превращалась в одиночную.
+    """
+    data, _error = load_json_any(text)
+    return data
 
 
 def _first(data: dict[str, Any], names: tuple[str, ...]) -> Any:
