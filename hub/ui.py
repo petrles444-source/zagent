@@ -1251,9 +1251,12 @@ th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase
           <div class="row tight">
             <button class="btn sm pri" id="devBtn" onclick="devToggle()">Включить</button>
             <button class="btn sm" onclick="devRefresh()">Обновить</button>
+            <button class="btn sm" onclick="diagShow()">Журнал ошибк</button>
+            <button class="btn sm" onclick="diagClear()">Очистить журнал</button>
             <span class="mini dim" id="devMsg"></span>
           </div>
           <div id="devBox" style="padding:6px 10px 4px" hidden></div>
+          <div id="diagBox" style="padding:4px 10px 8px" hidden></div>
         </div>
       </div>
 
@@ -2925,11 +2928,16 @@ function renderDev() {
 
   if (!DEV.on) { box.hidden = true; return; }
   box.hidden = false;
+  const err = DEV.errors || {};
   // Порядок строк — от «где я нахожусь» к «что сломалось»: путь читают
-  // чаще всего, ошибку ищут в конце.
+  // чаще всего, ошибку ищут в конце. Число ошибок в журнале стоит сразу
+  // после пути: это самый часто читаемый показатель, и человек должен
+  // видеть его, не нажимая ничего.
   const rows = [
     ['проект', DEV.root],
     ['база', DEV.db],
+    ['ошибок в журнале', `${err.count ?? 0}${err.lost ? ` (+${err.lost} потеряно)` : ''}`],
+    ['файл журнала', err.path || '—'],
     ['Python', DEV.python],
     ['моделей в реестре', DEV.models],
     ['задач в базе', DEV.tasks],
@@ -2938,6 +2946,58 @@ function renderDev() {
   ];
   box.innerHTML = '<dl class="kv">' + rows.map(([k, v]) =>
     `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('') + '</dl>';
+}
+
+// Журнал ошибок: что программа проглотила. Показываем не всё, а последние
+// записи с местом и текстом: длинный список на экране не читается, а
+// полный файл всегда можно скачать кнопкой ниже.
+let DIAG = null;
+
+async function diagShow() {
+  DIAG = await api('/api/diag');
+  renderDiag();
+}
+
+function renderDiag() {
+  const box = $('diagBox');
+  if (!box || !DIAG || !DIAG.ok) {
+    if (box) box.textContent = (DIAG && DIAG.error) || 'нет данных от сервера';
+    return;
+  }
+  box.hidden = false;
+  const rows = DIAG.recent || [];
+  const head = `<div class="row tight" style="padding:4px 0">
+      <span class="mini dim">всего записей: ${DIAG.count || 0}${
+        DIAG.lost ? ` · потеряно: ${DIAG.lost}` : ''}</span>
+      <a class="btn sm" href="/api/diag?download=1" download>Скачать .jsonl</a>
+    </div>`;
+  if (!rows.length) {
+    box.innerHTML = head + '<div class="mini dim">Журнал пуст — ошибок не было.</div>';
+    return;
+  }
+  const body = rows.map(r => {
+    const when = r.at ? new Date(r.at * 1000).toLocaleTimeString() : '';
+    const what = r.error || r.msg || '';
+    return `<div class="mini" style="padding:2px 0;border-bottom:1px solid var(--dim)">
+        <b>${esc(r.scope || '?')}</b> <span class="dim">${esc(when)}</span><br>
+        ${esc(what)}${r.trace ? '<br><span class="dim">(трейс есть в файле)</span>' : ''}
+      </div>`;
+  }).join('');
+  box.innerHTML = head + body;
+}
+
+async function diagClear() {
+  // Подтверждение обязательно: журнал — единственный след сбоя, а кнопка
+  // стоит рядом с «Обновить» и выглядит безобидно.
+  const yes = await askYes('Очистить журнал ошибок?',
+    'Все записи будут удалены безвозвратно. Файл можно скачать кнопкой выше.');
+  if (!yes) return;
+  const r = await api('/api/diag', {clear: true});
+  if (!r.ok) { toast(r.error || 'ошибка сервера'); return; }
+  DIAG = r;
+  renderDiag();
+  await loadDev(true);
+  toast('журнал очищен');
 }
 
 // Переключение режима. Ответ содержит и флаг, и диагностику, поэтому

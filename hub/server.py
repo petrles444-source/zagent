@@ -23,7 +23,6 @@
 """
 
 from __future__ import annotations
-
 import gzip
 import hashlib
 import json
@@ -38,6 +37,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from hub import blackbox
+from hub import diag
 from hub.config import (
     ConfigError,
     build_settings,
@@ -86,6 +86,10 @@ _LOOPBACK_NETLOC = re.compile(
     r"^(?:127\.0\.0\.1|localhost|\[::1\])(?::\d{1,5})?$",
     re.IGNORECASE,
 )
+
+#: Имя файла при скачивании журнала ошибок. Расширение `.jsonl` означает
+#: «одна запись на строку» — файл открывается и grep'ом, и редактором.
+DIAG_FILENAME = "zagent-errors.jsonl"
 
 #: Сжимать только то, где есть что сжимать. Порог — килобайт: короткие
 #: ответы («ok», ошибки в пару строк) ужимаются почти в ноль, но хэш и
@@ -218,8 +222,14 @@ class Handler(BaseHTTPRequestHandler):
         пути и устройство кода любой вкладке браузера. Для локального
         инструмента это терпимо, но незачем отдавать подробности всем,
         кто откроет страницу, — тем более что страница тянет шрифты с CDN.
+
+        Дополнительно кладём ошибку в журнал ошибок с трейсом: консольное
+        окно пользователь закрывает, а журнал остаётся. Именно это место
+        даёт самые полезные записи — сюда попадает всё, что сломалось в
+        обработчике, а не в шаге агента.
         """
         traceback.print_exc()
+        diag.note("http", exc, status=status, path=self.path, trace=True)
         self._json({
             "error": " ".join(str(exc).split())[:400],
             "type": type(exc).__name__,
@@ -369,6 +379,8 @@ class Handler(BaseHTTPRequestHandler):
                 # Режим разработчика: переключатель в «Настройках» плюс
                 # диагностика установки (пути, счётчики, последняя ошибка).
                 "/api/dev": self._dev,
+                # Журнал ошибок: посмотреть, скачать, очистить.
+                "/api/diag": self._diag,
             }
             handler = routes.get(path)
             if handler is None:
@@ -397,6 +409,19 @@ class Handler(BaseHTTPRequestHandler):
         if "on" in body:
             return self.api.worker.set_dev_mode(bool(body["on"]))
         return self.api.worker.dev_info()
+
+    def _diag(self, body: dict[str, Any]) -> dict[str, Any]:
+        """Журнал ошибок: посмотреть, скачать файл, очистить.
+
+        Очистка требует явного `{"clear": true}`: пустое тело — это
+        «покажи», а не «удали». Случайный POST из вкладки не должен
+        стирать единственный след сбоя.
+        """
+        if body.get("clear"):
+            diag.DIAG.clear()
+            return {"ok": True, **diag.DIAG.stats(), "recent": []}
+        return {"ok": True, **diag.DIAG.stats(),
+                "recent": diag.DIAG.recent()}
 
     def _keys(self, body: dict[str, Any]) -> dict[str, Any]:
         """Добавить/заменить/удалить ключи одного поля secrets.local.json.
@@ -962,6 +987,19 @@ class Handler(BaseHTTPRequestHandler):
                 # Состояние режима разработчика читается тем же маршрутом,
                 # которым включается: /api/dev без тела ничего не меняет.
                 return self._json(self.api.worker.dev_info())
+            if parsed.path == "/api/diag":
+                # Журнал ошибок целиком — файлом: человек отдаёт его тому,
+                # кто разбирается, и перечитывать две тысячи строк в
+                # браузере не нужно.
+                path = diag.DIAG.path
+                if query.get("download") and path is not None and path.exists():
+                    try:
+                        return self._download(path.read_text(encoding="utf-8"),
+                                              DIAG_FILENAME)
+                    except OSError as exc:
+                        return self._json({"error": str(exc)}, 500)
+                return self._json({"ok": True, **diag.DIAG.stats(),
+                                   "recent": diag.DIAG.recent()})
             if parsed.path == "/api/blackbox":
                 # Чёрный ящик задачи: трейс (ходы, модели, ошибки) файлом.
                 # Скачивание, поэтому отдельный ответ с Content-Disposition,
@@ -1010,13 +1048,24 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
         inbox: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=SUBSCRIBER_BACKLOG)
+        # Счётчик потерянных событий. Пишем в журнал не каждое, а каждое
+        # пятидесятое: очередь переполняется пачками, а журнал должен
+        # остаться читаемым.
+        dropped = {"n": 0}
 
         def on_event(event: dict[str, Any]) -> None:
             try:
                 inbox.put_nowait(event)
             except queue.Full:
-                # Подписчик не успевает: лучше потерять событие, чем уронить поток.
-                pass
+                # Подписчик не успевает: лучше потерять событие, чем уронить
+                # поток. Но потеря должна быть видна — иначе журнал в
+                # интерфейсе выглядит связным, а в нём дыры, и человек
+                # потом ищет событие, которого «не было».
+                dropped["n"] += 1
+                if dropped["n"] % 50 == 1:
+                    diag.note("sse_queue_full",
+                              msg="очередь событий переполнена",
+                              dropped=dropped["n"])
 
         unsubscribe = self.api.worker.subscribe(on_event)
 
