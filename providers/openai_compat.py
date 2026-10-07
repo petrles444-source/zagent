@@ -227,11 +227,31 @@ def _ms(started: float) -> int:
     return int((time.perf_counter() - started) * 1000)
 
 
-def _extract_text(data: dict[str, Any]) -> str:
+def _first_message(data: dict[str, Any]) -> dict[str, Any]:
+    """Первый `choices[0].message` ответа — или пустой словарь.
+
+    Тело ответа присылает шлюз, а не мы, и здесь встречалось всё: `choices`
+    может отсутствовать, `choices[0]` может быть `null` или строкой, а
+    `message` — `null`. Раньше такое тело роняло разбор с AttributeError
+    прямо из `chat()`, то есть исключение уходило наружу вместо обычного
+    «пустой ответ модели»: один кривой ответ провайдера был способен
+    обрушить не одну модель, а весь хоп. Ровно этот случай уже закрыт в
+    `providers/zen.py::_extract_text` — здесь та же защита, потому что
+    девять шлюзов из десяти ходят именно этим провайдером.
+
+    Проверка `isinstance` вместо `or {}`: `or {}` спасает только от пустого
+    словаря и не спасает ни от `None`, ни от строки в `choices[0]`.
+    """
     choices = data.get("choices") or []
-    if not choices:
-        return ""
-    message = choices[0].get("message") or {}
+    first = choices[0] if choices else None
+    if not isinstance(first, dict):
+        return {}
+    message = first.get("message")
+    return message if isinstance(message, dict) else {}
+
+
+def _extract_text(data: dict[str, Any]) -> str:
+    message = _first_message(data)
     content = message.get("content")
     if isinstance(content, str):
         return content
@@ -246,10 +266,7 @@ def _extract_text(data: dict[str, Any]) -> str:
 
 def _extract_reasoning(data: dict[str, Any]) -> str:
     """Текст размышления reasoning-моделей (некоторые кладут его в отдельное поле)."""
-    choices = data.get("choices") or []
-    if not choices:
-        return ""
-    message = choices[0].get("message") or {}
+    message = _first_message(data)
     for field in ("reasoning", "reasoning_content"):
         value = message.get(field)
         if isinstance(value, str) and value.strip():
