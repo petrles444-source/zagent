@@ -21,6 +21,7 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from hub import bridge as donor_bridge  # noqa: E402
 from hub.server import serve  # noqa: E402
 
 
@@ -39,11 +40,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--port", type=int, default=8783)
     parser.add_argument("--no-open", action="store_true", help="не открывать браузер")
     parser.add_argument("--base", default=".", help="рабочая директория агента")
+    parser.add_argument("--no-bridge", action="store_true",
+                        help="не поднимать донорский шлюз")
+    parser.add_argument("--bridge-port", type=int,
+                        default=donor_bridge.DEFAULT_PORT,
+                        help="порт донорского шлюза")
     args = parser.parse_args(argv)
 
     url = f"http://{args.host}:{args.port}"
     if not args.no_open:
         threading.Timer(1.5, lambda: webbrowser.open(url)).start()
+
+    # Донорский шлюз поднимается ДО основного сервера и на отдельном
+    # порту: он нужен дебагеру и прямому доступу к моделям opencode, и
+    # ждать его рядом с основным интерфейсом незачем. Если opencode
+    # выключен, шлюз всё равно поднимается и честно пишет «недоступен».
+    if not args.no_bridge:
+        donor_bridge.start_with(root=Path(args.base).resolve(),
+                                port=args.bridge_port)
 
     serve(args.host, args.port, root=Path(args.base).resolve())
     return 0
