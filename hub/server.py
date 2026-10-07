@@ -41,6 +41,7 @@ import httpx
 from hub import blackbox
 from hub import diag
 from hub import local_llm
+from hub import thinking
 # Порт моста берём из него самого: расхождение с serve.py было бы
 # источником тихих «мост не отвечает» при смене порта.
 from hub.bridge import DEFAULT_PORT as BRIDGE_PORT
@@ -390,6 +391,9 @@ class Handler(BaseHTTPRequestHandler):
                 # Локальные модели (Ollama): список и потоковый чат.
                 "/api/local/models": self._local_models,
                 "/api/local/chat": self._local_chat,
+                # Размышление: развернуть запрос локальной моделью.
+                "/api/thinking": self._thinking,
+                "/api/thinking/state": self._thinking_state,
                 # Мост (8784) из отладчика: общий статус всех
                 # модели и разговор со всеми разом.
                 "/api/models/status": self._bridge_status,
@@ -521,6 +525,58 @@ class Handler(BaseHTTPRequestHandler):
             timeout = 180.0
         payload["timeout"] = timeout
         return self._bridge_call("/ask_all", payload, timeout=timeout + 20.0)
+
+    # ------------------------------------------------------- размышление
+
+    def _thinking_state(self) -> dict[str, Any]:
+        """Панель размышления: модель, рантайм, разделы формата."""
+        return thinking.describe()
+
+    def _thinking(self, body: dict[str, Any]) -> None:
+        """Развернуть запрос — по словам, потоком.
+
+        Ответ SSE, а не JSON: на процессоре модель думает секунды, и
+        молчащий экран человек принимает за зависание. Ошибка приходит
+        событием error, а не разрывом потока, чтобы интерфейс показал
+        причину словами — то же, что делает /api/local/chat.
+        """
+        request = str(body.get("text") or "").strip()
+        if not request:
+            self._json({"error": "пустой запрос"}, 400)
+            return
+        model = str(body.get("model") or "").strip() or None
+
+        def chunks() -> Iterator[str]:
+            def event(data: dict[str, Any]) -> str:
+                return ("data: "
+                        + json.dumps(data, ensure_ascii=False) + "\n\n")
+            try:
+                stream = thinking.deepen_stream(
+                    request, model=model,
+                    context=str(body.get("context") or ""))
+                # Модель объявляем до первого куска: человек должен
+                # видеть, чьё мнение сейчас пишется на его запрос.
+                yield event({"start": True,
+                             "model": model or thinking.pick_model()})
+                for piece in stream:
+                    yield event({"text": piece})
+                yield event({"done": True})
+            except Exception as exc:  # noqa: BLE001 - поток обязан кончиться
+                # Отдельным событием, а не разрывом: обрыв читался бы как
+                # «агент упал», и причина осталась бы неизвестной.
+                yield event({"error": f"{type(exc).__name__}: {exc}"[:300]})
+            finally:
+                yield "data: [DONE]\n\n"
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.close_connection = True
+        for chunk in chunks():
+            self.wfile.write(chunk.encode("utf-8"))
+            self.wfile.flush()
 
     def _local_models(self, body: dict[str, Any]) -> dict[str, Any]:
         """Какие локальные модели установлены и запущен ли рантайм.
@@ -1172,6 +1228,8 @@ class Handler(BaseHTTPRequestHandler):
                 # локальные Ollama. Ответ всегда 200 — «мост не
                 # поднят» это состояние, а не поломка.
                 return self._json(self._bridge_status())
+            if parsed.path == "/api/thinking/state":
+                return self._json(self._thinking_state())
             if parsed.path == "/api/local/models":
                 # Список локальных моделей вкладки «Локальные модели».
                 # Обработчик общий с POST: он ничего не меняет, только

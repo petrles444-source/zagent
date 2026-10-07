@@ -22,6 +22,7 @@ from typing import Any, Callable
 from hub.agent import Agent, AgentConfig, Phase, make_guard, selector_from_registry
 from hub.autonomy import AccessLevel, Autonomy, Escalation
 from hub import diag
+from hub import thinking
 from hub.config import load_gateways, project_root
 from hub.failover import AutoCaller
 from hub.keyring import REGISTRY as KEY_RING
@@ -788,11 +789,57 @@ class Worker:
                 soft_boundary=bool(payload.get("soft_boundary", self.soft_boundary)),
             )
 
+        # Размышление главного агента. Локальная модель разворачивает
+        # короткий запрос человека в задание с критериями, шагами и
+        # проверкой — и только потом начинается работа инструментами.
+        #
+        # Три правила, важнее которых здесь ничего нет:
+        #   * отказ размышления НЕ роняет задачу: агент работает по исходному
+        #     запросу, просто без плана, и это отмечается в заметках;
+        #   * план не затирает исходный запрос, а идёт над ним: человек
+        #     писал «почини тесты», и «почини тесты» должно остаться
+        #     главной строкой;
+        #   * развёрнутое обрезается, иначе окно модели уходит на план,
+        #     а сама задача остаётся без внимания.
+        task_text = str(task.get("task") or "")
+        if payload.get("deepen") and task_text.strip():
+            try:
+                _think_started = time.perf_counter()
+                plan = thinking.deepen(
+                    task_text,
+                    context=f"Воркспейс: {config.base_dir}",
+                )
+                _think_ms = int((time.perf_counter() - _think_started) * 1000)
+                plan = thinking.shorten(plan)
+                if plan:
+                    task_text = (f"Размышление задачи (локальная модель, "
+                                 f"{_think_ms} мс):\n\n{plan}\n\n"
+                                 f"ИСХОДНЫЙ ЗАПРОС ЧЕЛОВЕКА:\n{task_text}")
+                    self.emit({
+                        "type": "thinking",
+                        "task_id": task["id"],
+                        "ms": _think_ms,
+                        "chars": len(plan),
+                    })
+            except (thinking.ThinkingError, Exception) as exc:
+                # Любой отказ здесь — это «плана не будет», а не «задача
+                # провалена»: локальный рантайм может быть выключен,
+                # модель может отсутствовать, сеть может отвалиться.
+                note = (f"размышление не сработало ({type(exc).__name__}: "
+                        f"{exc}); задача выполнена по исходному запросу")
+                diag.note("thinking", exc, task=str(task["id"]))
+                self.emit({
+                    "type": "thinking_failed",
+                    "task_id": task["id"],
+                    "note": note,
+                    "error": str(exc)[:300],
+                })
+
         agent = Agent(
             self.selector, guard, replace(config),
             on_event=lambda event: self._on_agent_event(task["id"], event),
         )
-        agent.set_task(task["task"])
+        agent.set_task(task_text)
         self._agent = agent
         # Свежий чекпоинт после каждого шага уезжает в базу (см.
         # RESTART_LIMIT): без этого записи он жил только в памяти, и краш

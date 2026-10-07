@@ -1,4 +1,4 @@
-"""Интерфейс zagent: три панели с перетаскиваемыми разделителями.
+﻿"""Интерфейс zagent: три панели с перетаскиваемыми разделителями.
 
 Раскладка как у взрослых IDE-агентов (OpenCode, DeepSeek Harness):
 
@@ -1293,6 +1293,7 @@ th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase
           </div>
           <div class="row tight">
             <button class="btn sm pri" onclick="modelsStatus()">Статус всех моделей</button>
+            <button class="btn sm" onclick="thinkingRun()">Размыслить запрос</button>
             <button class="btn sm" onclick="modelsAskAll()">Спросить всех</button>
             <span class="mini dim" id="modelsMsg"></span>
           </div>
@@ -1301,6 +1302,18 @@ th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase
             <textarea id="modelsAsk" rows="2"
               placeholder="Ответь одним предложением: ты работаешь?">(текст)</textarea>
           </div>
+          <div class="field">
+            <label>Размышление: развернуть запрос локальной моделью</label>
+            <textarea id="thinkAsk" rows="2"
+              placeholder="Возьми текст из поля ввода и разложи по разделам">(текст)</textarea>
+          </div>
+          <div class="row tight">
+            <button class="btn sm pri" onclick="thinkingRun()">Размыслить</button>
+            <button class="btn sm" onclick="thinkingToInput()">Вставить в поле задачи</button>
+            <span class="mini dim" id="thinkMsg"></span>
+          </div>
+          <div id="thinkBox" class="mini" style="padding:4px 10px 8px;white-space:pre-wrap"
+            hidden></div>
           <div id="modelsBox" style="padding:4px 10px 8px" hidden></div>
 
           <div id="diagBox" style="padding:4px 10px 8px" hidden></div>
@@ -2391,6 +2404,10 @@ let CUR_MODE = 'auto';
 const TASK_FLAGS = {
   auto: true, plan: false, selfdev: false, subagents: false, research: false,
   herd: false,
+  // Размышление: локальная модель разворачивает запрос перед запуском.
+  // Поле общее с консолью (hub/protocol), поэтому задача отправляется
+  // одинаково оттуда и отсюда.
+  think: false,
 };
 
 // Что «Авто» выбрал для последней задачи. Показывается рядом с кнопкой
@@ -3132,6 +3149,83 @@ let SETTINGS = null;
 // и перезагружать одно из-за другого незачем (заодно вкладка Настроек
 // не мигает при каждом открытии).
 let DEV = null;
+
+// ---------- размышление: развернуть запрос локальной моделью ----------
+//
+// Тот же маршрут и то же тело, что у консоли (hub/protocol). Ответ идёт
+// потоком: на процессоре модель думает секунды, и молчащий экран
+// человек принимает за зависание.
+let THINK_TEXT = '';
+
+async function thinkingRun() {
+  const src = $('thinkAsk');
+  const box = $('thinkBox'), msg = $('thinkMsg');
+  let text = (src && src.value || '').trim();
+  if (!text) text = ($('cbox') && $('cbox').value || '').trim();
+  if (!text) {
+    if (msg) msg.textContent = 'нечего размышлять';
+    return;
+  }
+  if (box) {
+    box.hidden = false;
+    box.textContent = '';
+  }
+  if (msg) msg.textContent = 'размышляю…';
+  THINK_TEXT = '';
+  try {
+    const resp = await fetch('/api/thinking', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text: text})
+    });
+    if (!resp.ok || !resp.body) {
+      throw new Error('сервер ответил ' + resp.status);
+    }
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const part = await reader.read();
+      if (part.done) break;
+      buf += decoder.decode(part.value, {stream: true});
+      let cut = buf.indexOf('\n\n');
+      while (cut >= 0) {
+        const raw = buf.slice(0, cut).trim();
+        buf = buf.slice(cut + 2);
+        cut = buf.indexOf('\n\n');
+        for (const line of raw.split('\n')) {
+          if (!line.startsWith('data:')) continue;
+          const body = line.slice(5).trim();
+          if (body === '[DONE]') continue;
+          let item;
+          try { item = JSON.parse(body); } catch (e) { continue; }
+          if (item.error) {
+            if (msg) msg.textContent = item.error;
+          } else if (item.text) {
+            THINK_TEXT += item.text;
+            if (box) box.textContent = THINK_TEXT;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    if (msg) msg.textContent = 'размышление не получилось: ' + (e.message || e);
+  }
+  if (msg && !msg.textContent) {
+    msg.textContent = THINK_TEXT ? 'готово' : 'пустой ответ';
+  }
+}
+
+// Размышление — не замена запросу, а разбор его: исходный текст
+// остаётся, план добавляется сверху отдельным блоком.
+function thinkingToInput() {
+  const box = $('thinkBox'), field = $('cbox');
+  if (!field || !THINK_TEXT) return;
+  const original = (field.value || '').trim() || ($('thinkAsk').value || '').trim();
+  field.value = THINK_TEXT
+    + (original ? '\n\nИСХОДНЫЙ ЗАПРОС:\n' + original : '');
+  field.focus();
+}
 
 // ---------- все модели: статус и общий вопрос ----------
 //
@@ -3933,7 +4027,9 @@ async function send() {
                 subagents: TASK_FLAGS.subagents,
                 web_research: TASK_FLAGS.research,
                 herd: TASK_FLAGS.herd,
-                self_edit: TASK_FLAGS.selfdev};
+                self_edit: TASK_FLAGS.selfdev,
+                // Размышление: те же ключи, что у консоли.
+                deepen: TASK_FLAGS.think};
   if (ATTACH.length) body.images = ATTACH.map(a => ({data_url: a.url, name: a.name}));
   $('sendInfo').textContent = 'ставлю в очередь…';
   const r = await api('/api/tasks', body);
