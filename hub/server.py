@@ -366,6 +366,9 @@ class Handler(BaseHTTPRequestHandler):
                 "/api/settings": self._settings,
                 "/api/keys": self._keys,
                 "/api/models": self._models,
+                # Режим разработчика: переключатель в «Настройках» плюс
+                # диагностика установки (пути, счётчики, последняя ошибка).
+                "/api/dev": self._dev,
             }
             handler = routes.get(path)
             if handler is None:
@@ -383,6 +386,17 @@ class Handler(BaseHTTPRequestHandler):
     def _settings(self, body: dict[str, Any]) -> dict[str, Any]:
         """Что показывает вкладка «Настройки»: поля и счётчики, без значений."""
         return build_settings(self.api.worker.root)
+
+    def _dev(self, body: dict[str, Any]) -> dict[str, Any]:
+        """Включить или выключить режим разработчика.
+
+        Тело пустое тоже годится: GET /api/dev отдаёт ту же диагностику
+        без переключения, поэтому интерфейс читает состояние флага тем же
+        маршрутом, каким его и меняет.
+        """
+        if "on" in body:
+            return self.api.worker.set_dev_mode(bool(body["on"]))
+        return self.api.worker.dev_info()
 
     def _keys(self, body: dict[str, Any]) -> dict[str, Any]:
         """Добавить/заменить/удалить ключи одного поля secrets.local.json.
@@ -944,6 +958,10 @@ class Handler(BaseHTTPRequestHandler):
                 # Чтение вкладки «Настройки» — это состояние, а не правка,
                 # поэтому GET: интерфейс зовёт его при каждом открытии вкладки.
                 return self._json(build_settings(self.api.worker.root))
+            if parsed.path == "/api/dev":
+                # Состояние режима разработчика читается тем же маршрутом,
+                # которым включается: /api/dev без тела ничего не меняет.
+                return self._json(self.api.worker.dev_info())
             if parsed.path == "/api/blackbox":
                 # Чёрный ящик задачи: трейс (ходы, модели, ошибки) файлом.
                 # Скачивание, поэтому отдельный ответ с Content-Disposition,

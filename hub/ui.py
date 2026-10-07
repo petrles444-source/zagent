@@ -1227,6 +1227,36 @@ th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase
         </div>
       </div>
 
+      <!-- РЕЖИМ РАЗРАБОТЧИКА
+
+           Переключатель, который виден пользователю, а не только автору.
+           Что он делает и что не делает — написано прямо здесь, потому
+           что режим с названием «разработка» у людей вызывает ожидание
+           «агент начнёт сам себя править». Не начнёт: право править код
+           выдаётся на одну задачу отдельно, намеренно. Здесь только
+           диагностика установки — пути, счётчики, последняя ошибка. -->
+      <div class="fold">
+        <button class="foldHead" onclick="fold(this)">
+          <span class="foldIc">▸</span>
+          <span>Режим разработчика</span>
+        </button>
+        <div class="foldBody" hidden>
+          <div class="hintBlock">
+            Показывает диагностику: где лежат проект и база, сколько
+            накопилось задач и событий, какая ошибка висит последней и
+            какая версия Python подняла сервер. Значения ключей здесь
+            не появляются никогда — только имена полей и счётчики.
+            Переживает перезапуск сервера.
+          </div>
+          <div class="row tight">
+            <button class="btn sm pri" id="devBtn" onclick="devToggle()">Включить</button>
+            <button class="btn sm" onclick="devRefresh()">Обновить</button>
+            <span class="mini dim" id="devMsg"></span>
+          </div>
+          <div id="devBox" style="padding:6px 10px 4px" hidden></div>
+        </div>
+      </div>
+
       <div class="fold">
         <button class="foldHead" onclick="fold(this)">
           <span class="foldIc">▸</span>
@@ -2869,8 +2899,69 @@ function fold(what) {
 
 let SETTINGS = null;
 
+// Режим разработчика. Отдельное состояние от SETTINGS: ключи и модели —
+// это про конфигурацию шлюзов, режим разработчика — про саму установку,
+// и перезагружать одно из-за другого незачем (заодно вкладка Настроек
+// не мигает при каждом открытии).
+let DEV = null;
+
+async function loadDev(force) {
+  if (!DEV || !DEV.ok || force) DEV = await api('/api/dev');
+  renderDev();
+}
+
+function renderDev() {
+  const btn = $('devBtn'), box = $('devBox'), msg = $('devMsg');
+  if (!btn || !DEV || !DEV.ok) {
+    if (msg) msg.textContent = (DEV && DEV.error) || 'нет данных от сервера';
+    if (box) box.hidden = true;
+    return;
+  }
+  btn.textContent = DEV.on ? 'Выключить' : 'Включить';
+  btn.className = 'btn sm ' + (DEV.on ? '' : 'pri');
+  if (msg) msg.textContent = DEV.on
+    ? 'включён · диагностика обновляется кнопкой «Обновить»'
+    : 'выключен · нажмите, чтобы увидеть диагностику';
+
+  if (!DEV.on) { box.hidden = true; return; }
+  box.hidden = false;
+  // Порядок строк — от «где я нахожусь» к «что сломалось»: путь читают
+  // чаще всего, ошибку ищут в конце.
+  const rows = [
+    ['проект', DEV.root],
+    ['база', DEV.db],
+    ['Python', DEV.python],
+    ['моделей в реестре', DEV.models],
+    ['задач в базе', DEV.tasks],
+    ['событий в базе', DEV.events],
+    ['последняя ошибка', DEV.last_error || 'нет'],
+  ];
+  box.innerHTML = '<dl class="kv">' + rows.map(([k, v]) =>
+    `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('') + '</dl>';
+}
+
+// Переключение режима. Ответ содержит и флаг, и диагностику, поэтому
+// второй запрос за состоянием не нужен: один ответ — и кнопка, и панель
+// показывают правду.
+async function devToggle() {
+  const next = !(DEV && DEV.on);
+  const r = await api('/api/dev', {on: next});
+  if (!r.ok) { setNote('devMsg', r.error || 'ошибка сервера', false); return; }
+  DEV = r;
+  renderDev();
+  toast(next ? 'Режим разработчика включён' : 'Режим разработчика выключен');
+}
+
+async function devRefresh() {
+  await loadDev(true);
+  if (DEV && DEV.ok && !DEV.on) setNote('devMsg',
+    'режим выключен — включите его, чтобы увидеть диагностику', false);
+  else toast('диагностика обновлена');
+}
+
 async function loadSettings(force) {
   if (!SETTINGS || !SETTINGS.ok || force) SETTINGS = await api('/api/settings');
+  await loadDev();
   renderSettings();
   if (!SETTINGS || !SETTINGS.ok) {
     setNote('keyMsg', (SETTINGS && SETTINGS.error) || 'нет данных от сервера', false);
