@@ -23,7 +23,7 @@ from hub.sanity import (
     check_not_degenerate,
     evaluate,
 )
-from hub.select import COOLDOWN, Mode, Selector
+from hub.selector import COOLDOWN, Mode, Selector
 from hub.tiers import TierBook, guess_tier, rank_models
 from hub.tools import (
     edit_file,

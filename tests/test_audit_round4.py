@@ -31,7 +31,7 @@ from hub.agent import (
     big_task_guide,
 )
 from hub.autonomy import AccessLevel, Autonomy, Guard
-from hub.select import Selector
+from hub.selector import Selector
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))

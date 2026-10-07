@@ -28,7 +28,7 @@ from hub.agent import (
     parse_tool_calls,
 )
 from hub.autonomy import AccessLevel, Autonomy, Guard
-from hub.select import Selector
+from hub.selector import Selector
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))

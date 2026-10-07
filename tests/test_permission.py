@@ -1177,7 +1177,7 @@ def test_paths_outside_finds_sibling_prefix(tmp_path: Path) -> None:
 def _agent_for_dialog(tmp_path: Path, access=AccessLevel.WRITE):
     from hub.agent import Agent, AgentConfig
     from hub.registry import Registry
-    from hub.select import Selector
+    from hub.selector import Selector
     from hub.tiers import TierBook
 
     registry = Registry(gateways=[], models=[])
@@ -1252,7 +1252,7 @@ def test_hard_boundary_refusal_is_not_handled(tmp_path: Path) -> None:
 
     from hub.agent import Agent, AgentConfig
     from hub.registry import Registry
-    from hub.select import Selector
+    from hub.selector import Selector
     from hub.tiers import TierBook
 
     registry = Registry(gateways=[], models=[])
@@ -1659,7 +1659,7 @@ def test_agent_deny_permission_tells_not_to_retry(tmp_path: Path) -> None:
 
     from hub.agent import Agent, AgentConfig
     from hub.registry import Registry
-    from hub.select import Selector
+    from hub.selector import Selector
     from hub.tiers import TierBook
 
     registry = Registry(gateways=[], models=[])
@@ -1689,7 +1689,7 @@ def test_agent_grant_permission_appends_message(tmp_path: Path) -> None:
 
     from hub.agent import Agent, AgentConfig
     from hub.registry import FreeModel, Registry
-    from hub.select import Selector
+    from hub.selector import Selector
     from hub.tiers import TierBook
 
     registry = Registry(

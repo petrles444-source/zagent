@@ -58,7 +58,7 @@ from hub.config import load_gateways  # noqa: E402
 from hub.failover import AutoCaller  # noqa: E402
 from hub.keyring import REGISTRY  # noqa: E402
 from hub.registry import collect  # noqa: E402
-from hub.select import Mode  # noqa: E402
+from hub.selector import Mode  # noqa: E402
 
 TASK = "Создай файл hello.txt в текущей папке с единственной строкой: Привет"
 

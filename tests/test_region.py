@@ -367,7 +367,7 @@ def test_labels_cover_all_verdicts() -> None:
 
 def _selector_with_regions(tmp_path: Path, **kwargs):
     from hub.registry import FreeModel, Registry
-    from hub.select import Selector
+    from hub.selector import Selector
     from hub.tiers import TierBook
 
     models = [

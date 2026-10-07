@@ -15,7 +15,7 @@
 
 - `keys.json` и `routing.json` — ключи читаются из `secrets.local.json`,
   порядок моделей задаёт `tiers.json`
-- `agents.json` и роутер по ролям — выбор моделей идёт через `hub/select.py`
+- `agents.json` и роутер по ролям — выбор моделей идёт через `hub/selector.py`
   и `hub/failover.py`
 
 ## Провайдеры

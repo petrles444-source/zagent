@@ -155,7 +155,7 @@ def make_zagent_runner(config: BenchConfig) -> "AgentRunner":
         if str(root) not in sys.path:
             sys.path.insert(0, str(root))
         try:
-            # selector_from_registry живёт в hub.agent, а не в hub.select:
+            # selector_from_registry живёт в hub.agent, а не в hub.selector.
             # прежняя версия импортировала его оттуда и падала ImportError на
             # каждом прогоне без сети.
             from hub.agent import (

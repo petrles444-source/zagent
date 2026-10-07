@@ -28,7 +28,7 @@ import pytest
 
 from hub.agent import Agent, AgentConfig
 from hub.autonomy import AccessLevel, Autonomy, Guard
-from hub.select import Selector
+from hub.selector import Selector
 from hub.worker import (
     CONTINUE_PROMPT,
     CONTINUATION_STEPS,

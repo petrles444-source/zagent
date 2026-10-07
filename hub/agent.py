@@ -34,7 +34,7 @@ from hub.autonomy import (
 )
 from hub.failover import AutoCaller, FailoverError
 from hub.keyring import gateway_key
-from hub.select import Mode, Selector
+from hub.selector import Mode, Selector
 from hub.tiers import TierBook
 from hub.tools import (
     ToolResult,

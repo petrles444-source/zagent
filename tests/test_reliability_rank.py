@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from hub.registry import FreeModel, Registry  # noqa: E402
-from hub.select import Selector  # noqa: E402
+from hub.selector import Selector  # noqa: E402
 from hub.tiers import ModelSpec, TierBook, rank_models  # noqa: E402
 
 GATEWAY = {

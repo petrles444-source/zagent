@@ -26,7 +26,7 @@ from hub.agent import Agent, AgentConfig, make_guard  # noqa: E402
 from hub.autonomy import AccessLevel, Autonomy  # noqa: E402
 from hub.failover import AutoCaller  # noqa: E402
 from hub.keyring import KeyRing  # noqa: E402
-from hub.select import COOLDOWN, Mode, Selector  # noqa: E402
+from hub.selector import COOLDOWN, Mode, Selector  # noqa: E402
 from hub.tools import inspect_shell, run_shell, write_file  # noqa: E402
 
 

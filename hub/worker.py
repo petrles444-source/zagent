@@ -37,7 +37,7 @@ from hub.regions import (
 def mode_is_direct(mode: str | None) -> bool:
     return mode == MODE_DIRECT
 from hub.report import build_snapshot
-from hub.select import Selector, ward as model_ward
+from hub.selector import Selector, ward as model_ward
 from hub.store import Store
 from hub.workspace import WorkspaceManager, projects_dir
 

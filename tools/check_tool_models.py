@@ -36,7 +36,7 @@ from hub.agent import parse_tool_calls, selector_from_registry  # noqa: E402
 from hub.config import load_gateways  # noqa: E402
 from hub.failover import AutoCaller  # noqa: E402
 from hub.registry import collect  # noqa: E402
-from hub.select import Mode  # noqa: E402
+from hub.selector import Mode  # noqa: E402
 
 #: Промпт должен быть таким же, какой видит агент на первом шаге. Соблазн
 #: написать «Вызови инструмент list_dir…» не сработало: модель отвечала

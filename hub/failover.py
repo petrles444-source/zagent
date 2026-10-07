@@ -14,8 +14,8 @@ from typing import Any, Sequence
 
 import httpx
 
-from hub.select import Attempt, Mode, Selector
-from hub.keyring import REGISTRY
+from hub.selector import Attempt, Mode, Selector
+from hub.keyring import REGISTRY, retry_after_of
 from hub.tiers import TierBook
 from providers.openai_compat import OpenAICompatProvider
 

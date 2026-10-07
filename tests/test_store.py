@@ -609,7 +609,7 @@ def test_worker_configure_persists(tmp_path: Path) -> None:
 
 def _state(ref: str, **kw) -> object:
     """Заглушка ModelState: у воркера нужен только набор полей."""
-    from hub.select import ModelState
+    from hub.selector import ModelState
 
     gateway, _, model = ref.partition("/")
     return ModelState(ref=ref, gateway=gateway, model=model or ref, **kw)

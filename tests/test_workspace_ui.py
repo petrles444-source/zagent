@@ -213,7 +213,7 @@ def test_пересборка_промпта_меняет_режим() -> None:
     from hub.agent import Agent, AgentConfig
     from hub.autonomy import AccessLevel, Autonomy, Guard
     from hub.registry import Registry
-    from hub.select import Selector
+    from hub.selector import Selector
     from hub.tiers import TierBook
 
     guard = Guard(access=AccessLevel.FULL, autonomy=Autonomy.NORMAL)
@@ -231,7 +231,7 @@ def test_веб_разведка_доходит_до_промпта() -> None:
     from hub.agent import Agent, AgentConfig
     from hub.autonomy import AccessLevel, Autonomy, Guard
     from hub.registry import Registry
-    from hub.select import Selector
+    from hub.selector import Selector
     from hub.tiers import TierBook
 
     guard = Guard(access=AccessLevel.FULL, autonomy=Autonomy.NORMAL)
@@ -275,7 +275,7 @@ def test_артефакты_собираются_агентом() -> None:
     from hub.agent import Agent, AgentConfig
     from hub.autonomy import AccessLevel, Autonomy, Guard
     from hub.registry import Registry
-    from hub.select import Selector
+    from hub.selector import Selector
     from hub.tiers import TierBook
     from hub.tools import ToolResult
 

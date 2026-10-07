@@ -267,7 +267,7 @@ def test_маршрутизатор_удалён_а_не_молча_мёртв()
     """`hub/router.py` удалён 07.10.2026 — по решению пользователя.
 
     Он не импортировался рабочим кодом: выбор моделей идёт через
-    `hub/failover.py` и `hub/select.py`. Модуль выглядел частью системы
+    `hub/failover.py` и `hub/selector.py`. Модуль выглядел частью системы
     (есть `RouterError`, есть тесты, есть `config/agents.json`), но ни
     одна задача через него не проходила. Рядом с ним лежали
     `load_agents` и `config/agents.json`, которые не читал никто вообще.
@@ -278,13 +278,13 @@ def test_маршрутизатор_удалён_а_не_молча_мёртв()
     не вернётся осознанно, «анализ кода» не должен на него опираться.
     """
     assert not (ROOT / "hub" / "router.py").exists(), \
-        "hub/router.py вернулся: выбор моделей идёт через hub/select.py"
+        "hub/router.py вернулся: выбор моделей идёт через hub/selector.py"
     assert not (ROOT / "config" / "agents.json").exists(), \
         "config/agents.json вернулся: его никто не читал"
 
     # Живой путь выбора моделей на месте — это важнее, чем отсутствие
     # мёртвого файла.
-    import hub.select
+    import hub.selector
     import hub.failover
-    assert hasattr(hub.select, "Selector")
+    assert hasattr(hub.selector, "Selector")
     assert hasattr(hub.failover, "AutoCaller")

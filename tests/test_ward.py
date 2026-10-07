@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from hub.select import WARD_GROUPS, ward
+from hub.selector import WARD_GROUPS, ward
 
 UI = (Path(__file__).resolve().parent.parent / "hub" / "ui.py").read_text(
     encoding="utf-8"

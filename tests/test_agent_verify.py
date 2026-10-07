@@ -101,7 +101,7 @@ class _Scripted:
 
 def make_agent(tmp_path: Path, answers: list[str], *, verify_writes: bool = True):
     from hub.registry import Registry
-    from hub.select import Selector
+    from hub.selector import Selector
     from hub.tiers import TierBook
 
     from hub.autonomy import AccessLevel, Autonomy, Guard
