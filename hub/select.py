@@ -369,6 +369,73 @@ class Selector:
         }
 
 
+#: Палаты лазарета — идея «карантин как лазарет» из
+#: update/creativeupdate-07-10-26.txt: сухая таблица со статусом `limited`
+#: ничего не объясняет, а палата с отсчётом — объясняет сразу.
+#: Питание — те же поля `ModelState.to_dict()`, что уходят в интерфейс,
+#: поэтому палата не может разойтись со списком моделей.
+WARD_GROUPS = (
+    ("critical", "в реанимации",
+     "5xx или блок провайдера: самая тяжёлая палата, ждём перепроверку"),
+    ("ward", "на лечении",
+     "лимит (429) или пустой ответ: идёт бэкофф, часы отсчитывают выписку"),
+    ("discharged", "выписаны",
+     "отвечают нормально — их и берут в работу"),
+    ("unseen", "не обследованы",
+     "ещё не вызывались, судить о них не о чем"),
+)
+
+#: Статус → палата. Статусов у ModelState ровно столько, сколько ключей
+#: у COOLDOWN, плюс «ok»/«slow»/«unknown»; всё незнакомое уходит в
+#: «не обследованы», а не выбрасывается молча.
+_WARD_OF_STATUS = {
+    "down": "critical",
+    "blocked": "critical",
+    "limited": "ward",
+    "empty": "ward",
+    "ok": "discharged",
+    "slow": "discharged",
+}
+
+
+def ward(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Разложить модели по палатам лазарета.
+
+    Деление идёт по последнему статусу, а не по наличию карантина:
+    кончившийся бэкофф не равен выздоровлению — модель всё ещё была
+    последним сбоем, и «выписанной» её делает только ответ «ok».
+    Обратный отсчёт (`cooldown_left`) едет в каждой палате: это и есть
+    курс выздоровления, ради которого палата и затевалась.
+    """
+    buckets: dict[str, list[dict[str, Any]]] = {
+        key: [] for key, _, _ in WARD_GROUPS
+    }
+    for row in rows:
+        status = str(row.get("status") or "unknown")
+        buckets[_WARD_OF_STATUS.get(status, "unseen")].append({
+            "ref": row.get("ref"),
+            "model": row.get("model"),
+            "gateway": row.get("gateway"),
+            "cooldown_left": int(row.get("cooldown_left") or 0),
+            "fails": int(row.get("fails") or 0),
+            "error": str(row.get("error") or ""),
+        })
+    for items in buckets.values():
+        # Наверху — те, кого дольше всех не брали. В «реанимации» это
+        # очевидно (дольше всех ждёт), в «на лечении» — часы бэкоффа.
+        items.sort(key=lambda it: (-it["cooldown_left"], it["model"] or ""))
+    return [
+        {
+            "key": key,
+            "title": title,
+            "note": note,
+            "count": len(buckets[key]),
+            "items": buckets[key],
+        }
+        for key, title, note in WARD_GROUPS
+    ]
+
+
 @dataclass
 class Attempt:
     """Результат одной попытки внутри call_with_failover."""

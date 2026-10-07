@@ -36,7 +36,7 @@ from hub.regions import (
 def mode_is_direct(mode: str | None) -> bool:
     return mode == MODE_DIRECT
 from hub.report import build_snapshot
-from hub.select import Selector
+from hub.select import Selector, ward as model_ward
 from hub.store import Store
 from hub.workspace import WorkspaceManager, projects_dir
 
@@ -1663,6 +1663,10 @@ class Worker:
             "gateways": self.snapshot.get("gateways", []),
             "models": self.snapshot.get("models", []),
             "candidates": candidates,
+            # Те же кандидаты, но разложенные по палатам лазарета:
+            # «в реанимации», «на лечении», «выписаны». Считает сервер,
+            # чтобы группы в интерфейсе не разъезжались со списком моделей.
+            "ward": model_ward(candidates),
             # Режим и выбранная модель. Раньше интерфейс брал их из stats(),
             # а оттуда они не приходили: переключатель режима показывал «auto»
             # при ручном выборе, и выбранную модель было негде увидеть.

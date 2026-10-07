@@ -1326,6 +1326,10 @@ th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase
            девять моделей, работающих параллельно. -->
       <div class="autoBox" id="keyBox"></div>
       <div class="autoBox" id="autoBox"></div>
+      <!-- Лазарет: те же модели, но разложенные по палатам. Таблица
+           пишет «limited» — непонятно; палата пишет «на лечении,
+           до выписки 4:12» — понятно, и ждать не страшно. -->
+      <div class="autoBox" id="wardBox"></div>
       <div class="row tight">
         <button class="btn sm pri" id="pingBtn" onclick="pingAll()">Пинг всех</button>
         <button class="btn sm" onclick="pingUnavailable()">Пинг недоступных</button>
@@ -3814,6 +3818,51 @@ function renderSanity(r) {
 // \u0422\u0430\u0431\u043b\u0438\u0446\u0430 \u0441\u0442\u0430\u0442\u0443\u0441\u0430: \u0432\u0441\u0435 \u043c\u043e\u0434\u0435\u043b\u0438 \u0440\u0435\u0435\u0441\u0442\u0440\u0430, \u0430 \u043d\u0435 \u0442\u043e\u043b\u044c\u043a\u043e \u0432\u044b\u0431\u0440\u0430\u043d\u043d\u0430\u044f.
 // \u0420\u0430\u043d\u044c\u0448\u0435 \u0441\u043f\u0438\u0441\u043e\u043a \u0441\u043e\u0441\u0442\u043e\u044f\u043b \u0438\u0437 \u043e\u0434\u043d\u043e\u0439 \u0441\u0442\u0440\u043e\u043a\u0438 \u2014 \u0432\u044b\u0431\u0440\u0430\u043d\u043d\u043e\u0439 \u043c\u043e\u0434\u0435\u043b\u0438, \u2014 \u0438
 // \u00ab\u043f\u0438\u043d\u0433 \u0432\u0441\u0435\u0445\u00bb \u0431\u044b\u043b\u043e \u043d\u0435\u0432\u0438\u0434\u0438\u043c\u043e \u043d\u0438\u0433\u0434\u0435.
+// Лазарет моделей: палаты вместо сухой таблицы статусов. Группы считает
+// сервер (select.ward) — здесь только вывески и отсчёт, чтобы палата
+// не разъезжалась с тем, что видно в списке моделей.
+function renderWard() {
+  const box = $('wardBox');
+  if (!box) return;
+  const groups = (S && S.ward) || [];
+  const live = groups.filter(g => g.count);
+  if (!groups.length) { box.innerHTML = ''; return; }
+  if (!live.length) {
+    box.innerHTML = '<div class="mini dim" style="padding:8px 12px">'
+      + 'Лазарет пуст: ни одного на лечении, ни одного в реанимации.</div>';
+    return;
+  }
+  const chipOf = {critical: 'bad', ward: 'warn', discharged: 'info', unseen: ''};
+  let html = '<div class="row tight" style="padding:8px 12px 2px">';
+  for (const g of live) {
+    html += `<span class="chip ${chipOf[g.key] || ''}">${esc(g.title)} · ${g.count}</span>`;
+  }
+  html += '</div>';
+  for (const g of live) {
+    html += `<div class="mini dim" style="padding:4px 12px 0">`
+          + `${esc(g.title)} — ${esc(g.note)}</div>`;
+    const shown = g.items.slice(0, 6);
+    for (const it of shown) {
+      // Бэкофф — это и есть «курс лечения»: сколько ещё минут палата
+      // держит модель. Нулевой отсчёт у живой палаты — ждём перепроверку.
+      const left = it.cooldown_left > 0
+        ? `бэкофф ${fmtLeft(it.cooldown_left)}`
+        : (g.key === 'discharged' || g.key === 'unseen'
+            ? '' : 'ждёт перепроверки');
+      const err = it.error ? ` · ${esc(it.error.slice(0, 48))}` : '';
+      html += `<div style="padding:2px 12px">`
+            + `<span class="mini">${esc(it.model)}</span> `
+            + `<span class="dim mini">${esc(it.gateway)}`
+            + `${left ? ' · ' + left : ''}${err}</span></div>`;
+    }
+    if (g.count > shown.length) {
+      html += `<div class="mini dim" style="padding:2px 12px">`
+            + `… и ещё ${g.count - shown.length}</div>`;
+    }
+  }
+  box.innerHTML = html;
+}
+
 function renderPing() {
   // `S` появляется только после первого ответа состояния, а событие из
   // потока может прийти раньше. Без проверки это `TypeError` в обработчике
@@ -4367,6 +4416,7 @@ async function refresh() {
   renderTasks();
   checkPermissions();
   renderPing();
+  renderWard();
   // Число субагентов зависит от свободных аккаунтов, а они меняются сами:
   // модель могла выбиться по лимиту. Пересчитываем на каждом обновлении,
   // иначе режим предлагал бы шесть субагентов при двух живых аккаунтах.
