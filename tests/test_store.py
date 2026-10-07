@@ -330,6 +330,89 @@ def test_context_manager_closes(tmp_path: Path) -> None:
         assert len(second.list_tasks()) == 1
 
 
+# --------------------------------------------------------- режим журнала
+
+
+def test_база_создаётся_в_режиме_wal(store: Store) -> None:
+    """WAL включается при создании базы и виден в сводке.
+
+    Режим journal_mode=WAL записывается в заголовок файла, поэтому его
+    проверяет и новое подключение: настройка должна переживать перезапуск,
+    а не действовать только внутри текущего процесса.
+    """
+    import sqlite3
+
+    assert store.journal_mode == "wal", store.journal_mode
+    assert store.stats()["journal_mode"] == "wal"
+
+    side = sqlite3.connect(str(store.path))
+    try:
+        row = side.execute("PRAGMA journal_mode").fetchone()
+        assert str(row[0]).lower() == "wal", row
+    finally:
+        side.close()
+
+
+def test_читатель_не_блокирует_писателя(store: Store) -> None:
+    """Главное свойство WAL: чтение из HTTP-потока не держит запись воркера.
+
+    До WAL база была в rollback-режиме, и второй процесс получал
+    `database is locked` на первой же записи, пока первый что-то читал.
+    Проверка идёт через два отдельных подключения к файлу Store, потому что
+    внутри самого Store запросы сериализует один RLock и конфликта не видно.
+    """
+    import sqlite3
+
+    store.add_task("задача")
+
+    reader = sqlite3.connect(str(store.path))
+    writer = sqlite3.connect(str(store.path))
+    try:
+        reader.execute("BEGIN")
+        reader.execute("SELECT COUNT(*) FROM tasks").fetchall()
+
+        # Короткое ожидание специально: в rollback-режиме запись здесь
+        # упрётся в блокировку, и тест должен это показать сразу, а не
+        # висеть пять секунд положенного busy_timeout.
+        writer.execute("PRAGMA busy_timeout=200")
+        writer.execute("INSERT INTO meta (key, value) VALUES ('from_writer', '1')")
+        writer.commit()
+        reader.rollback()
+
+        # meta хранит JSON, поэтому '1' читается как число.
+        assert store.get_meta("from_writer") == 1
+    finally:
+        reader.close()
+        writer.close()
+
+
+def test_старая_база_переводится_в_wal_при_открытии(tmp_path: Path) -> None:
+    """Существующая база переводится в WAL при следующем открытии.
+
+    Обновление не должно требовать от пользователя удалять состояние:
+    файл базы лежит в web-state/ и переживает версии программы.
+    """
+    import sqlite3
+
+    state = tmp_path / "web-state"
+    state.mkdir(parents=True)
+    legacy = sqlite3.connect(str(state / "zagent.db"))
+    legacy.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+    # meta хранит JSON: строка лежит в кавычках, иначе get_meta её не прочитает.
+    legacy.execute("INSERT INTO meta (key, value) VALUES ('старое', '\"значение\"')")
+    legacy.commit()
+    mode = str(legacy.execute("PRAGMA journal_mode").fetchone()[0]).lower()
+    legacy.close()
+    assert mode != "wal", "тест должен начинаться с базы не в WAL"
+
+    store = Store(tmp_path)
+    try:
+        assert store.journal_mode == "wal"
+        assert store.get_meta("старое") == "значение"
+    finally:
+        store.close()
+
+
 # ------------------------------------------------------------- воркер: очередь
 
 

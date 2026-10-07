@@ -27,6 +27,12 @@ from typing import Any, Iterable
 STATE_DIRNAME = "web-state"
 DB_FILENAME = "zagent.db"
 
+#: Сколько ждать освобождения базы вместо немедленного `database is locked`.
+#: Файл один, а процесс бывает не один: воркер держит базу постоянно, и рядом
+#: с ним запускают tools/probe_loop.py. Без ожидания второй процесс падал на
+#: первой же записи — и выглядело это как «хранилище сломалось».
+BUSY_TIMEOUT_MS = 5000
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS models (
     ref            TEXT PRIMARY KEY,
@@ -152,11 +158,33 @@ class Store:
         self._lock = threading.RLock()
         self._conn = sqlite3.connect(str(self.path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
+        #: Реально включившийся режим журнала. Совпадает с "wal" не всегда:
+        #: на сетевом диске SQLite молча оставляет прежний.
+        self.journal_mode = ""
         with self._lock:
+            self._tune()
             self._conn.executescript(SCHEMA)
             self._migrate()
             self._conn.executescript(INDEXES)
             self._conn.commit()
+
+    def _tune(self) -> None:
+        """Режим журнала и ожидание блокировки — до создания таблиц.
+
+        WAL вместо rollback-журнала: читатель не блокирует писателя, поэтому
+        SSE-рассылка и опрос состояния из HTTP-потока перестают ждать, пока
+        воркер допишет шаг. `synchronous=NORMAL` — штатная пара к WAL:
+        полная синхронизация на каждый коммит съела бы весь выигрыш, а цена
+        здесь — последние записи журнала событий при обрыве питания, не
+        состояние моделей и не очередь задач.
+
+        Ставится до executescript, потому что смена режима журнала на
+        незакрытой базе с открытой транзакцией не применяется.
+        """
+        self._conn.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
+        row = self._conn.execute("PRAGMA journal_mode=WAL").fetchone()
+        self.journal_mode = str(row[0] if row else "").lower()
+        self._conn.execute("PRAGMA synchronous=NORMAL")
 
     def _migrate(self) -> None:
         """Добавить недостающие колонки в базу, созданную прошлой версией.
@@ -767,6 +795,7 @@ class Store:
         pending = len(self.pending_permissions())
         return {
             "path": str(self.path),
+            "journal_mode": self.journal_mode,
             "tasks": tasks,
             "events": int(events[0]["n"]) if events else 0,
             "models": int(self._query("SELECT COUNT(*) AS n FROM models")[0]["n"]),
