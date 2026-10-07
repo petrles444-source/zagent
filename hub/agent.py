@@ -1073,8 +1073,13 @@ class Agent:
         if self.on_checkpoint is not None:
             try:
                 self.on_checkpoint(self.checkpoint)
-            except Exception:
-                pass
+            except Exception as exc:
+                # Потерянный чекпоинт по поведению не виден: задача просто
+                # возьмёт лишнее заново. Единственный след — здесь.
+                from hub import diag
+
+                diag.note("checkpoint_hook", exc,
+                          step=self.checkpoint.get("step"))
 
     def restore_checkpoint(self, data: dict[str, Any]) -> bool:
         """Восстановить диалог из чекпоинта. False — если он непригоден."""
