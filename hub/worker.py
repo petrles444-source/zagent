@@ -21,6 +21,7 @@ from typing import Any, Callable
 
 from hub.agent import Agent, AgentConfig, Phase, make_guard, selector_from_registry
 from hub.autonomy import AccessLevel, Autonomy, Escalation
+from hub import diag
 from hub.config import load_gateways, project_root
 from hub.failover import AutoCaller
 from hub.keyring import REGISTRY as KEY_RING
@@ -239,6 +240,11 @@ class Worker:
 
     def __init__(self, root: str | Path | None = None, store: Store | None = None) -> None:
         self.root = Path(root) if root is not None else project_root()
+        # Журнал ошибок указываем сразу после того, как известна папка
+        # установки: до этого момента сборщик честно считает записи
+        # потерянными, и любая ошибка раньше этой строки осталась бы
+        # без следа.
+        diag.configure(self.root)
         self.store = store or Store(self.root)
         self.loop: asyncio.AbstractEventLoop | None = None
         self.thread: threading.Thread | None = None
@@ -424,8 +430,11 @@ class Worker:
             payload = dict(task.get("payload") or {})
             payload["checkpoint"] = checkpoint
             self.store.update_task(task_id, payload=payload)
-        except Exception:
-            pass
+        except Exception as exc:
+            # Потерянный чекпоинт означает, что возобновление после краша
+            # начнётся с более старой точки, и это невозможно заметить по
+            # поведению программы: задача просто возьмёт лишнее заново.
+            diag.note("checkpoint_store", exc, task_id=task_id)
 
     def _recover_interrupted(self, task: dict[str, Any]) -> None:
         """Решить судьбу задачи, прерванной крахом процесса.
@@ -1118,14 +1127,20 @@ class Worker:
         """
         try:
             self.store.add_event(event, task_id=event.get("task_id"))
-        except Exception:
-            pass  # журнал не должен ронять работу
+        except Exception as exc:
+            # Журнал не должен ронять работу — но человек обязан узнать,
+            # что журнала нет: без этих строк событие просто исчезает, и
+            # «в интерфейсе пусто» неотличимо от «интерфейс сломался».
+            diag.note("emit_store", exc, event=str(event.get("type") or ""))
 
         for callback in list(self._subscribers):
             try:
                 callback(event)
-            except Exception:
-                pass
+            except Exception as exc:
+                # Подписчик один (SSE), и упасть он может, например, на
+                # закрытом сокете клиента. Событие при этом в базе уже
+                # лежит — журнал чинит только картину «ничего не пришло».
+                diag.note("emit_subscriber", exc, event=str(event.get("type") or ""))
 
     def subscribe(self, callback: Callable[[dict[str, Any]], None]) -> Callable[[], None]:
         """Подписаться на события. Возвращает функцию отписки."""
@@ -1797,6 +1812,10 @@ class Worker:
             "ok": True,
             "on": self.dev_mode(),
             "root": str(self.root),
+            # Журнал ошибок — часть диагностики по существу, а не
+            # украшение: если ошибки пишутся и не читаются, они просто
+            # занимают место на диске.
+            "errors": diag.DIAG.stats(),
             "db": str(self.store.path),
             "python": platform.python_version(),
             "tasks": count("tasks"),
