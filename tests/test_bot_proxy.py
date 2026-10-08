@@ -1,4 +1,4 @@
-"""Прокси помощника: защита, лимиты, диалог.
+﻿"""Прокси помощника: защита, лимиты, диалог.
 
 Проверяется то, что при ошибке сделало бы уязвимым публичный адрес:
 снятие проверки источника, снятие лимита, отбрасывание истории или
@@ -309,7 +309,7 @@ def test_состав_каталога_попадает_в_подсказку() 
     """
     line = bot.catalog_line()
     titles = [i.get("title") for i in json.loads(
-        (ROOT / "site" / "assets" / "catalog.json").read_text(encoding="utf-8"))]
+        (bot.find_site_dir() / "assets" / "catalog.json").read_text(encoding="utf-8"))]
     for title in titles:
         assert title in line, f"«{title}» не попал в подсказку"
 
