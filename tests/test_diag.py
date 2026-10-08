@@ -179,11 +179,31 @@ def test_recent_уважает_лимит(collector: Diag) -> None:
     assert len(collector.recent(limit=7)) == 7
 
 
-def test_очистка_стирает_файл_но_не_счётчики(collector: Diag) -> None:
+def test_очистка_стирает_файл_и_видимый_счётчик(collector: Diag) -> None:
+    """После очистки панель обязана показать ноль, а не «одну запись».
+
+    Раньше `count` брался из памяти процесса, и очищенный журнал на
+    панели всё равно показывал «1». Теперь число считается по файлу, то
+    есть видно то, что действительно лежит на диске; счётчик текущего
+    запуска остаётся доступен отдельно.
+    """
     collector.note("место", ValueError("x"))
     collector.clear()
     assert collector.recent() == []
-    assert collector.stats()["count"] == 1, "счётчик про текущий запуск"
+    assert collector.stats()["count"] == 0, "файл очищен - виден ноль"
+    assert collector.stats()["count_in_process"] == 1, (
+        "счётчик текущего запуска не должен пропадать")
+
+
+def test_счётчики_общие_для_двух_процессов(collector: Diag, tmp_path: Path) -> None:
+    """Панель сайта и панель шлюза читают один файл - и видят одно число."""
+    collector.note("сайт", ValueError("ошибка сайта"))
+    # Второй процесс: свой экземпляр на тот же корень, ноль записей в памяти.
+    other = Diag(tmp_path)
+    other.note("шлюз", ValueError("ошибка шлюза"))
+    assert other.stats()["count"] == collector.stats()["count"] == 2
+    # А вот его собственный счётчик запуска другой - и он виден отдельно.
+    assert other.stats()["count_in_process"] == 1
 
 
 # ------------------------------------------------------- подключение к коду

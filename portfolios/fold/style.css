@@ -1,0 +1,525 @@
+/* Складка — заглушка подачи.
+ *
+ * Главная идея файла: светлый снимок под светлым текстом — это худший
+ * случай для читаемости, и вместо того чтобы прятать проблему, страница
+ * показывает её в лицо. Отсюда три решения, которые видно сразу:
+ *
+ *   1. Текст никогда не лежит на снимке. Снимок живёт в двух местах, и
+ *      оба раза как подложка: в шапке — под молочным слоем в 90%, и в
+ *      figure — с подписью снизу, а не поверх. Нижний предел контраста
+ *      текста поэтому не зависит от картинки вообще.
+ *   2. Бумага обязана иметь край, поэтому фон страницы (#DAD5CD) заметно
+ *      темнее листа (#FBFAF8). Лист без края — это пустой белый
+ *      прямоугольник, а не страница.
+ *   3. Шрифт только системный, вес и разрядка подобраны так, чтобы
+ *      строка читалась вслух. На светлом фоне тонкие начертания
+ *      рассыпаются первыми, поэтому заголовок не тонкий.
+ */
+
+/* Токены. Бумага и чернила — самые важные числа файла:
+ * на них держится читаемость, и они же записаны в текст полосы 2,
+ * чтобы заявление можно было проверить, а не поверить. */
+:root {
+  /* «Стол» — поверхность, на которой лежит лист. Тон взят так, чтобы
+   * лист читался как физический объект, а не как фон страницы. */
+  --desk: #DAD5CD;
+  --desk-deep: #C6BFB4;   /* тень стола по краю, чтобы фон не был плоским */
+
+  /* Бумага листа. Чуть теплее чистого белого: на холодном фоне снимок
+   * кажется серым, а здесь он остаётся тем же светлым тоном. */
+  --paper: #FBFAF8;
+  --paper-lift: #FFFDFB;  /* блик на кромке сгиба */
+  --paper-dent: #EFEBE4;  /* тень в кромке сгиба */
+
+  /* Чернила. Основной тон не серый, а почти чёрный с тёплым
+   * подмесом: на тёплой бумаге холодный серый выглядит блёклым. */
+  --ink: #24211D;
+  --ink-soft: #5A544B;   /* вторичный текст: подписи, сноски, метки */
+
+  --rule: #C9C2B6;       /* волосяные линейки: тоньше, чем заметно, но видно */
+  --rule-soft: #DED8CE;
+
+  --focus: #1B1815;
+}
+
+* { box-sizing: border-box; }
+
+html { background: var(--desk); }
+
+body {
+  margin: 0;
+  background: var(--desk);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial,
+               sans-serif;
+  font-size: 17px;
+  line-height: 1.65;
+  /* Антиалиасинг тонких засечек на светлом фоне. Без этого светлый
+   * мелкий текст выглядит рваным — особенно на Windows, где по
+   * умолчанию включается субпиксельное сглаживание. */
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ------------------------------------------------------------------ *
+ * «Стол» с управлением
+ * ------------------------------------------------------------------ */
+
+.desk {
+  /* Липкий, чтобы ползунок оставался под рукой на длинной полосе.
+   * Но НЕ едет вместе со складкой: он лежит вне .stage и не имеет
+   * ни transform, ни перспективы. */
+  position: sticky;
+  top: 0;
+  z-index: 10;
+
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+
+  padding: 12px max(16px, calc((100vw - 760px) / 2));
+
+  /* Полупрозрачный, а не непрозрачный: под ползунком всё равно должен
+   * читаться край листа, иначе непонятно, что именно наклоняется. */
+  background: rgba(238, 234, 227, 0.94);
+  border-bottom: 1px solid var(--rule);
+  /* Размытие — прогрессивное: где поддерживается, ползунок не режет
+   * текст листа, где нет — просто остаётся плотная подложка. */
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.desk-label,
+.desk-out,
+.desk-hint {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, 'Courier New',
+               monospace;
+}
+
+/* Метка и число — по краям, подпись с подсказкой — строкой ниже. */
+.desk-label {
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.desk-out {
+  /* Табличные цифры: без них число «дёргается» по ширине при перетаскивании
+   * ползунка, и глаз цепляется за скачущую подпись вместо листа. */
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 4ch;
+  text-align: right;
+  color: var(--ink);
+}
+
+.desk-range {
+  /* Растягиваем ползунок, но не на всю строку: иначе он отодвинет
+   * кнопку с экрана узких телефонов. */
+  flex: 1 1 200px;
+  min-width: 140px;
+  max-width: 320px;
+  accent-color: var(--ink);   /* цвет дорожки и бегунка */
+  height: 24px;               /* увеличенная зона нажатия для пальца */
+  cursor: ew-resize;
+}
+
+.desk-btn {
+  font: 600 13px/1 system-ui, -apple-system, 'Segoe UI', Roboto, Arial,
+               sans-serif;
+  padding: 9px 14px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.desk-btn:hover { background: #FFF; border-color: var(--ink); }
+
+/* Нажатие — не transform, а сдвиг фона: сдвиг мышью с transform на
+ * этой полосе ловится за родительскую перспективу и страница прыгает. */
+.desk-btn:active { background: var(--paper-dent); }
+
+.desk-hint {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  max-width: 74ch;
+}
+
+/* ------------------------------------------------------------------ *
+ * Сцена и лист
+ * ------------------------------------------------------------------ */
+
+.stage {
+  /* Перспектива живёт на сцене, а не на листе: перспектива на самом
+   * листе наклоняла бы вместе с ним и систему координат, и все
+   * дочерние полосы уехали бы вбок вместо того, чтобы сжиматься. */
+  perspective: 1500px;
+  perspective-origin: 50% 0%;
+  padding: 34px 16px 90px;
+}
+
+.sheet {
+  /* Угол сгиба. Объявлен здесь, а не в разметке: без JS лист обязан
+   * лежать ровно, а не перекашиваться на неопределённый угол. */
+  --fold: 0;
+
+  position: relative;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 clamp(20px, 4vw, 44px) 8px;
+
+  background: var(--paper);
+  /* Тень длинная и очень мягкая. Лист должен казаться тонким: короткая
+   * плотная тень превратила бы его в плиту, а тонкий лист на светлом
+   * столе читается как лист. */
+  box-shadow:
+    0 1px 1px rgba(60, 48, 34, 0.06),
+    0 12px 20px -14px rgba(60, 48, 34, 0.22),
+    0 44px 70px -50px rgba(60, 48, 34, 0.55);
+
+  /* Наклон по верхнему краю: сгиб происходит там, где лежит складка,
+   * а не посередине полосы.
+   * В transform() здесь только rotateX. Перспектива живёт на .stage, и
+   * дублировать её в perspective() нельзя без путаницы: та дала бы листу
+   * вторую, собственную точку схода и полосы вели бы себя неодинаково. */
+  transform-origin: 50% 0;
+  transform: rotateX(calc(var(--fold) * -1deg));
+  /* Плавно только если пользователь не просил иначе: см. @media ниже. */
+  will-change: transform;
+}
+
+/* Тень от сгиба. Это ::before, а не отдельный элемент, потому что он
+ * не несёт смысла и не должен попадать в порядок чтения.
+ * Он позиционирован, значит рисуется поверх обычного текста — ровно
+ * то, что нужно для тени. Указание pointer-events: none обязательно,
+ * иначе тень перехватит клики по ползунку и по ссылке. */
+.sheet::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  /* Прозрачность считается прямо от угла: чем больше сгиб, тем темнее
+   * у верха листа. При нулевом угле тень есть, но её не видно. */
+  opacity: calc(var(--fold) / 48 * 0.55);
+  background: linear-gradient(
+    180deg,
+    rgba(46, 38, 28, 0.34) 0%,
+    rgba(46, 38, 28, 0.10) 34%,
+    rgba(46, 38, 28, 0) 68%
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Шапка — верхняя полоса листа
+ * ------------------------------------------------------------------ */
+
+.head {
+  /* Снимок под шапкой — единственное место, где картинка оказывается
+   * под текстом. Чтобы это не убило читаемость, поверх снимка кладётся
+   * молочный слой в 90%. Даже самый тёмный пиксель снимка (#A2A2A2) под
+   * слоем даёт #F1EFED, а чернила #24211D на нём держат контраст
+   * около 13:1. Сгибы снимка при этом остаются видны — ровно настолько,
+   * насколько нужно, чтобы бумага выглядела настоящей.
+   * Два фона одним свойством, а не псевдоэлементом: так не нужно
+   * разбираться с z-index и не нужно позиционировать текст. */
+  margin: 0 calc(-1 * clamp(20px, 4vw, 44px));
+  padding: clamp(30px, 6vw, 54px) clamp(20px, 4vw, 44px) 34px;
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(rgba(251, 250, 248, 0.90), rgba(251, 250, 248, 0.90)),
+    url("pic.jpg");
+  background-size: cover, cover;
+  /* Сдвиг к нижней трети снимка: там самые крупные складки, они
+   * проступают фоном и не спорят со строкой заголовка. */
+  background-position: center, center 62%;
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+.mark {
+  margin: 0 0 14px;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, 'Courier New',
+               monospace;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+h1 {
+  /* Не 300: на такой светлой бумаге тонкое начертание первым
+   * рассыпается, и это ровно тот случай, где экономия на весе
+   * выходит боком. Заголовок здесь — самый плотный текст страницы. */
+  margin: 0 0 10px;
+  font-size: clamp(38px, 7vw, 58px);
+  font-weight: 700;
+  letter-spacing: -0.028em;
+  line-height: 1.02;
+}
+
+.tagline {
+  margin: 0;
+  font-size: clamp(17px, 2.4vw, 21px);
+  color: var(--ink-soft);
+  max-width: 34ch;
+}
+
+/* ------------------------------------------------------------------ *
+ * Полосы и сгибы
+ * ------------------------------------------------------------------ */
+
+.band {
+  /* Ширина строки ограничена знаками, а не колонкой: на светлой бумаге
+   * длинная строка теряет начало и конец сильнее, чем на тёмной. */
+  max-width: 62ch;
+}
+
+.band p { margin: 0 0 16px; }
+
+/* Упоминание файла снимка моноширинным: сразу видно, что это данные
+ * о файле, а не часть текста подачи. */
+code {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, 'Courier New',
+               monospace;
+  font-size: 0.92em;
+  background: var(--paper-dent);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+h2 {
+  /* Заголовки полос — тоже плотные: иерархия держится на весе и
+   * разрядке, а не на размере, потому что размер на светлом фоне
+   * съедает контраст. */
+  margin: 0 0 14px;
+  font-size: clamp(21px, 3.2vw, 25px);
+  font-weight: 700;
+  letter-spacing: -0.014em;
+  line-height: 1.2;
+}
+
+/* Сгиб. Один и тот же элемент четыре раза — это и есть складка. */
+.crease {
+  margin: 40px calc(-1 * clamp(20px, 4vw, 44px)) 22px;
+  padding: 7px clamp(20px, 4vw, 44px);
+
+  /* Полоса сгиба: блик сверху, тень снизу. Именно эта пара градиентов
+   * читается как бумага, согнутая пополам, а не как разделитель. */
+  background: linear-gradient(
+    180deg,
+    var(--paper-lift) 0%,
+    var(--paper-dent) 52%,
+    var(--paper-lift) 100%
+  );
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, 'Courier New',
+               monospace;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  /* Сгиб на всю ширину листа: полоса, которая не доходит до краёв,
+   * выглядит разделителем, а складка должна идти от края до края. */
+  text-align: center;
+}
+
+/* Снимок и подпись. */
+.shot {
+  margin: 0 0 22px;
+}
+
+.pic {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* Скругление и рамка — обязательны, а не украшение: снимок такой
+   * светлый, что на бумаге без границы его края просто исчезают,
+   * и кадр перестаёт быть прямоугольником. */
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+
+figcaption {
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px dotted var(--rule);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  max-width: 58ch;
+}
+
+/* Пара «нечитаемо / читаемо». */
+.pair {
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule-soft);
+}
+
+.pair-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+/* Плашка-образец. Текст на ней — настоящий цвет текста из соседнего
+ * описания, поэтому заявленный контраст можно перепроверить
+ * инструментом, а не на глаз. */
+.pair-chip {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 44px;
+  border-radius: 2px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* Плохой случай: ровно то, что получилось бы при тексте прямо
+ * на снимке, — тон медианы #D1D1D1 и светлые чернила #E8E4DE. */
+.pair-bad .pair-chip {
+  background: #D1D1D1;
+  color: #E8E4DE;
+  border: 1px solid var(--rule);
+}
+
+/* Наш случай: бумага и чернила. Рамка здесь лишняя, поэтому её нет. */
+.pair-good .pair-chip {
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--rule-soft);
+}
+
+.pair-text { display: block; min-width: 0; }
+
+.pair-text b {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+/* Описание в цифрах — моноширинным и с приглушённым тоном: это сноска
+ * к картинке, а не часть рассказа. */
+.pair-text span {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+/* Список отсутствующего. Маркер — не точка, а короткая черта: на
+ * светлой бумаге круглый маркер светлеет и пропадает. */
+.absent {
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.absent li {
+  position: relative;
+  padding-left: 20px;
+  margin-bottom: 6px;
+}
+
+.absent li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.72em;
+  width: 10px;
+  height: 2px;
+  background: var(--ink-soft);
+}
+
+/* Подвал с ссылкой на каталог. */
+.foot {
+  margin: 44px calc(-1 * clamp(20px, 4vw, 44px)) 0;
+  padding: 22px clamp(20px, 4vw, 44px) 34px;
+  border-top: 1px solid var(--rule);
+}
+
+.foot a {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  /* Подчёркивание сплошное, а не пунктирное: пунктир на светлом фоне
+   * местами пропадает, а это обязательная ссылка, а не украшение. */
+  border-bottom: 2px solid var(--ink);
+  padding-bottom: 1px;
+}
+
+.foot a:hover { background: var(--paper-dent); }
+
+/* Фокус заметный: клавиатура тут единственный способ наклонить лист
+ * точным углом, и терять кольцо фокуса нельзя. */
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+/* ------------------------------------------------------------------ *
+ * Адаптив
+ * ------------------------------------------------------------------ */
+
+/* Уважение к настройке «меньше движения»: без плавности ползунок
+ * всё равно работает, просто лист прыгает, а не переворачивается. */
+@media (prefers-reduced-motion: no-preference) {
+  .sheet {
+    transition: transform 160ms ease-out;
+  }
+  .sheet::before {
+    transition: opacity 160ms ease-out;
+  }
+  .desk-btn {
+    transition: background-color 120ms ease-out,
+                border-color 120ms ease-out;
+  }
+}
+
+@media (max-width: 620px) {
+  body { font-size: 16px; }
+
+  /* Перспектива на телефоне короче, а не выключена: без неё rotateX
+   * схлопывает лист в вертикальную полосу и нижние полосы превращаются
+   * в нечитаемую полоску. Перспектива — это и есть «лист в пространстве»,
+   * убрать её значит сломать приём, а не адаптировать его. */
+  .stage {
+    perspective: 900px;
+    padding: 20px 10px 60px;
+  }
+
+  .sheet {
+    padding: 0 clamp(14px, 4vw, 24px) 6px;
+  }
+
+  /* Подписи-отступы полос и сгибов должны совпасть с уменьшенным
+   * внутренним отступом листа, иначе сгиб вылезет за его край. */
+  .head,
+  .crease,
+  .foot {
+    margin-left: calc(-1 * clamp(14px, 4vw, 24px));
+    margin-right: calc(-1 * clamp(14px, 4vw, 24px));
+    padding-left: clamp(14px, 4vw, 24px);
+    padding-right: clamp(14px, 4vw, 24px);
+  }
+
+  .crease { margin-top: 32px; }
+
+  .desk { padding: 10px 14px; }
+  .desk-range { flex: 1 1 100%; max-width: none; order: 3; }
+  .desk-btn { order: 4; }
+}

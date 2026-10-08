@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="zagent — терминальный портфолио: список команд, журнал работы, готовые инструменты.">
+<title>guest@zagent: ~/portfolio</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="stylesheet" href="ai.css">
+<meta name="zagent-ai" content='{"persona": "anatoly", "agent": "Анатолий", "role": "учит Python в консоли", "greeting": "Спросите про проект, про любую из работ или про то, как всё это собрать у себя."}'>
+<script src="ai.js" defer></script>
+</head>
+<body>
+
+<div class="crt">
+<header class="bar">
+  <span class="dots"><i></i><i></i><i></i></span>
+  <span class="path">guest@zagent — /home/guest/portfolio — 80×24</span>
+</header>
+
+<main>
+
+  <section class="block" id="boot">
+    <pre class="print">zagent agent framework
+  версия  0.1 · python 3 · только стандартная библиотека
+  цель    задачи локально, модели с перебором, ключи не в коде
+
+[ ok ] окружение       ключи 7 провайдеров, карта моделей собрана
+[ ok ] очередь         воркспейсы на месте, журнал ошибок пишется
+[ ok ] инструменты     6 готовых решений в publish/
+[??] сайт             отдан на хостинг, помощник через прокси
+[ ok ] ограничения     учтены: квота хостинга, лимиты, приоритеты
+
+посмотрите, что сделано:
+  help <что делает каждая команда>   команды
+  works                             список решений
+  keys                              где взять ключи
+  howto                             сборка у себя
+  notes                             что стоило дороже всего</pre>
+  </section>
+
+  <section class="block" id="commands">
+    <h2>команды</h2>
+    <table class="tbl">
+      <tbody>
+        <tr><td class="c">help</td><td>что делает каждая команда</td></tr>
+        <tr><td class="c">works</td><td>список решений</td></tr>
+        <tr><td class="c">keys</td><td>где взять ключи</td></tr>
+        <tr><td class="c">howto</td><td>сборка у себя</td></tr>
+        <tr><td class="c">notes</td><td>что стоило дороже всего</td></tr>
+        <tr><td class="c">status</td><td>состояние проекта</td></tr>
+        <tr><td class="c">clear</td><td>очистить экран</td></tr>
+        <tr><td class="c">sudo</td><td class="dim">недоступно: ключи всё равно на машине</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="block" id="works">
+    <h2>решения</h2>
+    <ul class="list">
+      <li>
+        <b>neural-archive</b> <span class="tag">site</span><br>
+        сайт-архив флеш-работ с живым воспроизведением через ruffle.
+        каталог, фильтры, загрузка .swf перетаскиванием, помощник.
+        движок и шрифты рядом со страницей — работает без сети.<br>
+        <span class="dim">$ <a href="https://zagent.do.am/index.html">open https://zagent.do.am/index.html</a></span>
+      </li>
+      <li>
+        <b>ada-telegram-bot</b> <span class="tag">bot</span><br>
+        помощница для чатов. откликается на «ада» в любом написании и
+        только как отдельное слово. в беседе вмешивается в каждое
+        десятое сообщение. помнит ход разговора. стдлиб.<br>
+        <span class="dim">$ <a href="https://t.me/adaweffeBot">open https://t.me/adaweffeBot</a></span>
+      </li>
+      <li>
+        <b>zradio</b> <span class="tag">win</span><br>
+        радиоклиент: окно и консоль, 37 станций, пинг доступности.
+        окно прячется, музыка играет в отдельном процессе wmp.
+        лаунчер .exe собирается из c# без зависимостей.
+      </li>
+      <li>
+        <b>swf-generator</b> <span class="tag">fmt</span><br>
+        настоящие несжатые .swf из python: заголовок, сцена, теги,
+        кадры. демо весят 800–4000 байт. главные грабли формата —
+        выравнивание после rect и порядок байт — закрыты.
+      </li>
+      <li>
+        <b>bot-proxy</b> <span class="tag">sec</span><br>
+        ключ остаётся на машине. наружу — один маршрут с проверкой
+        источника и лимитом запросов. агент на 127.0.0.1 наружу не
+        выпускается.
+      </li>
+      <li>
+        <b>zagent</b> <span class="tag">agent</span><br>
+        очередь задач, файлы, воркспейсы, встроенные модели,
+        телеграм-боты, пинги, диагностика. ключи только на диске.
+        <br>
+        <span class="dim">$ <span class="stub">wget zagent.zip</span> <span class="warn">— готовится</span></span>
+      </li>
+    </ul>
+  </section>
+
+  <section class="block" id="keys">
+    <h2>ключи</h2>
+    <p class="note">
+      все адреса официальные. бесплатно, без карты.
+    </p>
+    <ul class="list tight">
+      <li><a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a> <span class="dim">— много моделей, есть :free</span></li>
+      <li><a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a> <span class="dim">— быстро, щедрый лимит</span></li>
+      <li><a href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener">console.mistral.ai/api-keys</a> <span class="dim">— пробный ключ сразу</span></li>
+      <li><a href="https://build.nvidia.com" target="_blank" rel="noopener">build.nvidia.com</a> <span class="dim">— бесплатно, нужен аккаунт</span></li>
+      <li><a href="https://t.me/BotFather" target="_blank" rel="noopener">t.me/BotFather</a> <span class="dim">— токен бота</span></li>
+    </ul>
+    <p class="warn">
+      ключ в браузере принадлежит не тебе, а тому, кто открыл страницу.
+      держите ключ на сервере.
+    </p>
+  </section>
+
+  <section class="block" id="notes">
+    <h2>что стоило дороже всего</h2>
+    <ul class="list tight">
+      <li>
+        <b>тело запроса читать до проверок.</b> иначе при отказе клиент
+        получает разрыв соединения вместо «слишком много вопросов», и
+        в браузере это «ошибка сети».
+      </li>
+      <li>
+        <b>порядок байт.</b> биты внутри байта от старшего, числа — от
+        младшего. номер персонажа 1 читался как 256, и файл был «почти
+        правильным», пока не заиграл.
+      </li>
+      <li>
+        <b>длинный опрос там, где его рвут.</b> прокси хостинга держит
+        соединение три секунды. бот был молчалив при полностью рабочей
+        защите — просто ждал дольше, чем можно.
+      </li>
+    </ul>
+  </section>
+
+  <section class="block" id="howto">
+    <h2>сборка у себя</h2>
+    <pre class="print"># 1. нужен только python 3.9+, ничего доустанавливать не надо
+python --version
+
+# 2. скопировать файл и запустить
+python zradio.py            # окно со станциями
+python ada_bot.py           # телеграм-помощница
+python make_demo_swf.py     # собрать три демо .swf
+
+# 3. ключи — в config.json рядом со скриптом, не в код
+#    файл в .gitignore добавлен осознанно
+
+# 4. бота в группу: @BotFather -> /setprivacy -> Disable
+#    иначе в беседе он увидит только реплики с упоминанием
+
+# 5. сайт: папка ruffle/ рядом с index.html — и он не зависит от сети</pre>
+  </section>
+
+</main>
+
+<footer class="bar bottom">
+  <span class="dim">печатайте команду · ↑ ↓ история · Ctrl+L очистить · Esc вверх</span>
+  <span class="prompt-line"><span class="ps">guest@zagent</span>:<span class="path2">~</span>$ <span class="say"></span><span class="typed"></span><span class="cursor"></span></span>
+  <a class="ver-link" href="#" rel="nofollow">обновить</a>
+</footer>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

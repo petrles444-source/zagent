@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ЗОВ | Экспедиции и охота</title>
+    <style>
+        /* === ИМПОРТ ШРИФТОВ === */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Oswald:wght@400;600;700&display=swap');
+
+        /* === ПЕРЕМЕННЫЕ И СБРОС === */
+        :root {
+            --bg-dark: #121412; /* Глубокий хвойный */
+            --bg-panel: #1c1f1c;
+            --accent: #d96c2e; /* Цвет blaze orange (оранжевый сигнал) */
+            --accent-hover: #b85722;
+            --text-main: #e8e6e3; /* Выцветший белый */
+            --text-muted: #8c948c; /* Мох */
+            --border-color: #2a2e2a;
+            --font-heading: 'Oswald', sans-serif;
+            --font-body: 'Inter', sans-serif;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: var(--font-body);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* === НАВИГАЦИЯ === */
+        nav {
+            position: fixed;
+            top: 0; left: 0; width: 100%;
+            padding: 15px 5%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(18, 20, 18, 0.9);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            z-index: 1000;
+        }
+
+        .logo {
+            font-family: var(--font-heading);
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: 3px;
+            color: var(--text-main);
+            text-transform: uppercase;
+        }
+        .logo span { color: var(--accent); }
+
+        .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            margin-left: 30px;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+        .nav-links a:hover { color: var(--accent); }
+
+        /* === ГЛАВНЫЙ ЭКРАН (HERO) === */
+        .hero {
+            height: 95vh;
+            display: flex;
+            align-items: center;
+            padding: 0 8%;
+            position: relative;
+            /* Фоновое изображение: туманный лес/горы */
+            background: linear-gradient(rgba(18, 20, 18, 0.7), rgba(18, 20, 18, 0.9)), 
+                        url('https://images.unsplash.com/photo-1542718610-a1d656d1884c?auto=format&fit=crop&w=1920&q=80') center/cover;
+        }
+
+        .hero-content {
+            max-width: 700px;
+            border-left: 4px solid var(--accent);
+            padding-left: 30px;
+            animation: slideIn 1s ease-out;
+        }
+
+        .hero-subtitle {
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        .hero h1 {
+            font-family: var(--font-heading);
+            font-size: clamp(3rem, 6vw, 5rem);
+            line-height: 1.05;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+
+        .hero p {
+            color: var(--text-main);
+            font-size: 1.1rem;
+            margin-bottom: 40px;
+            font-weight: 300;
+            max-width: 500px;
+        }
+
+        .btn {
+            padding: 15px 35px;
+            text-decoration: none;
+            font-family: var(--font-heading);
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background-color: var(--accent);
+            color: #fff;
+            border: none;
+            font-weight: 600;
+        }
+        .btn-primary:hover {
+            background-color: var(--accent-hover);
+            transform: translateY(-2px);
+        }
+
+        /* === СЕКЦИЯ ЭКСПЕДИЦИЙ === */
+        .expeditions {
+            padding: 100px 8%;
+            background-color: var(--bg-dark);
+        }
+
+        .section-title {
+            font-family: var(--font-heading);
+            font-size: 2.5rem;
+            text-transform: uppercase;
+            margin-bottom: 50px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .section-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background-color: var(--border-color);
+        }
+
+        .grid-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 30px;
+        }
+
+        .card {
+            background-color: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+            transition: transform 0.3s ease, border-color 0.3s ease;
+            position: relative;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent);
+        }
+
+        .card-img {
+            height: 250px;
+            width: 100%;
+            object-fit: cover;
+            filter: brightness(0.8) contrast(1.1);
+            transition: filter 0.3s ease;
+        }
+        
+        .card:hover .card-img {
+            filter: brightness(1) contrast(1);
+        }
+
+        .card-body {
+            padding: 25px;
+        }
+
+        .card-tag {
+            color: var(--accent);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        .card h3 {
+            font-family: var(--font-heading);
+            font-size: 1.6rem;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+        }
+
+        .card p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-bottom: 20px;
+        }
+
+        .card-price {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid var(--border-color);
+            padding-top: 15px;
+            font-family: var(--font-heading);
+            font-size: 1.2rem;
+            color: var(--text-main);
+        }
+        
+        .card-price span {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            font-family: var(--font-body);
+            text-transform: uppercase;
+        }
+
+        /* === СЕКЦИЯ СНАРЯЖЕНИЯ === */
+        .gear-section {
+            padding: 100px 8%;
+            background-color: var(--bg-panel);
+            display: flex;
+            align-items: center;
+            gap: 60px;
+        }
+
+        .gear-image {
+            flex: 1;
+            height: 600px;
+            background: url('https://images.unsplash.com/photo-1506459225024-1428097a7e18?auto=format&fit=crop&w=800&q=80') center/cover;
+            border-radius: 4px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        }
+
+        .gear-content {
+            flex: 1;
+        }
+
+        .gear-content h2 {
+            font-family: var(--font-heading);
+            font-size: 2.5rem;
+            text-transform: uppercase;
+            margin-bottom: 25px;
+            line-height: 1.1;
+        }
+
+        .gear-list {
+            list-style: none;
+            margin-bottom: 30px;
+        }
+
+        .gear-list li {
+            padding: 15px 0;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            color: var(--text-muted);
+        }
+        
+        .gear-list li::before {
+            content: '■';
+            color: var(--accent);
+            font-size: 0.8rem;
+        }
+
+        /* === ФИЛОСОФИЯ (FAIR CHASE) === */
+        .ethics {
+            padding: 100px 8%;
+            text-align: center;
+            background: linear-gradient(rgba(18, 20, 18, 0.9), rgba(18, 20, 18, 0.9)), 
+                        url('https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1920&q=80') center/cover fixed;
+            border-top: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .ethics h2 {
+            font-family: var(--font-heading);
+            font-size: 3rem;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+            color: var(--accent);
+        }
+
+        .ethics p {
+            max-width: 800px;
+            margin: 0 auto;
+            font-size: 1.2rem;
+            color: var(--text-main);
+            font-weight: 300;
+        }
+
+        /* === ПОДВАЛ === */
+        footer {
+            padding: 50px 8%;
+            background-color: var(--bg-dark);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        footer .logo { font-size: 1.2rem; }
+
+        /* === АНИМАЦИИ И АДАПТИВНОСТЬ === */
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-30px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @media (max-width: 992px) {
+            .gear-section { flex-direction: column; }
+            .gear-image { width: 100%; height: 400px; }
+        }
+
+        @media (max-width: 768px) {
+            .nav-links { display: none; }
+            .hero-content { border-left: none; padding-left: 0; border-top: 4px solid var(--accent); padding-top: 20px; }
+            .hero h1 { font-size: 2.5rem; }
+            .expeditions, .gear-section, .ethics { padding: 60px 5%; }
+            .section-title { font-size: 2rem; }
+            footer { flex-direction: column; gap: 20px; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Навигация -->
+    <nav>
+        <div class="logo">ЗОВ<span>.</span></div>
+        <div class="nav-links">
+            <a href="#">Экспедиции</a>
+            <a href="#">Снаряжение</a>
+            <a href="#">Гиды</a>
+            <a href="#">Журнал</a>
+        </div>
+    </nav>
+
+    <!-- Главный экран -->
+    <header class="hero">
+        <div class="hero-content">
+            <span class="hero-subtitle">Клуб реальных экспедиций</span>
+            <h1>Там, где заканчивается карта</h1>
+            <p>Охота — это не просто добыча. Это искусство выживания, уважение к дикой природе и проверка себя на прочность. Мы организуем экспедиции для тех, кто ценит тишину леса и честную схватку.</p>
+            <a href="#" class="btn btn-primary">Выбрать экспедицию</a>
+        </div>
+    </header>
+
+    <!-- Секция экспедиций -->
+    <section class="expeditions">
+        <h2 class="section-title">Активные туры</h2>
+        
+        <div class="grid-cards">
+            <!-- Карточка 1 -->
+            <div class="card">
+                <img src="photo-151782480670.jpg" alt="Горная охота" class="card-img">
+                <div class="card-body">
+                    <span class="card-tag">Горная тайга</span>
+                    <h3>Охота на марала</h3>
+                    <p>7-дневная экспедиция в сердце Сибири. Работа с опытными егерями, проживание в таежном лагере.</p>
+                    <div class="card-price">
+                        120 000 ₽ <span>за человека</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Карточка 2 -->
+            <div class="card">
+                <img src="photo-153315468383.jpg" alt="Лесная охота" class="card-img">
+                <div class="card-body">
+                    <span class="card-tag">Смешанный лес</span>
+                    <h3>Трофейный кабан</h3>
+                    <p>Ночная охота с вышки и подхода. Идеально для тех, кто хочет испытать азарт и проверить выдержку.</p>
+                    <div class="card-price">
+                        85 000 ₽ <span>за человека</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Карточка 3 -->
+            <div class="card">
+                <img src="missing-photo.jpg" alt="Водная охота" class="card-img">
+                <div class="card-body">
+                    <span class="card-tag">Северные озера</span>
+                    <h3>Водоплавающая дичь</h3>
+                    <p>Охота с чучелами и подсадной уткой на рассвете. Включает аренду лодок и работу с легавой собакой.</p>
+                    <div class="card-price">
+                        60 000 ₽ <span>за человека</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Секция снаряжения -->
+    <section class="gear-section">
+        <div class="gear-image"></div>
+        <div class="gear-content">
+            <h2>Только проверенное снаряжение</h2>
+            <p style="color: var(--text-muted); margin-bottom: 30px;">Мы не продаем «пластиковые» новинки. В нашем арсенале — только то, что прошло проверку в самых суровых условиях.</p>
+            
+            <ul class="gear-list">
+                <li>Оптика премиум-класса (Swarovski, Leica)</li>
+                <li>Терморегулируемая одежда (Sitka, Kuiu)</li>
+                <li>Нарезное оружие и карабины ведущих брендов</li>
+                <li>Спутниковая связь и навигация Garmin</li>
+            </ul>
+            
+            <a href="#" class="btn btn-primary" style="background: transparent; border: 1px solid var(--accent); color: var(--accent);">Смотреть каталог</a>
+        </div>
+    </section>
+
+    <!-- Секция философии -->
+    <section class="ethics">
+        <h2>Fair Chase</h2>
+        <p>Мы исповедуем принцип честной охоты. Никаких загонов, клеток и гарантированных трофеев. Только дикая природа, равные шансы и глубочайшее уважение к животному, которое становится частью нашего опыта.</p>
+    </section>
+
+    <!-- Подвал -->
+    <footer>
+        <div class="logo">ЗОВ<span>.</span></div>
+        <p>&copy; 2024 Клуб экспедиций «ЗОВ». Все права защищены.</p>
+        <div style="display: flex; gap: 20px;">
+            <a href="#" style="color: var(--text-muted); text-decoration: none;">Telegram</a>
+            <a href="#" style="color: var(--text-muted); text-decoration: none;">YouTube</a>
+        </div>
+    </footer>
+
+
+<!-- Демонстрационная страница из materials/demo. Бизнеса за ней нет: цены, контакты и отзывы вымышлены. Всё грузится с этого же адреса, внешних загрузок нет. -->
+</body>
+</html>

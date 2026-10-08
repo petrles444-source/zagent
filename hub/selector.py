@@ -65,8 +65,10 @@ class ModelState:
     def usable(self, now: float | None = None) -> bool:
         """Можно ли сейчас попробовать эту модель."""
         current = now if now is not None else time.time()
-        if self.last_status == "blocked":
-            return current >= self.cooldown_until
+        # Ветки для blocked раньше возвращали одно и то же значение, то
+        # есть только обещали особую механику, которой не было. Поведение
+        # сохранено - «карантин, потом попробовать снова» - но теперь он
+        # выражен прямо, и мёртвый код не вводит в заблуждение.
         return current >= self.cooldown_until
 
     def to_dict(self) -> dict[str, Any]:

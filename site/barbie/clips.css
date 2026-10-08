@@ -1,0 +1,82 @@
+/* Оформление секции с видео для PINK ÉLITE.
+ *
+ * Отдельный файл, а не дописывание в css.css: правки в чужую вёрстку
+ * не переживают её обновление, а видео добавляли мы.
+ *
+ * Главное здесь — не украшение, а трафик. Семь роликов весят 32 МБ,
+ * поэтому:
+ *   * видео вертикальные, поэтому контейнер узкий и с телефонной
+ *     пропорцией 9:16 — иначе чёрные полосы по бокам;
+ *   * превью берётся одной картинкой, а не кадром из ролика: браузер
+ *     не умеет показывать кадр без загрузки самого файла;
+ *   * `preload="none"` в разметке — без него браузер тянет все ролики
+ *     при открытии страницы.
+ */
+
+#works {
+  padding: 90px 0;
+}
+
+/* Сетка: три колонки на широком экране, одна на телефоне.
+ * Вертикальное видео на десктопе в три колонки занимает мало
+ * высоты и не даёт «прыгать» сетке при загрузке постеров. */
+.clips {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-top: 44px;
+}
+
+@media (max-width: 980px) {
+  .clips { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 620px) {
+  #works { padding: 56px 0; }
+  .clips {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    margin-top: 28px;
+  }
+}
+
+.clip {
+  margin: 0;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(201, 79, 124, 0.18);
+  border-radius: 14px;
+  padding: 10px;
+  box-shadow: 0 10px 30px rgba(201, 79, 124, 0.10);
+}
+
+.clip__video {
+  display: block;
+  width: 100%;
+  /* Пропорция 9:16 — вертикальные ролики. Постер имеет тот же
+   * размер, поэтому до нажатия «play» место не прыгает. */
+  aspect-ratio: 9 / 16;
+  object-fit: cover;
+  background: #1A0A12;
+  border-radius: 8px;
+  /* Панель управления видео на светлом фоне почти не читается,
+   * поэтому добавляем тонкую розовую рамку при наведении. */
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition: outline-color 0.2s ease;
+}
+
+.clip__video:hover,
+.clip__video:focus-visible {
+  outline-color: rgba(201, 79, 124, 0.5);
+}
+
+.clip__caption {
+  margin: 10px 4px 4px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: #7A2748;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clip__video { transition: none; }
+}

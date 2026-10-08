@@ -525,8 +525,12 @@ async def probe_models(
         finally:
             await client.aclose()
 
+    # Примечание об успешном сборе не должно попадать в поле `error`:
+    # исправная локальная модель выглядела сломанной, потому что её
+    # нормальный итог («3 модели в локальном рантайме») записывался
+    # туда же, где настоящие отказы шлюзов.
     for gateway_id, note in notes.items():
-        results[f"{gateway_id}/*"] = {"status": "note", "error": note}
+        results[f"{gateway_id}/*"] = {"status": "note", "message": note}
     return results
 
 

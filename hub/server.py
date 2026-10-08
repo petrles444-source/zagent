@@ -41,6 +41,7 @@ import httpx
 from hub import blackbox
 from hub import diag
 from hub import local_llm
+from hub import radio
 from hub import thinking
 # Порт моста берём из него самого: расхождение с serve.py было бы
 # источником тихих «мост не отвечает» при смене порта.
@@ -77,6 +78,10 @@ class ApiServer:
     def __init__(self, root: Path | None = None, worker: Worker | None = None) -> None:
         self.root = root or Path(__file__).resolve().parent.parent
         self.worker = worker or Worker(self.root)
+        # Радио живёт отдельно от воркера: его состояние — кэш пинга
+        # станций, он не зависит от очереди задач и не должен тонуть
+        # вместе с ней.
+        self.radio = radio.RadioBook(self.root)
 
     def start(self) -> None:
         self.worker.start()
@@ -398,6 +403,9 @@ class Handler(BaseHTTPRequestHandler):
                 # модели и разговор со всеми разом.
                 "/api/models/status": self._bridge_status,
                 "/api/models/ask_all": self._models_ask_all,
+                # Радио: запуск проверки станций в фоне. Отдельный
+                # маршрут от снимка — пинг меняет состояние, поэтому POST.
+                "/api/radio/ping": self._radio_ping,
             }
             handler = routes.get(path)
             if handler is None:
@@ -525,6 +533,23 @@ class Handler(BaseHTTPRequestHandler):
             timeout = 180.0
         payload["timeout"] = timeout
         return self._bridge_call("/ask_all", payload, timeout=timeout + 20.0)
+
+    def _radio_ping(self, body: dict[str, Any]) -> dict[str, Any]:
+        """Запустить проверку радиостанций в фоне.
+
+        Ответ немедленный, а не по готовности: 37 станций по четыре
+        секунды — это до минуты ожидания, за которое браузер успеет
+        счесть запрос зависшим. Интерфейс вместо ожидания опрашивает
+        снимок `/api/radio` и видит, как одна за другой точки станций
+        загораются своим цветом. Повторный запуск во время идущей
+        проверки не создаёт второй поток — `start_ping` отклоняет.
+        """
+        started = self.api.radio.start_ping()
+        return {
+            "ok": True,
+            "started": started,
+            "pinging": self.api.radio.snapshot().get("pinging"),
+        }
 
     # ------------------------------------------------------- размышление
 
@@ -737,9 +762,31 @@ class Handler(BaseHTTPRequestHandler):
         return self.api.worker.sanity(body.get("ref"), body.get("lang", "ru"))
 
     def _ask(self, body: dict[str, Any]) -> dict[str, Any]:
-        text = str(body.get("text") or "").strip()
-        if not text:
-            return {"ok": False, "error": "пустой запрос"}
+        # Запрос бывает двух видов: одиночный вопрос в `text` и целый
+        # диалог в `messages`. Второе нужно там, где с моделью говорит
+        # человек — помощник на сайте, чат в консоли: без истории модель
+        # не помнит предыдущие реплики и на «а как его зовут» отвечает
+        # «не знаю», хотя имя только что назвали.
+        #
+        # Роли проверяются по белому списку и текст обрезается: `messages`
+        # приходит извне, и без проверки в промпт можно подсунуть
+        # собственную «system»-инструкцию.
+        messages: list[dict[str, str]] = []
+        raw = body.get("messages")
+        if isinstance(raw, list) and raw:
+            for turn in raw[-24:]:
+                if not isinstance(turn, dict):
+                    continue
+                role = str(turn.get("role") or "")
+                content = str(turn.get("content") or turn.get("text") or "").strip()
+                if role in ("system", "user", "assistant") and content:
+                    messages.append({"role": role, "content": content[:8000]})
+        if not messages:
+            text = str(body.get("text") or "").strip()
+            if not text:
+                return {"ok": False, "error": "пустой запрос"}
+            messages = [{"role": "user", "content": text}]
+
         worker = self.api.worker
         if worker.selector is None:
             return {"ok": False, "error": "реестр не загружен"}
@@ -747,7 +794,7 @@ class Handler(BaseHTTPRequestHandler):
         caller = AutoCaller(worker.selector, timeout=120.0)
         try:
             result = _run(worker, caller.ask(
-                [{"role": "user", "content": text}],
+                messages,
                 max_tokens=int(body.get("max_tokens") or 2000),
                 images=body.get("images"),
                 include_attempts=True,
@@ -1228,6 +1275,12 @@ class Handler(BaseHTTPRequestHandler):
                 # локальные Ollama. Ответ всегда 200 — «мост не
                 # поднят» это состояние, а не поломка.
                 return self._json(self._bridge_status())
+            if parsed.path == "/api/radio":
+                # Список радиостанций с кэшированными статусами пинга.
+                # Сам пинг здесь не запускается: вкладка тянет снимок
+                # при каждом открытии, а 37 соединений по четыре секунды
+                # не должны висеть в ответе на GET.
+                return self._json(self.api.radio.snapshot())
             if parsed.path == "/api/thinking/state":
                 return self._json(self._thinking_state())
             if parsed.path == "/api/local/models":

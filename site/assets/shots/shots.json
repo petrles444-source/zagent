@@ -1,0 +1,240 @@
+{
+ "/palm/": {
+  "name": "Линии руки",
+  "file": "palm.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 68
+ },
+ "/": {
+  "name": "Главная",
+  "file": "main.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 119
+ },
+ "/tex/": {
+  "name": "NovaTech",
+  "file": "tex.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 44
+ },
+ "/barbie/": {
+  "name": "Pink Élite",
+  "file": "barbie.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 47
+ },
+ "/tovar/": {
+  "name": "NovaTech Store",
+  "file": "tovar.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 75
+ },
+ "/forno/": {
+  "name": "Forno",
+  "file": "forno.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 107
+ },
+ "/dentalia/": {
+  "name": "Dentalia",
+  "file": "dentalia.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 83
+ },
+ "/vow/": {
+  "name": "Vow",
+  "file": "vow.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 77
+ },
+ "/grind/": {
+  "name": "Grind",
+  "file": "grind.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 100
+ },
+ "/strobe/": {
+  "name": "Strobe",
+  "file": "strobe.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 70
+ },
+ "/tma/": {
+  "name": "Помощник",
+  "file": "tma.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 36
+ },
+ "/aetheris/": {
+  "name": "Aetheris",
+  "file": "aetheris.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 78
+ },
+ "/auraspin/": {
+  "name": "Aura Spin",
+  "file": "auraspin.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 42
+ },
+ "/academy/": {
+  "name": "Авторская академия",
+  "file": "academy.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 60
+ },
+ "/palmistry/": {
+  "name": "Хиромантия",
+  "file": "palmistry.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 72
+ },
+ "/palmchart/": {
+  "name": "Карта линий",
+  "file": "palmchart.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 22
+ },
+ "/shaurma/": {
+  "name": "Шаурма",
+  "file": "shaurma.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 77
+ },
+ "/apex/": {
+  "name": "APEX",
+  "file": "apex.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 111
+ },
+ "/zov/": {
+  "name": "ЗОВ",
+  "file": "zov.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 58
+ },
+ "/taiga/": {
+  "name": "TAIGA",
+  "file": "taiga.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 74
+ },
+ "/auratravel/": {
+  "name": "Aura Travel",
+  "file": "auratravel.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 84
+ },
+ "/cakes/": {
+  "name": "Торты",
+  "file": "cakes.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 67
+ },
+ "/realtravel/": {
+  "name": "Real Travel",
+  "file": "realtravel.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 27
+ },
+ "/pizzafire/": {
+  "name": "Pizza Fire",
+  "file": "pizzafire.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 12
+ },
+ "/foodie/": {
+  "name": "Foodie",
+  "file": "foodie.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 114
+ },
+ "/guardbase/": {
+  "name": "Guardbase",
+  "file": "guardbase.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 96
+ },
+ "/modern/": {
+  "name": "Современный сайт",
+  "file": "modern.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 28
+ },
+ "/iskra/": {
+  "name": "Iskra",
+  "file": "iskra.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 55
+ },
+ "/horology/": {
+  "name": "Kinetic Horology",
+  "file": "horology.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 51
+ },
+ "/lumiere3d/": {
+  "name": "Lumière 3D",
+  "file": "lumiere3d.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 104
+ },
+ "/lumiere/": {
+  "name": "Lumière",
+  "file": "lumiere.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 76
+ },
+ "/novastore/": {
+  "name": "NovaTech Store",
+  "file": "novastore.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 39
+ },
+ "/oboi/": {
+  "name": "ОБОИ.RU",
+  "file": "oboi.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 73
+ },
+ "/soramoku/": {
+  "name": "Sora & Moku",
+  "file": "soramoku.jpg",
+  "w": 1280,
+  "h": 800,
+  "kb": 88
+ }
+}

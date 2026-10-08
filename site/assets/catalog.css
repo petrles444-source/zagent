@@ -1,0 +1,266 @@
+/* Каталог сайтов — витрина на семь страниц.
+ *
+ * Задача страницы не в дизайне, а в честном списке: семь адресов, у каждого
+ * своя подача. Поэтому здесь нейтральная база (тёплый серый) и ни одного
+ * цвета из портфолио — иначе витрина нача бы выглядеть как одна из
+ * выставленных работ и сбивать с толку.
+ *
+ * Единственное исключение — цветная полоса слева у каждой карточки: она
+ * повторяет характер своей страницы и помогает различить их с одного взгляда.
+ */
+
+:root {
+  --paper: #f7f6f3;
+  --card: #ffffff;
+  --ink: #1e1c19;
+  --ink-soft: #55504a;
+  --muted: #8d867e;
+  --rule: #e2ded6;
+  --rule-soft: #edeae4;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  font-size: 17px;
+  line-height: 1.66;
+  -webkit-font-smoothing: antialiased;
+}
+
+.sheet {
+  max-width: 1060px;
+  margin: clamp(0px, 3vw, 40px) auto;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  padding: clamp(24px, 5vw, 64px) clamp(20px, 5vw, 72px) clamp(22px, 4vw, 48px);
+}
+
+.bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px 20px;
+  flex-wrap: wrap;
+  padding-bottom: 12px;
+  margin-bottom: clamp(20px, 3.5vw, 34px);
+  border-bottom: 1px solid var(--rule);
+}
+
+.mark {
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.bar-note {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+h1 {
+  margin: 0 0 16px;
+  font-size: clamp(32px, 6vw, 52px);
+  line-height: 1.08;
+  font-weight: 300;
+  letter-spacing: -0.015em;
+}
+
+h2 {
+  margin: 0 0 16px;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--ink-soft);
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--rule);
+}
+
+h3 {
+  margin: 0 0 2px;
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+.deck {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--ink-soft);
+  font-size: clamp(16px, 2.1vw, 18px);
+}
+
+main section { margin-top: clamp(30px, 5vw, 52px); }
+
+p { margin: 0 0 1em; }
+
+/* Карточка: полоса слева — единственное место с цветом. */
+.card {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  text-decoration: none;
+  color: inherit;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--muted);
+  padding: clamp(15px, 2.4vw, 22px) clamp(16px, 2.6vw, 24px);
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.card:hover {
+  background: #fcfcfa;
+  border-color: var(--muted);
+}
+
+.card-wide { border-left-width: 3px; }
+
+/* --- превью --- */
+/*
+ * Снимок настоящего первого экрана. Раньше превью рисовалось кодом —
+ * полосками. Дёшево и не устаревает, но ряд из пяти одинаковых
+ * прямоугольников не даёт отличить страницы друг от друга, а витрина
+ * как раз для этого и нужна.
+ */
+.shot {
+  flex: none;
+  width: clamp(96px, 15vw, 168px);
+  height: auto;
+  /* Кадр всегда одного кадра: иначе в ряду снимки разной высоты, и
+     ряд перестаёт быть рядом. */
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  object-position: top center;
+  border: 1px solid var(--rule);
+  background: #efece4;
+}
+
+/* Место под снимок, когда его нет. Полоса, а не пустая рамка: видно,
+ * что это витрина, а не кадр. Справочники и подачи снимать смысла
+ * нет — у них нет своего визуального лица. */
+.noshot {
+  flex: none;
+  width: clamp(96px, 15vw, 168px);
+  aspect-ratio: 16 / 10;
+  border: 1px solid var(--rule);
+  background:
+    linear-gradient(135deg,
+      transparent 0 46%,
+      color-mix(in srgb, var(--muted) 55%, transparent) 46% 54%,
+      transparent 54% 100%),
+    var(--card);
+}
+
+@media (max-width: 620px) {
+  /* На телефоне снимок съедал бы треть карточки и оставлял тексту
+   * две строки. Поэтому он уезжает наверх и растягивается по ширине. */
+  .card { flex-wrap: wrap; }
+  .shot, .noshot {
+    width: 100%;
+    aspect-ratio: 16 / 6;
+  }
+  .num { padding-top: 0; }
+}
+
+.num {
+  flex: none;
+  min-width: 2.1em;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, 'Courier New', monospace;
+  font-size: 12.5px;
+  color: var(--muted);
+  padding-top: 5px;
+}
+
+.body { min-width: 0; }
+
+.where {
+  margin: 0 0 8px;
+  font-size: 13.5px;
+  color: var(--muted);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, 'Courier New', monospace;
+}
+
+.about {
+  margin: 0 0 10px;
+  font-size: 15.5px;
+  color: var(--ink-soft);
+  max-width: 56ch;
+}
+
+/* Метки: маленькие плашки без заливки, только рамка. */
+.tags {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tags span {
+  font-size: 12px;
+  color: var(--muted);
+  border: 1px solid var(--rule);
+  padding: 2px 8px;
+  border-radius: 2px;
+}
+
+/* Сетка портфолио: две колонки, на узких экранах одна. */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 700px) {
+  .grid { grid-template-columns: 1fr; }
+}
+
+/* Цвета полос повторяют характер каждой страницы. */
+.sw-aurum { border-left-color: #b8965a; }
+.sw-lumen { border-left-color: #5b7c99; }
+.sw-onyx  { border-left-color: #d9c4a3; }
+.sw-neon  { border-left-color: #22d3ee; }
+.sw-paper { border-left-color: #b9ad96; }
+.sw-term  { border-left-color: #4ade80; }
+
+/* Пять рекламных витрин. Цвета взяты не на глаз: это значение
+ * `--accent` из `:root` каждой страницы. Разъезжаются они только в
+ * одну сторону — полоса на карточке перестаёт напоминать страницу, и
+ * витрина начинает обещать одно, а по ссылке открывается другое.
+ * Обновлять надо в паре: правило здесь и `:root` в папке. */
+.sw-forno    { border-left-color: #e2571f; }
+.sw-dentalia { border-left-color: #12857a; }
+.sw-vow      { border-left-color: #c9a96a; }
+.sw-grind    { border-left-color: #d6ff3f; }
+.sw-strobe   { border-left-color: #ff2d55; }
+
+/* Витрина хиромантии. Бумага и графит — намеренно не золото: рядом
+ * уже есть пять «золотых» полос, и шестая слилась бы с ними. */
+.sw-palm     { border-left-color: #7a6a4f; }
+
+.note {
+  color: var(--ink-soft);
+  font-size: 16px;
+}
+
+.note p { max-width: 66ch; }
+
+.foot {
+  margin-top: clamp(30px, 5vw, 52px);
+  padding-top: 15px;
+  border-top: 1px solid var(--rule);
+  display: flex;
+  justify-content: space-between;
+  gap: 10px 20px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--muted);
+}

@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APEX | Горнолыжные курорты</title>
+    <style>
+        /* === ИМПОРТ ШРИФТОВ === */
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&display=swap');
+
+        /* === ПЕРЕМЕННЫЕ И СБРОС === */
+        :root {
+            --bg-dark: #0b1120;
+            --bg-surface: #111827;
+            --bg-card: #1f2937;
+            --accent: #00d2ff;
+            --accent-gradient: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+            --font-heading: 'Outfit', sans-serif;
+            --font-body: 'Inter', sans-serif;
+            --transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: var(--font-body);
+            line-height: 1.6;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Кастомный скроллбар */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-dark); }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+        
+        ::selection { background: var(--accent); color: #fff; }
+
+        /* === ПРЕЛОАДЕР === */
+        #preloader {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-dark);
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.8s ease, visibility 0.8s ease;
+        }
+        .loader-text {
+            font-family: var(--font-heading);
+            font-size: 2rem;
+            font-weight: 800;
+            letter-spacing: 15px;
+            color: var(--text-main);
+            animation: pulse 1.5s infinite;
+        }
+        .loader-text span { color: var(--accent); }
+
+        /* === НАВИГАЦИЯ === */
+        nav {
+            position: fixed;
+            top: 0; left: 0; width: 100%;
+            padding: 25px 5%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            transition: var(--transition);
+            border-bottom: 1px solid transparent;
+        }
+        
+        nav.scrolled {
+            background: rgba(11, 17, 32, 0.85);
+            backdrop-filter: blur(20px);
+            padding: 15px 5%;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo {
+            font-family: var(--font-heading);
+            font-size: 1.8rem;
+            font-weight: 800;
+            letter-spacing: 2px;
+            color: #fff;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .logo svg { width: 24px; height: 24px; fill: var(--accent); }
+
+        .nav-links { display: flex; gap: 40px; }
+        .nav-links a {
+            color: var(--text-main);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: var(--transition);
+            position: relative;
+        }
+        .nav-links a:hover { color: var(--accent); }
+
+        .btn-nav {
+            padding: 12px 30px;
+            background: var(--accent-gradient);
+            color: #fff;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: var(--transition);
+            border: none;
+            cursor: pointer;
+        }
+        .btn-nav:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 210, 255, 0.3);
+        }
+
+        /* === ГЛАВНЫЙ ЭКРАН (HERO) === */
+        .hero {
+            height: 100vh;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 0 5%;
+            overflow: hidden;
+        }
+
+        .hero-bg {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: url('https://images.unsplash.com/photo-1551698618-1dfe5d97d256?auto=format&fit=crop&w=1920&q=80') center/cover;
+            z-index: -1;
+            animation: zoomOut 25s infinite alternate linear;
+        }
+
+        .hero-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to right, rgba(11,17,32,0.9) 0%, rgba(11,17,32,0.4) 50%, rgba(11,17,32,0.1) 100%);
+            z-index: 0;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+            max-width: 800px;
+            margin-top: -80px;
+            animation: slideUp 1s ease-out 0.5s both;
+        }
+
+        .hero-tag {
+            display: inline-block;
+            padding: 8px 20px;
+            background: rgba(0, 210, 255, 0.1);
+            border: 1px solid rgba(0, 210, 255, 0.3);
+            color: var(--accent);
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-radius: 50px;
+            margin-bottom: 25px;
+        }
+
+        .hero h1 {
+            font-family: var(--font-heading);
+            font-size: clamp(3.5rem, 7vw, 6.5rem);
+            line-height: 1;
+            margin-bottom: 25px;
+            font-weight: 800;
+            color: #fff;
+        }
+        .hero h1 span {
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            max-width: 600px;
+            margin-bottom: 40px;
+            font-weight: 300;
+        }
+
+        /* === ВИДЖЕТ БРОНИРОВАНИЯ === */
+        .booking-widget {
+            position: absolute;
+            bottom: 50px;
+            left: 5%;
+            right: 5%;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 20px 30px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr) auto;
+            gap: 20px;
+            align-items: center;
+            z-index: 10;
+            animation: slideUp 1s ease-out 0.8s both;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        .widget-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .widget-item label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .widget-item input, .widget-item select {
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-family: var(--font-body);
+            font-size: 1rem;
+            outline: none;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .widget-item input::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+            cursor: pointer;
+        }
+
+        .widget-item select option { background: var(--bg-dark); }
+
+        .btn-search {
+            background: var(--accent-gradient);
+            color: #fff;
+            border: none;
+            padding: 18px 35px;
+            border-radius: 12px;
+            font-family: var(--font-heading);
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .btn-search:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 210, 255, 0.4);
+        }
+
+        /* === СТАТИСТИКА === */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .stat-item {
+            padding: 50px 20px;
+            text-align: center;
+            border-right: 1px solid var(--border);
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-item:last-child { border-right: none; }
+        
+        .stat-item::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 3px;
+            background: var(--accent-gradient);
+            transform: scaleX(0);
+            transition: transform 0.4s ease;
+        }
+        .stat-item:hover::before { transform: scaleX(1); }
+        .stat-item:hover { background: rgba(255,255,255,0.02); }
+
+        .stat-number {
+            font-family: var(--font-heading);
+            font-size: 3.5rem;
+            font-weight: 800;
+            color: #fff;
+            line-height: 1;
+            margin-bottom: 10px;
+        }
+        .stat-label {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        /* === СЕКЦИЯ КУРОРТОВ === */
+        .section { padding: 120px 5%; }
+        
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-bottom: 60px;
+        }
+        
+        .section-title {
+            font-family: var(--font-heading);
+            font-size: 3rem;
+            font-weight: 800;
+            line-height: 1.1;
+        }
+        .section-title span {
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .section-desc {
+            max-width: 400px;
+            color: var(--text-muted);
+            font-size: 1rem;
+        }
+
+        .resorts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+        }
+
+        .resort-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            overflow: hidden;
+            transition: var(--transition);
+            position: relative;
+        }
+        
+        .resort-card:hover {
+            transform: translateY(-10px);
+            border-color: rgba(0, 210, 255, 0.4);
+            box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+        }
+
+        .card-image {
+            height: 300px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .card-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.8s ease;
+        }
+        
+        .resort-card:hover .card-image img { transform: scale(1.1); }
+
+        .difficulty-badge {
+            position: absolute;
+            top: 20px; left: 20px;
+            padding: 8px 16px;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #fff;
+            backdrop-filter: blur(10px);
+        }
+        .badge-black { background: rgba(0,0,0,0.6); border: 1px solid #fff; }
+        .badge-red { background: rgba(220, 38, 38, 0.8); }
+        .badge-blue { background: rgba(37, 99, 235, 0.8); }
+
+        .card-body { padding: 30px; }
+        
+        .card-meta {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+        
+        .card-meta span { display: flex; align-items: center; gap: 6px; }
+
+        .resort-card h3 {
+            font-family: var(--font-heading);
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 15px;
+        }
+
+        .resort-card p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-bottom: 25px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 25px;
+        }
+
+        .card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .price {
+            font-family: var(--font-heading);
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #fff;
+        }
+        .price span { font-size: 0.85rem; color: var(--text-muted); font-family: var(--font-body); font-weight: 400; }
+
+        .btn-card {
+            background: rgba(0, 210, 255, 0.1);
+            color: var(--accent);
+            border: 1px solid rgba(0, 210, 255, 0.3);
+            padding: 10px 20px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: var(--transition);
+        }
+        .btn-card:hover {
+            background: var(--accent-gradient);
+            color: #fff;
+            border-color: transparent;
+        }
+
+        /* === СЕКЦИЯ ПРОКАТА (ИНТЕРАКТИВНЫЕ ТАБЫ) === */
+        .rental-section {
+            background: var(--bg-surface);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .tabs-container {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 50px;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-family: var(--font-heading);
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .tab-btn.active, .tab-btn:hover {
+            background: var(--accent-gradient);
+            color: #fff;
+            border-color: transparent;
+        }
+
+        .tab-content {
+            display: none;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            align-items: center;
+            animation: fadeIn 0.5s ease;
+        }
+        .tab-content.active { display: grid; }
+
+        .tab-image {
+            height: 450px;
+            border-radius: 20px;
+            overflow: hidden;
+            position: relative;
+        }
+        .tab-image img { width: 100%; height: 100%; object-fit: cover; }
+
+        .tab-text h3 {
+            font-family: var(--font-heading);
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 20px;
+        }
+        .tab-text p {
+            color: var(--text-muted);
+            margin-bottom: 30px;
+            font-size: 1.05rem;
+        }
+
+        .feature-list {
+            list-style: none;
+        }
+        .feature-list li {
+            padding: 15px 0;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            color: var(--text-main);
+            font-weight: 500;
+        }
+        .feature-list li svg {
+            width: 20px; height: 20px;
+            fill: var(--accent);
+        }
+
+        /* === CTA СЕКЦИЯ === */
+        .cta {
+            padding: 150px 5%;
+            text-align: center;
+            background: linear-gradient(rgba(11,17,32,0.8), rgba(11,17,32,0.9)), 
+                        url('https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1920&q=80') center/cover fixed;
+        }
+
+        .cta h2 {
+            font-family: var(--font-heading);
+            font-size: 4rem;
+            font-weight: 800;
+            margin-bottom: 20px;
+        }
+        
+        .cta p {
+            color: var(--text-muted);
+            max-width: 600px;
+            margin: 0 auto 40px;
+            font-size: 1.2rem;
+        }
+
+        /* === ПОДВАЛ === */
+        footer {
+            background: var(--bg-dark);
+            padding: 80px 5% 40px;
+            border-top: 1px solid var(--border);
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1.5fr;
+            gap: 40px;
+            margin-bottom: 60px;
+        }
+
+        .footer-brand p {
+            color: var(--text-muted);
+            margin-top: 20px;
+            max-width: 300px;
+            font-size: 0.9rem;
+        }
+
+        .footer-col h5 {
+            font-family: var(--font-heading);
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 25px;
+            color: #fff;
+        }
+
+        .footer-col a {
+            display: block;
+            color: var(--text-muted);
+            text-decoration: none;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            transition: var(--transition);
+        }
+        .footer-col a:hover { color: var(--accent); transform: translateX(5px); }
+
+        .newsletter-form {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .newsletter-form input {
+            flex: 1;
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+            outline: none;
+        }
+        .newsletter-form input:focus { border-color: var(--accent); }
+        .newsletter-form button {
+            padding: 15px 25px;
+            border-radius: 10px;
+            border: none;
+            background: var(--accent-gradient);
+            color: #fff;
+            cursor: pointer;
+            font-weight: 600;
+            transition: var(--transition);
+        }
+        .newsletter-form button:hover { transform: translateY(-2px); }
+
+        .footer-bottom {
+            display: flex;
+            justify-content: space-between;
+            padding-top: 30px;
+            border-top: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        /* === АНИМАЦИИ === */
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(40px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes zoomOut {
+            from { transform: scale(1); }
+            to { transform: scale(1.1); }
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* === АДАПТИВНОСТЬ === */
+        @media (max-width: 1024px) {
+            .booking-widget {
+                grid-template-columns: 1fr 1fr;
+                bottom: 20px;
+            }
+            .btn-search { grid-column: span 2; width: 100%; justify-content: center; }
+            .stats { grid-template-columns: repeat(2, 1fr); }
+            .stat-item:nth-child(2) { border-right: none; }
+            .stat-item:nth-child(1), .stat-item:nth-child(2) { border-bottom: 1px solid var(--border); }
+            .footer-grid { grid-template-columns: 1fr 1fr; }
+            .tab-content { grid-template-columns: 1fr; }
+            .tab-image { height: 300px; }
+        }
+
+        @media (max-width: 768px) {
+            .nav-links { display: none; }
+            .hero h1 { font-size: 3rem; }
+            .section-header { flex-direction: column; align-items: flex-start; gap: 20px; }
+            .stats { grid-template-columns: 1fr; }
+            .stat-item { border-right: none; border-bottom: 1px solid var(--border); }
+            .footer-grid { grid-template-columns: 1fr; }
+            .footer-bottom { flex-direction: column; gap: 15px; text-align: center; }
+            .booking-widget {
+                position: relative;
+                bottom: auto;
+                margin-top: 40px;
+                grid-template-columns: 1fr;
+                padding: 20px;
+            }
+            .btn-search { grid-column: span 1; }
+            .hero { height: auto; padding-top: 150px; padding-bottom: 50px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Прелоадер -->
+    <div id="preloader">
+        <div class="loader-text">APEX<span>.</span></div>
+    </div>
+
+    <!-- Навигация -->
+    <nav id="navbar">
+        <a href="#" class="logo">
+            <svg viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2zm0 4.5l5.5 11h-11L12 6.5z"/></svg>
+            APEX
+        </a>
+        <div class="nav-links">
+            <a href="#resorts">Курорты</a>
+            <a href="#rental">Прокат</a>
+            <a href="#about">О нас</a>
+            <a href="#contact">Контакты</a>
+        </div>
+        <button class="btn-nav">Забронировать</button>
+    </nav>
+
+    <!-- Главный экран -->
+    <header class="hero">
+        <div class="hero-bg"></div>
+        <div class="hero-overlay"></div>
+        
+        <div class="hero-content">
+            <span class="hero-tag">Сезон 2024/2025 открыт</span>
+            <h1>ПОКОРИ СВОЮ <br><span>ВЕРШИНУ</span></h1>
+            <p>Элитные горнолыжные курорты, премиальный сервис и незабываемые впечатления от снежных склонов. Ваше идеальное зимнее приключение начинается здесь.</p>
+        </div>
+
+        <!-- Виджет бронирования -->
+        <div class="booking-widget">
+            <div class="widget-item">
+                <label>Курорт</label>
+                <select>
+                    <option>Швейцарские Альпы</option>
+                    <option>Куршевель, Франция</option>
+                    <option>Санкт-Антон, Австрия</option>
+                    <option>Красная Поляна, Россия</option>
+                </select>
+            </div>
+            <div class="widget-item">
+                <label>Дата заезда</label>
+                <input type="date" value="2024-12-15">
+            </div>
+            <div class="widget-item">
+                <label>Дата выезда</label>
+                <input type="date" value="2024-12-22">
+            </div>
+            <div class="widget-item">
+                <label>Гости</label>
+                <select>
+                    <option>2 взрослых</option>
+                    <option>2 взрослых, 1 ребенок</option>
+                    <option>4 взрослых</option>
+                </select>
+            </div>
+            <button class="btn-search">
+                Найти
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Статистика -->
+    <section class="stats">
+        <div class="stat-item">
+            <div class="stat-number">250+</div>
+            <div class="stat-label">Км трасс</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number">85</div>
+            <div class="stat-label">Подъемников</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number">100%</div>
+            <div class="stat-label">Гарантия снега</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number">5★</div>
+            <div class="stat-label">Отели и шале</div>
+        </div>
+    </section>
+
+    <!-- Курорты -->
+    <section id="resorts" class="section">
+        <div class="section-header">
+            <h2 class="section-title">ЛУЧШИЕ <br><span>НАПРАВЛЕНИЯ</span></h2>
+            <p class="section-desc">От пологих синих трасс для начинающих до экстремальных черных склонов для профессионалов. Выбирайте свой уровень адреналина.</p>
+        </div>
+        
+        <div class="resorts-grid">
+            <!-- Карточка 1 -->
+            <div class="resort-card">
+                <div class="card-image">
+                    <img src="missing-photo.jpg" alt="Швейцария">
+                    <span class="difficulty-badge badge-black">Черный склон</span>
+                </div>
+                <div class="card-body">
+                    <div class="card-meta">
+                        <span>📍 Швейцария</span>
+                        <span>⛰ 3800 м</span>
+                    </div>
+                    <h3>Церматт</h3>
+                    <p>Легендарный курорт с видом на Маттерхорн. Бесконечные трассы, глянцевые склоны и лучший фрирайд в Европе.</p>
+                    <div class="card-footer">
+                        <div class="price">от 180 000 ₽ <span>/ 7 ночей</span></div>
+                        <a href="#" class="btn-card">Выбрать</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Карточка 2 -->
+            <div class="resort-card">
+                <div class="card-image">
+                    <img src="photo-1551524559-8.jpg" alt="Франция">
+                    <span class="difficulty-badge badge-red">Красный склон</span>
+                </div>
+                <div class="card-body">
+                    <div class="card-meta">
+                        <span>📍 Франция</span>
+                        <span>⛰ 2738 м</span>
+                    </div>
+                    <h3>Куршевель</h3>
+                    <p>Элитный курорт в Трех Долинах. Идеальные склоны, роскошные шале и атмосфера французского шика.</p>
+                    <div class="card-footer">
+                        <div class="price">от 150 000 ₽ <span>/ 7 ночей</span></div>
+                        <a href="#" class="btn-card">Выбрать</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Карточка 3 -->
+            <div class="resort-card">
+                <div class="card-image">
+                    <img src="photo-151730923047.jpg" alt="Австрия">
+                    <span class="difficulty-badge badge-blue">Синий склон</span>
+                </div>
+                <div class="card-body">
+                    <div class="card-meta">
+                        <span>📍 Австрия</span>
+                        <span>⛰ 2811 м</span>
+                    </div>
+                    <h3>Санкт-Антон</h3>
+                    <p>Родина горнолыжного спорта. Отличные условия для начинающих и захватывающие панорамы для всех гостей.</p>
+                    <div class="card-footer">
+                        <div class="price">от 120 000 ₽ <span>/ 7 ночей</span></div>
+                        <a href="#" class="btn-card">Выбрать</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Прокат (Табы) -->
+    <section id="rental" class="section rental-section">
+        <div class="section-header" style="justify-content: center; text-align: center; margin-bottom: 40px;">
+            <h2 class="section-title">ПРОКАТ <span>СНАРЯЖЕНИЯ</span></h2>
+        </div>
+
+        <div class="tabs-container">
+            <button class="tab-btn active" data-tab="skis">Горные лыжи</button>
+            <button class="tab-btn" data-tab="snowboards">Сноуборды</button>
+            <button class="tab-btn" data-tab="gear">Экипировка</button>
+        </div>
+
+        <!-- Контент 1 -->
+        <div class="tab-content active" id="skis">
+            <div class="tab-image">
+                <img src="photo-1551698618-1.png" alt="Лыжи">
+            </div>
+            <div class="tab-text">
+                <h3>Профессиональные лыжи</h3>
+                <p>В нашем прокате только топовые модели от ведущих мировых брендов. Мы подберем лыжи под ваш уровень катания и погодные условия.</p>
+                <ul class="feature-list">
+                    <li><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Бренды: Atomic, Rossignol, Fischer</li>
+                    <li><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Ежедневная подготовка и заточка кантов</li>
+                    <li><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Бесплатная замена при поломке</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Контент 2 -->
+        <div class="tab-content" id="snowboards">
+            <div class="tab-image">
+                <img src="photo-152205661569.jpg" alt="Сноуборды">
+            </div>
+            <div class="tab-text">
+                <h3>Сноуборды на любой вкус</h3>
+                <p>От мягких досок для парка до жестких моделей для фрирайда. Вся экипировка проходит тщательный технический контроль перед каждой выдачей.</p>
+                <ul class="feature-list">
+                    <li><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Бренды: Burton, Jones, Capita</li>
+                    <li><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Настройка креплений под ваш ботинок</li>
+                    <li><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Скидки при бронировании от 3 дней</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Контент 3 -->
+        <div class="tab-content" id="gear">
+            <div class="tab-image">
+                <img src="photo-151784984553.jpg" alt="Экипировка">
+            </div>
+            <div class="tab-text">
+                <h3>Защита и комфорт</h3>
+                <p>Шлемы, маски, защита спины и качественная мембранная одежда. Вы будете чувствовать себя комфортно даже в самый сильный мороз.</p>
+                <ul class="feature-list">
+                    <li><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Шлемы с системой MIPS</li>
+                    <li><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Маски с фотохромными линзами</li>
+                    <li><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Термобелье премиум-класса</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Секция -->
+    <section id="about" class="cta">
+        <h2>ГОТОВЫ К СПУСКУ?</h2>
+        <p>Забронируйте свой идеальный зимний отдых прямо сейчас. Наши менеджеры подберут лучший курорт, отель и снаряжение под ваш бюджет.</p>
+        <button class="btn-nav" style="padding: 18px 50px; font-size: 1.1rem;">Оставить заявку</button>
+    </section>
+
+    <!-- Подвал -->
+    <footer id="contact">
+        <div class="footer-grid">
+            <div class="footer-brand">
+                <a href="#" class="logo">
+                    <svg viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2zm0 4.5l5.5 11h-11L12 6.5z"/></svg>
+                    APEX
+                </a>
+                <p>Премиальные горнолыжные курорты и незабываемый зимний отдых для всей семьи.</p>
+            </div>
+            <div class="footer-col">
+                <h5>Курорты</h5>
+                <a href="#">Швейцария</a>
+                <a href="#">Франция</a>
+                <a href="#">Австрия</a>
+                <a href="#">Италия</a>
+            </div>
+            <div class="footer-col">
+                <h5>Сервис</h5>
+                <a href="#">Прокат снаряжения</a>
+                <a href="#">Школа инструкторов</a>
+                <a href="#">Трансфер</a>
+                <a href="#">Страхование</a>
+            </div>
+            <div class="footer-col">
+                <h5>Будьте в курсе</h5>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 15px;">Подпишитесь на рассылку о скидках и новых маршрутах.</p>
+                <div class="newsletter-form">
+                    <input type="email" placeholder="Ваш Email">
+                    <button>OK</button>
+                </div>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2024 APEX Ski Resort. Все права защищены.</p>
+            <p>Политика конфиденциальности | Договор оферты</p>
+        </div>
+    </footer>
+
+    <!-- JavaScript для интерактива -->
+    <script>
+        // 1. Прелоадер
+        window.addEventListener('load', () => {
+            const preloader = document.getElementById('preloader');
+            preloader.style.opacity = '0';
+            setTimeout(() => {
+                preloader.style.visibility = 'hidden';
+            }, 800);
+        });
+
+        // 2. Эффект навигации при скролле
+        const navbar = document.getElementById('navbar');
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 50) {
+                navbar.classList.add('scrolled');
+            } else {
+                navbar.classList.remove('scrolled');
+            }
+        });
+
+        // 3. Табы в секции проката
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Убираем активный класс у всех кнопок и контента
+                tabBtns.forEach(b => b.classList.remove('active'));
+                tabContents.forEach(c => c.classList.remove('active'));
+
+                // Добавляем активный класс текущей кнопке
+                btn.classList.add('active');
+
+                // Показываем соответствующий контент
+                const tabId = btn.getAttribute('data-tab');
+                document.getElementById(tabId).classList.add('active');
+            });
+        });
+
+        // 4. Плавное появление карточек при скролле (Intersection Observer)
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: "0px 0px -50px 0px"
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.resort-card').forEach(card => {
+            card.style.opacity = '0';
+            card.style.transform = 'translateY(40px)';
+            card.style.transition = 'opacity 0.8s ease, transform 0.8s ease';
+            observer.observe(card);
+        });
+    </script>
+
+<!-- Демонстрационная страница из materials/demo. Бизнеса за ней нет: цены, контакты и отзывы вымышлены. Всё грузится с этого же адреса, внешних загрузок нет. -->
+</body>
+</html>

@@ -288,8 +288,6 @@ class AutoCaller:
             if status == "ok" and duration_ms >= self.slow_after_ms:
                 status = "slow"
 
-            self.selector.record(ref, status, error=result.get("error"),
-                                 duration_ms=duration_ms)
 
             if status in ("ok", "slow"):
                 answer = dict(result)
@@ -327,11 +325,22 @@ class AutoCaller:
             # пяти­минутный карантин вместо поворота на соседний аккаунт, и
             # хоп тратился впустую. Если других моделей нет, `next_model`
             # отдавал `None` и вызывался отказ, хотя свободные ключи были.
+            # Есть свободный ключ у этого шлюза: модель попробует другой
+            # ключ, и карантин ей ставить нельзя.
+            #
+            # Важно, что запись здесь ровно одна. Раньше record() вызывался
+            # дважды: сначала безусловно и со штрафом (модель в остывание),
+            # потом с penalize=False - но карантин от первого вызова второй
+            # уже не отменял. Итог был обратным задуманному: наличие
+            # свободного ключа всё равно уводило модель из ротации.
             if status == "limited" and self._has_free_key(gateway):
                 tried.discard(ref)
                 self.selector.record(ref, status, error=result.get("error"),
                                      duration_ms=duration_ms, penalize=False)
                 continue
+
+            self.selector.record(ref, status, error=result.get("error"),
+                                 duration_ms=duration_ms)
 
             if self.selector.mode is Mode.MANUAL and self.manual_only:
                 break

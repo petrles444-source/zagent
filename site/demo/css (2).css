@@ -1,0 +1,264 @@
+/* --- ПОРТФОЛИО --- */
+.text-center { text-align: center; }
+.section-header { margin-bottom: 60px; }
+.section-header h2 { font-size: 2.5rem; margin-bottom: 16px; }
+.subtitle.center { margin: 0 auto; }
+
+.portfolio-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 30px;
+}
+
+.portfolio-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.portfolio-card:hover {
+    border-color: rgba(139, 92, 246, 0.5);
+    transform: translateY(-5px);
+    box-shadow: 0 10px 40px rgba(139, 92, 246, 0.15);
+}
+
+.portfolio-img {
+    height: 220px;
+    border-radius: 0;
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.portfolio-info {
+    padding: 24px;
+}
+
+.portfolio-info h4 { font-size: 1.2rem; margin-bottom: 8px; }
+.portfolio-info p { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 16px; }
+.portfolio-link { color: var(--grad-blue-start); text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: color 0.3s; }
+.portfolio-link:hover { color: var(--grad-blue-end); }
+
+/* --- ОТЗЫВЫ --- */
+.reviews-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 30px;
+}
+
+.review-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 30px;
+    backdrop-filter: blur(10px);
+}
+
+.review-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.avatar-placeholder {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--grad-purple-start), var(--grad-blue-end));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 1.2rem;
+    color: white;
+}
+
+.review-header h4 { font-size: 1.1rem; margin-bottom: 2px; }
+.review-header p { color: var(--text-muted); font-size: 0.85rem; }
+.review-text { font-style: italic; color: #d1d5db; margin-bottom: 16px; font-size: 0.95rem; }
+.stars { color: #fbbf24; letter-spacing: 2px; }
+
+/* --- FAQ --- */
+.faq-accordion {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.faq-item {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    margin-bottom: 16px;
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+}
+
+.faq-question {
+    width: 100%;
+    text-align: left;
+    padding: 24px;
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 1.1rem;
+    font-weight: 600;
+    font-family: var(--font-family);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 0.3s;
+}
+
+.faq-question:hover { background: rgba(255, 255, 255, 0.03); }
+
+.faq-icon {
+    font-size: 1.5rem;
+    color: var(--grad-blue-start);
+    transition: transform 0.3s ease;
+}
+
+.faq-item.active .faq-icon { transform: rotate(45deg); }
+.faq-item.active { border-color: rgba(6, 182, 212, 0.5); }
+
+.faq-answer {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease, padding 0.4s ease;
+    padding: 0 24px;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    line-height: 1.7;
+}
+
+.faq-item.active .faq-answer {
+    max-height: 300px;
+    padding: 0 24px 24px 24px;
+}
+
+/* --- FOOTER --- */
+footer {
+    border-top: 1px solid var(--border-color);
+    padding: 80px 0 0;
+    background: rgba(10, 10, 15, 0.5);
+}
+
+.footer-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: 40px;
+    margin-bottom: 60px;
+}
+
+.footer-desc { color: var(--text-muted); font-size: 0.9rem; margin-top: 16px; max-width: 300px; }
+
+.footer-col h4 { font-size: 1.1rem; margin-bottom: 20px; }
+.footer-col ul { list-style: none; }
+.footer-col ul li { margin-bottom: 12px; }
+.footer-col ul a { color: var(--text-muted); text-decoration: none; transition: color 0.3s; font-size: 0.9rem; }
+.footer-col ul a:hover { color: white; }
+
+.payment-icons { display: flex; gap: 12px; }
+.pay-icon { font-size: 1.5rem; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px; }
+
+.footer-bottom {
+    border-top: 1px solid var(--border-color);
+    padding: 24px 0;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+/* --- МОДАЛЬНОЕ ОКНО --- */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.modal.active {
+    display: flex;
+    opacity: 1;
+}
+
+.modal-content {
+    background: #151720;
+    border: 1px solid var(--border-color);
+    border-radius: 24px;
+    padding: 40px;
+    width: 100%;
+    max-width: 500px;
+    position: relative;
+    transform: translateY(20px);
+    transition: transform 0.3s ease;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+
+.modal.active .modal-content {
+    transform: translateY(0);
+}
+
+.modal-close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 2rem;
+    cursor: pointer;
+    transition: color 0.3s;
+}
+
+.modal-close:hover { color: white; }
+
+.modal-content h2 { font-size: 2rem; margin-bottom: 12px; }
+.modal-content p { color: var(--text-muted); margin-bottom: 24px; font-size: 0.95rem; }
+
+.modal-content form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.modal-content input,
+.modal-content textarea {
+    width: 100%;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    color: white;
+    font-family: var(--font-family);
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+.modal-content input:focus,
+.modal-content textarea:focus {
+    border-color: var(--grad-blue-start);
+}
+
+.modal-content textarea { resize: vertical; min-height: 100px; }
+
+/* Адаптив для футера и модалки */
+@media (max-width: 992px) {
+    .footer-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 768px) {
+    .footer-grid { grid-template-columns: 1fr; }
+    .modal-content { padding: 24px; margin: 20px; }
+}

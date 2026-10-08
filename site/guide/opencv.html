@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenCV Guide — Extended Documentation</title>
+    <style>
+        :root {
+            --bg-body: #0a0e12;
+            --bg-term: #0f1412;
+            --text-main: #c9d1d9;
+            --text-green: #2ecc71;
+            --text-cyan: #58a6ff;
+            --text-gray: #8b949e;
+            --text-yellow: #f1c40f;
+            --text-red: #ff5f56;
+            --border: #30363d;
+            --font-mono: 'Consolas', 'Monaco', 'Courier New', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            font-family: var(--font-mono);
+            font-size: 13px;
+            line-height: 1.6;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .window {
+            width: 100%;
+            max-width: 1100px;
+            background-color: var(--bg-term);
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+            border: 1px solid var(--border);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .window-header {
+            background-color: #161b22;
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .window-controls {
+            display: flex;
+            gap: 8px;
+            margin-right: 15px;
+        }
+
+        .control {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .control.close { background-color: #ff5f56; }
+        .control.minimize { background-color: #ffbd2e; }
+        .control.maximize { background-color: #27c93f; }
+
+        .window-title {
+            color: var(--text-gray);
+            font-size: 12px;
+            flex-grow: 1;
+            text-align: center;
+            padding-right: 45px;
+        }
+
+        .terminal-body {
+            padding: 25px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            overflow-y: auto;
+            max-height: 90vh;
+        }
+
+        .terminal-body::-webkit-scrollbar {
+            width: 8px;
+        }
+        .terminal-body::-webkit-scrollbar-track {
+            background: var(--bg-term);
+        }
+        .terminal-body::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+        .terminal-body::-webkit-scrollbar-thumb:hover {
+            background: #484f58;
+        }
+
+        .highlight { color: var(--text-green); }
+        .cyan { color: var(--text-cyan); }
+        .gray { color: var(--text-gray); }
+        .yellow { color: var(--text-yellow); }
+        .red { color: var(--text-red); }
+        .bold { font-weight: bold; }
+
+        .section-title {
+            color: var(--text-cyan);
+            margin-top: 30px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 6px;
+            font-size: 15px;
+            font-weight: bold;
+        }
+
+        .sub-section-title {
+            color: var(--text-green);
+            margin-top: 18px;
+            margin-bottom: 8px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        .command-grid {
+            display: grid;
+            grid-template-columns: 220px 1fr;
+            gap: 4px 15px;
+            margin-bottom: 10px;
+        }
+
+        .command-name {
+            color: var(--text-green);
+        }
+
+        .command-desc {
+            color: var(--text-main);
+        }
+
+        .status-list {
+            display: grid;
+            grid-template-columns: 150px 1fr;
+            gap: 6px;
+            margin-bottom: 20px;
+        }
+
+        .status-ok { color: var(--text-green); }
+        .status-pending { color: var(--text-yellow); }
+        .status-error { color: var(--text-red); }
+
+        a {
+            color: var(--text-cyan);
+            text-decoration: none;
+            border-bottom: 1px dotted var(--border);
+        }
+
+        a:hover {
+            text-decoration: underline;
+            border-bottom-color: var(--text-cyan);
+        }
+
+        .badge {
+            background-color: var(--text-green);
+            color: var(--bg-body);
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
+        .badge-cyan {
+            background-color: var(--text-cyan);
+            color: var(--bg-body);
+        }
+
+        .badge-yellow {
+            background-color: var(--text-yellow);
+            color: var(--bg-body);
+        }
+
+        .badge-red {
+            background-color: var(--text-red);
+            color: var(--bg-body);
+        }
+
+        code {
+            background-color: rgba(110, 118, 129, 0.15);
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+        }
+
+        pre {
+            background-color: rgba(110, 118, 129, 0.1);
+            border-left: 3px solid var(--border);
+            padding: 10px 15px;
+            margin: 8px 0 15px 0;
+            overflow-x: auto;
+            font-size: 12px;
+            color: var(--text-main);
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            font-size: 12px;
+        }
+
+        .note {
+            border-left: 3px solid var(--text-yellow);
+            padding: 8px 12px;
+            margin: 10px 0;
+            background-color: rgba(241, 196, 15, 0.05);
+            color: var(--text-yellow);
+            font-size: 12px;
+        }
+
+        .note-danger {
+            border-left: 3px solid var(--text-red);
+            padding: 8px 12px;
+            margin: 10px 0;
+            background-color: rgba(255, 95, 86, 0.05);
+            color: var(--text-red);
+            font-size: 12px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0 20px 0;
+            font-size: 12px;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 6px 10px;
+            text-align: left;
+        }
+
+        th {
+            background-color: rgba(110, 118, 129, 0.1);
+            color: var(--text-cyan);
+            font-weight: bold;
+        }
+
+        td {
+            color: var(--text-main);
+        }
+
+        tr:hover td {
+            background-color: rgba(110, 118, 129, 0.05);
+        }
+
+        .toc {
+            background-color: rgba(110, 118, 129, 0.08);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 15px 20px;
+            margin-bottom: 25px;
+        }
+
+        .toc-title {
+            color: var(--text-cyan);
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .toc-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 4px;
+        }
+
+        .toc-list a {
+            display: block;
+            padding: 2px 0;
+            border-bottom: none;
+            font-size: 12px;
+        }
+
+        .toc-list a::before {
+            content: "▸ ";
+            color: var(--text-gray);
+        }
+
+        .inline-code {
+            color: var(--text-cyan);
+        }
+    </style>
+<link rel="stylesheet" href="ai.css">
+<meta name="zagent-ai" content='{"persona": "anatoly", "agent": "Анатолий", "role": "разбор OpenCV", "greeting": "Спросите про любой пример со страницы: почему он такой, что он делает по шагам и как его проверить."}'>
+<script src="ai.js" defer></script>
+</head>
+<body>
+
+<div class="window">
+    <div class="window-header">
+        <div class="window-controls">
+            <div class="control close"></div>
+            <div class="control minimize"></div>
+            <div class="control maximize"></div>
+        </div>
+        <div class="window-title">guest@zagent — /home/guest/opencv-docs — 120x40</div>
+    </div>
+
+    <div class="terminal-body">
+
+        <!-- ═══════════════════ HEADER ═══════════════════ -->
+        <div class="bold">OpenCV — расширенная документация</div>
+        <div>  версия: <span class="cyan">4.14.0</span> • C++17 • Apache 2.0 • кроссплатформенная</div>
+        <div>  цель: полный справочник по компьютерному зрению и обработке изображений</div>
+        <br>
+
+        <div class="status-list">
+            <div><span class="status-ok">[ ok ]</span> установка</div>
+            <div>pip, apt, сборка из исходников</div>
+
+            <div><span class="status-ok">[ ok ]</span> модули</div>
+            <div>core, imgproc, highgui, videoio, imgcodecs, dnn</div>
+
+            <div><span class="status-ok">[ ok ]</span> лицензия</div>
+            <div>Apache 2.0 (4.5.0+), BSD-3 (до 4.4.0)</div>
+
+            <div><span class="status-ok">[ ok ]</span> платформы</div>
+            <div>Linux, Windows, macOS, Android, iOS, WebAssembly</div>
+
+            <div><span class="status-pending">[ ?? ????????? ]</span> GPU</div>
+            <div>CUDA, OpenCL, Vulkan, Metal — опционально</div>
+        </div>
+
+        <!-- ═══════════════════ TOC ═══════════════════ -->
+        <div class="toc">
+            <div class="toc-title">Содержание</div>
+            <div class="toc-list">
+                <a href="#install">1. Установка</a>
+                <a href="#modules">2. Основные модули</a>
+                <a href="#image-io">3. Чтение и запись изображений</a>
+                <a href="#color">4. Цветовые пространства</a>
+                <a href="#transform">5. Геометрические преобразования</a>
+                <a href="#filter">6. Фильтрация и размытие</a>
+                <a href="#edges">7. Детекция краёв</a>
+                <a href="#contours">8. Контуры</a>
+                <a href="#features">9. Особые точки</a>
+                <a href="#video">10. Работа с видео</a>
+                <a href="#dnn">11. Deep Learning (DNN)</a>
+                <a href="#draw">12. Рисование и GUI</a>
+                <a href="#versions">13. Версии и лицензия</a>
+                <a href="#errors">14. Типичные ошибки</a>
+                <a href="#examples">15. Примеры кода</a>
+            </div>
+        </div>
+
+        <!-- ═══════════════════ 1. INSTALL ═══════════════════ -->
+        <div id="install" class="section-title">1. УСТАНОВКА</div>
+
+        <p>OpenCV можно установить тремя основными способами: через менеджер пакетов Python (pip), системный менеджер пакетов (apt, brew) или собрать из исходников для максимальной производительности.</p>
+
+        <div class="sub-section-title">Python (pip)</div>
+        <pre><code># Базовая установка
+pip install opencv-python
+
+# С contrib-модулями (SIFT, SURF, трекеры)
+pip install opencv-contrib-python
+
+# Для headless-серверов (без GUI)
+pip install opencv-python-headless
+
+# Проверка установки
+python -c "import cv2; print(cv2.__version__)"</code></pre>
+
+        <div class="sub-section-title">Linux (Ubuntu / Debian)</div>
+        <pre><code>sudo apt update
+sudo apt install -y libopencv-dev python3-opencv
+
+# Проверка
+pkg-config --modversion opencv4</code></pre>
+
+        <div class="sub-section-title">Сборка из исходников (CMake)</div>
+        <p>Для сборки из исходников требуется C++ компилятор (GCC/G++ или Clang), CMake 3.14+, а также зависимости для работы с изображениями и видео.</p>
+
+        <pre><code># 1. Установка зависимостей (Ubuntu)
+sudo apt install -y build-essential cmake git pkg-config \
+  libgtk-3-dev libavcodec-dev libavformat-dev libswscale-dev \
+  libjpeg-dev libpng-dev libtiff-dev
+
+# 2. Клонирование
+git clone https://github.com/opencv/opencv.git
+git clone https://github.com/opencv/opencv_contrib.git
+
+# 3. Конфигурация
+cd opencv && mkdir build && cd build
+cmake -D CMAKE_BUILD_TYPE=Release \
+      -D CMAKE_INSTALL_PREFIX=/usr/local \
+      -D OPENCV_EXTRA_MODULES_PATH=../../opencv_contrib/modules \
+      ..
+
+# 4. Сборка (используйте все ядра)
+make -j$(nproc)
+sudo make install</code></pre>
+
+        <div class="note">Сборка из исходников даёт максимальную производительность и позволяет включить CUDA, OpenCL, TBB и другие оптимизации.</div>
+
+        <!-- ═══════════════════ 2. MODULES ═══════════════════ -->
+        <div id="modules" class="section-title">2. ОСНОВНЫЕ МОДУЛИ</div>
+
+        <p>OpenCV состоит из нескольких модулей, каждый из которых отвечает за определённую область компьютерного зрения. Ниже приведены ключевые модули.</p>
+
+        <table>
+            <tr><th>Модуль</th><th>Заголовок</th><th>Описание</th></tr>
+            <tr><td><code>core</code></td><td><code>opencv2/core.hpp</code></td><td>Базовые структуры: Mat, Scalar, Point, Rect, базовые математические операции</td></tr>
+            <tr><td><code>imgproc</code></td><td><code>opencv2/imgproc.hpp</code></td><td>Обработка изображений: фильтрация, геометрия, цвет, гистограммы[reference:0]</td></tr>
+            <tr><td><code>imgcodecs</code></td><td><code>opencv2/imgcodecs.hpp</code></td><td>Чтение и запись изображений в различных форматах</td></tr>
+            <tr><td><code>videoio</code></td><td><code>opencv2/videoio.hpp</code></td><td>Захват и запись видео (FFmpeg, GStreamer, DirectShow)[reference:1]</td></tr>
+            <tr><td><code>highgui</code></td><td><code>opencv2/highgui.hpp</code></td><td>Высокоуровневый GUI: окна, отображение, трекбары[reference:2]</td></tr>
+            <tr><td><code>dnn</code></td><td><code>opencv2/dnn.hpp</code></td><td>Запуск глубоких нейронных сетей (ONNX, TensorFlow, Caffe)</td></tr>
+            <tr><td><code>features2d</code></td><td><code>opencv2/features2d.hpp</code></td><td>Детекторы и дескрипторы особых точек</td></tr>
+            <tr><td><code>calib3d</code></td><td><code>opencv2/calib3d.hpp</code></td><td>Калибровка камеры, стереозрение, 3D-реконструкция</td></tr>
+            <tr><td><code>objdetect</code></td><td><code>opencv2/objdetect.hpp</code></td><td>Детекция объектов (каскады Хаара, QR-коды)</td></tr>
+            <tr><td><code>video</code></td><td><code>opencv2/video.hpp</code></td><td>Анализ движения, трекинг, вычитание фона</td></tr>
+        </table>
+
+        <!-- ═══════════════════ 3. IMAGE I/O ═══════════════════ -->
+        <div id="image-io" class="section-title">3. ЧТЕНИЕ И ЗАПИСЬ ИЗОБРАЖЕНИЙ</div>
+
+        <p>OpenCV поддерживает множество форматов изображений. Наиболее часто используемые — BMP, JPEG, PNG, TIFF, WebP. Для работы с ними используются функции <code>imread()</code>, <code>imwrite()</code> и <code>imshow()</code>[reference:3].</p>
+
+        <div class="sub-section-title">Поддерживаемые форматы</div>
+        <table>
+            <tr><th>Формат</th><th>Расширения</th><th>Поддержка</th></tr>
+            <tr><td>Windows Bitmap</td><td><code>.bmp, .dib</code></td><td>Всегда</td></tr>
+            <tr><td>JPEG</td><td><code>.jpeg, .jpg, .jpe</code></td><td>Всегда</td></tr>
+            <tr><td>JPEG 2000</td><td><code>.jp2</code></td><td>Опционально</td></tr>
+            <tr><td>PNG</td><td><code>.png</code></td><td>Всегда</td></tr>
+            <tr><td>Portable Network</td><td><code>.pbm, .pgm, .ppm</code></td><td>Всегда</td></tr>
+            <tr><td>TIFF</td><td><code>.tiff, .tif</code></td><td>Всегда</td></tr>
+            <tr><td>WebP</td><td><code>.webp</code></td><td>Опционально</td></tr>
+            <tr><td>HDR</td><td><code>.hdr, .pic</code></td><td>Опционально</td></tr>
+        </table>
+
+        <div class="sub-section-title">Флаги чтения (ImreadModes)</div>
+        <table>
+            <tr><th>Флаг</th><th>Значение</th><th>Описание</th></tr>
+            <tr><td><code>IMREAD_UNCHANGED</code></td><td>-1</td><td>Загрузить как есть, включая альфа-канал[reference:4]</td></tr>
+            <tr><td><code>IMREAD_GRAYSCALE</code></td><td>0</td><td>Загрузить в оттенках серого</td></tr>
+            <tr><td><code>IMREAD_COLOR</code></td><td>1</td><td>Загрузить в цвете (BGR) — по умолчанию</td></tr>
+            <tr><td><code>IMREAD_ANYDEPTH</code></td><td>2</td><td>Сохранить глубину (16/32 бит)</td></tr>
+            <tr><td><code>IMREAD_ANYCOLOR</code></td><td>4</td><td>Любой цветовой формат</td></tr>
+            <tr><td><code>IMREAD_REDUCED_GRAYSCALE_2</code></td><td>16</td><td>Уменьшить в 2 раза + grayscale</td></tr>
+        </table>
+
+        <div class="sub-section-title">Пример: чтение, отображение, запись</div>
+        <pre><code>import cv2
+
+# Чтение изображения в цвете (BGR)
+img = cv2.imread('input.jpg', cv2.IMREAD_COLOR)
+
+# Проверка успешности загрузки
+if img is None:
+    print("Ошибка: не удалось загрузить изображение")
+    exit()
+
+# Получение размеров
+height, width, channels = img.shape
+print(f"Размер: {width}x{height}, каналов: {channels}")
+
+# Отображение в окне
+cv2.imshow('Preview', img)
+cv2.waitKey(0)          # Ждать нажатия клавиши
+cv2.destroyAllWindows()
+
+# Сохранение в файл
+cv2.imwrite('output.png', img)</code></pre>
+
+        <div class="note">По умолчанию OpenCV читает изображения в формате BGR (Blue-Green-Red), а не RGB. Это важно помнить при интеграции с другими библиотеками (matplotlib, PIL).</div>
+
+        <!-- ═══════════════════ 4. COLOR ═══════════════════ -->
+        <div id="color" class="section-title">4. ЦВЕТОВЫЕ ПРОСТРАНСТВА</div>
+
+        <p>OpenCV поддерживает более 150 цветовых пространств. Наиболее часто используются BGR, Grayscale, HSV и Lab. Конвертация выполняется функцией <code>cv2.cvtColor()</code>[reference:5].</p>
+
+        <div class="sub-section-title">Основные коды конвертации</div>
+        <table>
+            <tr><th>Код</th><th>Описание</th></tr>
+            <tr><td><code>COLOR_BGR2GRAY</code></td><td>BGR → оттенки серого</td></tr>
+            <tr><td><code>COLOR_BGR2RGB</code></td><td>BGR → RGB (для matplotlib/PIL)</td></tr>
+            <tr><td><code>COLOR_BGR2HSV</code></td><td>BGR → HSV (для цветовой сегментации)</td></tr>
+            <tr><td><code>COLOR_BGR2LAB</code></td><td>BGR → Lab (перцептуальное пространство)</td></tr>
+            <tr><td><code>COLOR_GRAY2BGR</code></td><td>Оттенки серого → BGR</td></tr>
+            <tr><td><code>COLOR_HSV2BGR</code></td><td>HSV → BGR</td></tr>
+            <tr><td><code>COLOR_BGR2YCrCb</code></td><td>BGR → YCrCb (для детекции кожи)</td></tr>
+        </table>
+
+        <div class="sub-section-title">Пример: конвертация и разделение каналов</div>
+        <pre><code>import cv2
+
+img = cv2.imread('input.jpg')
+
+# Конвертация в grayscale
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+# Конвертация в HSV
+hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+# Разделение на каналы
+b, g, r = cv2.split(img)
+
+# Объединение каналов обратно
+merged = cv2.merge([b, g, r])
+
+# Цветовая сегментация (поиск красных объектов)
+lower_red = (0, 100, 100)
+upper_red = (10, 255, 255)
+mask = cv2.inRange(hsv, lower_red, upper_red)
+result = cv2.bitwise_and(img, img, mask=mask)</code></pre>
+
+        <!-- ═══════════════════ 5. TRANSFORM ═══════════════════ -->
+        <div id="transform" class="section-title">5. ГЕОМЕТРИЧЕСКИЕ ПРЕОБРАЗОВАНИЯ</div>
+
+        <p>Модуль <code>imgproc</code> предоставляет функции для изменения размера, поворота, аффинных и перспективных преобразований[reference:6].</p>
+
+        <div class="sub-section-title">Изменение размера (resize)</div>
+        <pre><code>import cv2
+
+img = cv2.imread('input.jpg')
+
+# Увеличение в 2 раза
+resized = cv2.resize(img, None, fx=2, fy=2, 
+                     interpolation=cv2.INTER_LINEAR)
+
+# Уменьшение до конкретного размера
+resized = cv2.resize(img, (640, 480), 
+                     interpolation=cv2.INTER_AREA)
+
+# Доступные интерполяции:
+# INTER_NEAREST  — ближайший сосед (быстро, низкое качество)
+# INTER_LINEAR   — билинейная (по умолчанию)
+# INTER_CUBIC    — бикубическая (медленно, высокое качество)
+# INTER_AREA     — для уменьшения
+# INTER_LANCZOS4 — ланцоша (наивысшее качество)</code></pre>
+
+        <div class="sub-section-title">Поворот и аффинные преобразования</div>
+        <pre><code># Поворот на 45 градусов вокруг центра
+(h, w) = img.shape[:2]
+center = (w // 2, h // 2)
+M = cv2.getRotationMatrix2D(center, 45, 1.0)
+rotated = cv2.warpAffine(img, M, (w, h))
+
+# Аффинное преобразование (3 точки)
+pts_src = np.float32([[50,50], [200,50], [50,200]])
+pts_dst = np.float32([[10,100], [200,50], [100,250]])
+M = cv2.getAffineTransform(pts_src, pts_dst)
+affine = cv2.warpAffine(img, M, (w, h))
+
+# Перспективное преобразование (4 точки)
+pts_src = np.float32([[56,65], [368,52], [28,387], [389,390]])
+pts_dst = np.float32([[0,0], [300,0], [0,300], [300,300]])
+M = cv2.getPerspectiveTransform(pts_src, pts_dst)
+warped = cv2.warpPerspective(img, M, (300, 300))</code></pre>
+
+        <!-- ═══════════════════ 6. FILTER ═══════════════════ -->
+        <div id="filter" class="section-title">6. ФИЛЬТРАЦИЯ И РАЗМЫТИЕ</div>
+
+        <p>Фильтрация используется для шумоподавления, сглаживания и выделения признаков. OpenCV предоставляет линейные и нелинейные фильтры[reference:7].</p>
+
+        <div class="sub-section-title">Основные фильтры</div>
+        <table>
+            <tr><th>Функция</th><th>Описание</th><th>Применение</th></tr>
+            <tr><td><code>cv2.blur()</code></td><td>Усредняющее размытие</td><td>Быстрое сглаживание</td></tr>
+            <tr><td><code>cv2.GaussianBlur()</code></td><td>Гауссово размытие</td><td>Шумоподавление, подготовка к Canny</td></tr>
+            <tr><td><code>cv2.medianBlur()</code></td><td>Медианное размытие</td><td>Удаление соли и перца</td></tr>
+            <tr><td><code>cv2.bilateralFilter()</code></td><td>Билатеральный фильтр</td><td>Сохранение краёв при сглаживании</td></tr>
+            <tr><td><code>cv2.filter2D()</code></td><td>Произвольная свёртка</td><td>Собственные ядра</td></tr>
+        </table>
+
+        <div class="sub-section-title">Пример: различные виды размытия</div>
+        <pre><code>import cv2
+import numpy as np
+
+img = cv2.imread('input.jpg')
+
+# Усредняющее размытие (ядро 5x5)
+blur = cv2.blur(img, (5, 5))
+
+# Гауссово размытие
+gaussian = cv2.GaussianBlur(img, (5, 5), 0)
+
+# Медианное размытие
+median = cv2.medianBlur(img, 5)
+
+# Билатеральный фильтр
+bilateral = cv2.bilateralFilter(img, 9, 75, 75)
+
+# Собственное ядро (резкость)
+kernel_sharp = np.array([[0, -1, 0],
+                          [-1, 5, -1],
+                          [0, -1, 0]])
+sharp = cv2.filter2D(img, -1, kernel_sharp)</code></pre>
+
+        <!-- ═══════════════════ 7. EDGES ═══════════════════ -->
+        <div id="edges" class="section-title">7. ДЕТЕКЦИЯ КРАЁВ</div>
+
+        <p>Детекция краёв — одна из базовых задач компьютерного зрения. Наиболее популярные методы: Canny, Sobel, Laplacian, Scharr.</p>
+
+        <div class="sub-section-title">Оператор Canny</div>
+        <pre><code>import cv2
+
+img = cv2.imread('input.jpg', cv2.IMREAD_GRAYSCALE)
+
+# Canny: порог1, порог2
+edges = cv2.Canny(img, 100, 200)
+
+# С автоматическим подбором порогов
+median = np.median(img)
+lower = int(max(0, 0.66 * median))
+upper = int(min(255, 1.33 * median))
+auto_edges = cv2.Canny(img, lower, upper)</code></pre>
+
+        <div class="sub-section-title">Оператор Sobel и Laplacian</div>
+        <pre><code># Градиент по X
+sobelx = cv2.Sobel(img, cv2.CV_64F, 1, 0, ksize=5)
+# Градиент по Y
+sobely = cv2.Sobel(img, cv2.CV_64F, 0, 1, ksize=5)
+
+# Объединение градиентов
+sobel = cv2.magnitude(sobelx, sobely)
+
+# Laplacian
+laplacian = cv2.Laplacian(img, cv2.CV_64F)
+
+# Приведение к 8-битному формату
+sobel_abs = cv2.convertScaleAbs(sobel)
+laplacian_abs = cv2.convertScaleAbs(laplacian)</code></pre>
+
+        <div class="sub-section-title">Детекция прямых: преобразование Хафа</div>
+        <pre><code># Стандартное преобразование Хафа
+lines = cv2.HoughLines(edges, 1, np.pi/180, 200)
+
+# Вероятностное преобразование Хафа
+lines_p = cv2.HoughLinesP(edges, 1, np.pi/180, 100,
+                           minLineLength=100, maxLineGap=10)
+
+# Отрисовка линий
+for line in lines_p:
+    x1, y1, x2, y2 = line[0]
+    cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 2)</code></pre>
+
+        <!-- ═══════════════════ 8. CONTOURS ═══════════════════ -->
+        <div id="contours" class="section-title">8. КОНТУРЫ</div>
+
+        <p>Контуры — это кривые, соединяющие непрерывные точки с одинаковым цветом или интенсивностью. Используются для анализа форм и детекции объектов.</p>
+
+        <div class="sub-section-title">Поиск и отрисовка контуров</div>
+        <pre><code>import cv2
+
+img = cv2.imread('input.jpg')
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+# Бинаризация (Otsu)
+_, thresh = cv2.threshold(gray, 0, 255, 
+                          cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+# Поиск контуров
+contours, hierarchy = cv2.findContours(
+    thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+# Отрисовка всех контуров
+cv2.drawContours(img, contours, -1, (0, 255, 0), 2)
+
+# Анализ каждого контура
+for c in contours:
+    # Площадь
+    area = cv2.contourArea(c)
+    
+    # Периметр
+    perimeter = cv2.arcLength(c, True)
+    
+    # Аппроксимация полигоном (точность 2% от периметра)
+    approx = cv2.approxPolyDP(c, 0.02 * perimeter, True)
+    
+    # Описанный прямоугольник
+    x, y, w, h = cv2.boundingRect(c)
+    
+    # Описанная окружность
+    (cx, cy), radius = cv2.minEnclosingCircle(c)
+    
+    # Выпуклая оболочка
+    hull = cv2.convexHull(c)
+    
+    # Проверка выпуклости
+    is_convex = cv2.isContourConvex(c)</code></pre>
+
+        <div class="note">Флаги поиска: <code>RETR_EXTERNAL</code> (только внешние), <code>RETR_LIST</code> (все без иерархии), <code>RETR_TREE</code> (полная иерархия), <code>RETR_CCOMP</code> (двухуровневая).</div>
+
+        <!-- ═══════════════════ 9. FEATURES ═══════════════════ -->
+        <div id="features" class="section-title">9. ОСОБЫЕ ТОЧКИ (FEATURES2D)</div>
+
+        <p>Особые точки используются для сопоставления изображений, трекинга, панорамной склейки и распознавания объектов.</p>
+
+        <div class="sub-section-title">Популярные детекторы</div>
+        <table>
+            <tr><th>Детектор</th><th>Тип</th><th>Особенности</th></tr>
+            <tr><td><code>ORB</code></td><td>Binary</td><td>Быстрый, бесплатный, хорош для реального времени</td></tr>
+            <tr><td><code>SIFT</code></td><td>Float</td><td>Инвариантен к масштабу и повороту (в contrib с 4.4.0)</td></tr>
+            <tr><td><code>SURF</code></td><td>Float</td><td>Быстрее SIFT (запатентован)</td></tr>
+            <tr><td><code>AKAZE</code></td><td>Binary</td><td>Хорош для сопоставления</td></tr>
+            <tr><td><code>BRISK</code></td><td>Binary</td><td>Быстрый, инвариантен к масштабу</td></tr>
+            <tr><td><code>KAZE</code></td><td>Float</td><td>Нелинейное масштабное пространство</td></tr>
+        </table>
+
+        <div class="sub-section-title">Пример: ORB + BFMatcher</div>
+        <pre><code>import cv2
+
+img1 = cv2.imread('box.png', cv2.IMREAD_GRAYSCALE)
+img2 = cv2.imread('box_in_scene.png', cv2.IMREAD_GRAYSCALE)
+
+# Создание ORB-детектора
+orb = cv2.ORB_create(nfeatures=500)
+
+# Поиск ключевых точек и дескрипторов
+kp1, des1 = orb.detectAndCompute(img1, None)
+kp2, des2 = orb.detectAndCompute(img2, None)
+
+# BFMatcher с расстоянием Хэмминга
+bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+matches = bf.match(des1, des2)
+
+# Сортировка по расстоянию
+matches = sorted(matches, key=lambda x: x.distance)
+
+# Отрисовка первых 30 совпадений
+result = cv2.drawMatches(img1, kp1, img2, kp2, 
+                          matches[:30], None, flags=2)
+cv2.imshow('Matches', result)
+cv2.waitKey(0)</code></pre>
+
+        <!-- ═══════════════════ 10. VIDEO ═══════════════════ -->
+        <div id="video" class="section-title">10. РАБОТА С ВИДЕО</div>
+
+        <p>Модуль <code>videoio</code> предоставляет унифицированный интерфейс для захвата и записи видео с различных бэкендов: FFmpeg, GStreamer, DirectShow, AVFoundation[reference:8].</p>
+
+        <div class="sub-section-title">Захват видео с камеры</div>
+        <pre><code>import cv2
+
+# Открытие камеры (0 — камера по умолчанию)
+cap = cv2.VideoCapture(0)
+
+# Проверка открытия
+if not cap.isOpened():
+    print("Ошибка: не удалось открыть камеру")
+    exit()
+
+# Настройка разрешения
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+# Чтение кадров в цикле
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        print("Не удалось получить кадр")
+        break
+    
+    # Обработка кадра
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    
+    cv2.imshow('Frame', gray)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows()</code></pre>
+
+        <div class="sub-section-title">Запись видео в файл</div>
+        <pre><code>import cv2
+
+cap = cv2.VideoCapture(0)
+
+# Определение кодека и создание VideoWriter
+fourcc = cv2.VideoWriter_fourcc(*'XVID')
+out = cv2.VideoWriter('output.avi', fourcc, 20.0, (640, 480))
+
+while cap.isOpened():
+    ret, frame = cap.read()
+    if not ret:
+        break
+    
+    out.write(frame)
+    cv2.imshow('Recording', frame)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cap.release()
+out.release()
+cv2.destroyAllWindows()</code></pre>
+
+        <div class="sub-section-title">Чтение видео из файла</div>
+        <pre><code>cap = cv2.VideoCapture('input.mp4')
+
+# Получение свойств видео
+fps = cap.get(cv2.CAP_PROP_FPS)
+frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+duration = frame_count / fps
+
+print(f"FPS: {fps}, Кадров: {frame_count}")
+print(f"Размер: {width}x{height}, Длительность: {duration:.2f}с")</code></pre>
+
+        <!-- ═══════════════════ 11. DNN ═══════════════════ -->
+        <div id="dnn" class="section-title">11. DEEP LEARNING (DNN)</div>
+
+        <p>Модуль <code>dnn</code> позволяет загружать и запускать предобученные нейронные сети из популярных фреймворков: TensorFlow, Caffe, ONNX, Darknet.</p>
+
+        <div class="sub-section-title">Загрузка модели</div>
+        <pre><code>import cv2
+
+# Загрузка ONNX-модели
+net = cv2.dnn.readNetFromONNX('model.onnx')
+
+# Загрузка TensorFlow
+net = cv2.dnn.readNetFromTensorflow('frozen_graph.pb', 'config.pbtxt')
+
+# Загрузка Caffe
+net = cv2.dnn.readNetFromCaffe('deploy.prototxt', 'weights.caffemodel')
+
+# Загрузка Darknet (YOLO)
+net = cv2.dnn.readNetFromDarknet('yolov3.cfg', 'yolov3.weights')
+
+# Использование GPU (CUDA)
+net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
+net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)</code></pre>
+
+        <div class="sub-section-title">Инференс (пример YOLO)</div>
+        <pre><code>import cv2
+import numpy as np
+
+# Загрузка YOLO
+net = cv2.dnn.readNetFromDarknet('yolov3.cfg', 'yolov3.weights')
+
+# Получение выходных слоёв
+layer_names = net.getLayerNames()
+output_layers = [layer_names[i - 1] for i in net.getUnconnectedOutLayers()]
+
+# Подготовка изображения
+img = cv2.imread('input.jpg')
+blob = cv2.dnn.blobFromImage(img, 1/255.0, (416, 416), 
+                              swapRB=True, crop=False)
+net.setInput(blob)
+
+# Прямой проход
+outputs = net.forward(output_layers)
+
+# Парсинг результатов
+for output in outputs:
+    for detection in output:
+        scores = detection[5:]
+        class_id = np.argmax(scores)
+        confidence = scores[class_id]
+        
+        if confidence > 0.5:
+            # Координаты
+            center_x = int(detection[0] * img.shape[1])
+            center_y = int(detection[1] * img.shape[0])
+            w = int(detection[2] * img.shape[1])
+            h = int(detection[3] * img.shape[0])
+            
+            # Прямоугольник
+            x = int(center_x - w / 2)
+            y = int(center_y - h / 2)
+            cv2.rectangle(img, (x, y), (x+w, y+h), (0, 255, 0), 2)</code></pre>
+
+        <!-- ═══════════════════ 12. DRAW ═══════════════════ -->
+        <div id="draw" class="section-title">12. РИСОВАНИЕ И GUI</div>
+
+        <p>Модуль <code>highgui</code> предоставляет функции для отображения изображений в окнах, а также для рисования геометрических фигур и текста[reference:9].</p>
+
+        <div class="sub-section-title">Рисование фигур</div>
+        <pre><code>import cv2
+import numpy as np
+
+# Создание пустого изображения (чёрный фон)
+img = np.zeros((512, 512, 3), np.uint8)
+
+# Линия (изображение, начало, конец, цвет BGR, толщина)
+cv2.line(img, (0, 0), (511, 511), (255, 0, 0), 5)
+
+# Прямоугольник (изображение, угол1, угол2, цвет, толщина)
+cv2.rectangle(img, (384, 0), (510, 128), (0, 255, 0), 3)
+
+# Окружность (изображение, центр, радиус, цвет, толщина)
+cv2.circle(img, (447, 63), 63, (0, 0, 255), -1)
+
+# Эллипс (изображение, центр, оси, угол, startAngle, endAngle, цвет)
+cv2.ellipse(img, (256, 256), (100, 50), 0, 0, 180, 
+            (255, 255, 255), -1)
+
+# Полигон
+pts = np.array([[10, 5], [20, 30], [70, 20], [50, 10]], np.int32)
+pts = pts.reshape((-1, 1, 2))
+cv2.polylines(img, [pts], True, (0, 255, 255))
+
+# Текст (изображение, текст, позиция, шрифт, масштаб, цвет)
+font = cv2.FONT_HERSHEY_SIMPLEX
+cv2.putText(img, 'OpenCV', (10, 500), font, 4, 
+            (255, 255, 255), 2, cv2.LINE_AA)</code></pre>
+
+        <div class="sub-section-title">Трекбары (Trackbars)</div>
+        <pre><code>import cv2
+import numpy as np
+
+def nothing(x):
+    pass
+
+# Создание окна с трекбарами
+cv2.namedWindow('Image')
+cv2.createTrackbar('R', 'Image', 0, 255, nothing)
+cv2.createTrackbar('G', 'Image', 0, 255, nothing)
+cv2.createTrackbar('B', 'Image', 0, 255, nothing)
+
+while True:
+    img = np.zeros((300, 512, 3), np.uint8)
+    r = cv2.getTrackbarPos('R', 'Image')
+    g = cv2.getTrackbarPos('G', 'Image')
+    b = cv2.getTrackbarPos('B', 'Image')
+    
+    img[:] = [b, g, r]
+    cv2.imshow('Image', img)
+    
+    if cv2.waitKey(1) & 0xFF == 27:
+        break
+
+cv2.destroyAllWindows()</code></pre>
+
+        <!-- ═══════════════════ 13. VERSIONS ═══════════════════ -->
+        <div id="versions" class="section-title">13. ВЕРСИИ И ЛИЦЕНЗИЯ</div>
+
+        <div class="sub-section-title">История версий</div>
+        <table>
+            <tr><th>Версия</th><th>Год</th><th>Ключевые изменения</th></tr>
+            <tr><td><code>5.0.0</code></td><td>2024</td><td>C++17, обновлённый DNN, ONNX, LLM/VLM поддержка[reference:10]</td></tr>
+            <tr><td><code>4.14.0</code></td><td>2026</td><td>Исправления, обновления модулей</td></tr>
+            <tr><td><code>4.13.0</code></td><td>2025</td><td>—</td></tr>
+            <tr><td><code>4.12.0</code></td><td>2025</td><td>—</td></tr>
+            <tr><td><code>4.11.0</code></td><td>2025</td><td>C++20, algoHint, HAL для Qualcomm и RISC-V[reference:11]</td></tr>
+            <tr><td><code>4.10.0</code></td><td>2024</td><td>Swift/ObjC++ поддержка, macCatalyst</td></tr>
+            <tr><td><code>4.0.0</code></td><td>2018</td><td>Удалён C API, C++11</td></tr>
+            <tr><td><code>3.0.0</code></td><td>2014</td><td>Введён модуль DNN, GPU-ускорение</td></tr>
+            <tr><td><code>2.0.0</code></td><td>2009</td><td>C++ API</td></tr>
+            <tr><td><code>1.0</code></td><td>2006</td><td>Первый релиз (C API)</td></tr>
+        </table>
+
+        <div class="sub-section-title">Лицензия</div>
+        <table>
+            <tr><th>Версия</th><th>Лицензия</th></tr>
+            <tr><td>OpenCV 4.5.0+</td><td><span class="highlight">Apache 2.0</span>[reference:12]</td></tr>
+            <tr><td>OpenCV 4.4.0 и ниже</td><td>BSD-3-Clause[reference:13]</td></tr>
+        </table>
+
+        <div class="note">Apache 2.0 позволяет свободно использовать OpenCV в коммерческих проектах, включая модификацию и распространение. Некоторые модули contrib могут иметь отдельные лицензии.</div>
+
+        <!-- ═══════════════════ 14. ERRORS ═══════════════════ -->
+        <div id="errors" class="section-title">14. ТИПИЧНЫЕ ОШИБКИ</div>
+
+        <table>
+            <tr><th>Ошибка</th><th>Причина</th><th>Решение</th></tr>
+            <tr><td><code>(-215:Assertion failed) !_src.empty()</code></td><td>Файл не найден или повреждён</td><td>Проверить путь и формат</td></tr>
+            <tr><td><code>error: (-215:Assertion failed) dims <= 2</code></td><td>Неверная размерность массива</td><td>Проверить shape</td></tr>
+            <tr><td><code>cv2.error: OpenCV(...) ... in function 'cvtColor'</code></td><td>Неверный код конвертации</td><td>Использовать правильный COLOR_*</td></tr>
+            <tr><td><code>TypeError: 'NoneType' object is not subscriptable</code></td><td>imread вернул None</td><td>Проверить существование файла</td></tr>
+            <tr><td><code>(-215:Assertion failed) type == CV_8UC1</code></td><td>Canny требует grayscale</td><td>Сначала cvtColor</td></tr>
+            <tr><td><code>ImportError: libGL.so.1: cannot open shared object</code></td><td>Нет GUI-библиотек на сервере</td><td>Установить opencv-python-headless</td></tr>
+            <tr><td><code>cv2.VideoCapture(0) is not opened</code></td><td>Нет доступа к камере</td><td>Проверить права / индексы</td></tr>
+        </table>
+
+        <div class="sub-section-title">Отладка</div>
+        <pre><code>import cv2
+
+# Включение логирования
+cv2.setLogLevel(cv2.LOG_LEVEL_DEBUG)
+
+# Проверка сборки
+print(cv2.getBuildInformation())
+
+# Проверка доступных бэкендов
+print(cv2.videoio_registry.getBackends())
+
+# Проверка CUDA
+print(cv2.cuda.getCudaEnabledDeviceCount())</code></pre>
+
+        <!-- ═══════════════════ 15. EXAMPLES ═══════════════════ -->
+        <div id="examples" class="section-title">15. ПРИМЕРЫ КОДА</div>
+
+        <div class="sub-section-title">Полный пайплайн обработки изображения</div>
+        <pre><code>import cv2
+import numpy as np
+
+def process_image(path):
+    # 1. Чтение
+    img = cv2.imread(path)
+    if img is None:
+        raise FileNotFoundError(path)
+    
+    # 2. Ресайз до 640x480
+    img = cv2.resize(img, (640, 480))
+    
+    # 3. Конвертация в grayscale
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    
+    # 4. Шумоподавление
+    blur = cv2.GaussianBlur(gray, (5, 5), 0)
+    
+    # 5. Бинаризация
+    _, thresh = cv2.threshold(blur, 0, 255, 
+                              cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    
+    # 6. Детекция краёв
+    edges = cv2.Canny(thresh, 50, 150)
+    
+    # 7. Морфология (закрытие)
+    kernel = np.ones((3, 3), np.uint8)
+    closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
+    
+    return img, gray, thresh, closed
+
+# Использование
+original, gray, binary, edges = process_image('input.jpg')
+cv2.imshow('Original', original)
+cv2.imshow('Edges', edges)
+cv2.waitKey(0)</code></pre>
+
+        <div class="sub-section-title">Детекция лиц через Haar Cascade</div>
+        <pre><code>import cv2
+
+# Загрузка каскада (входит в OpenCV)
+face_cascade = cv2.CascadeClassifier(
+    cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+
+# Захват видео
+cap = cv2.VideoCapture(0)
+
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
+    
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    
+    # Детекция лиц
+    faces = face_cascade.detectMultiScale(
+        gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+    
+    # Отрисовка прямоугольников
+    for (x, y, w, h) in faces:
+        cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+        cv2.putText(frame, 'Face', (x, y-10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+    
+    cv2.imshow('Faces', frame)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows()</code></pre>
+
+        <div class="sub-section-title">Обработка видео с записью результата</div>
+        <pre><code>import cv2
+import numpy as np
+
+cap = cv2.VideoCapture('input.mp4')
+
+# Получение свойств
+fps = cap.get(cv2.CAP_PROP_FPS)
+w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+# VideoWriter
+fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+out = cv2.VideoWriter('output.mp4', fourcc, fps, (w, h))
+
+frame_num = 0
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
+    
+    frame_num += 1
+    
+    # Обработка кадра
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(gray, 50, 150)
+    result = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
+    
+    # Запись
+    out.write(result)
+    
+    # Прогресс
+    if frame_num % 30 == 0:
+        print(f"Обработано: {frame_num}/{total}")
+
+cap.release()
+out.release()
+print("Готово!")</code></pre>
+
+        <!-- ═══════════════════ FOOTER ═══════════════════ -->
+        <div class="section-title">ССЫЛКИ</div>
+        <div class="command-grid">
+            <div class="command-name">Документация</div>
+            <div class="command-desc"><a href="https://docs.opencv.org/" target="_blank">docs.opencv.org</a></div>
+            <div class="command-name">GitHub</div>
+            <div class="command-desc"><a href="https://github.com/opencv/opencv" target="_blank">github.com/opencv/opencv</a></div>
+            <div class="command-name">Contrib</div>
+            <div class="command-desc"><a href="https://github.com/opencv/opencv_contrib" target="_blank">github.com/opencv/opencv_contrib</a></div>
+            <div class="command-name">Python-пакет</div>
+            <div class="command-desc"><a href="https://pypi.org/project/opencv-python/" target="_blank">pypi.org/project/opencv-python</a></div>
+            <div class="command-name">Форум</div>
+            <div class="command-desc"><a href="https://forum.opencv.org/" target="_blank">forum.opencv.org</a></div>
+            <div class="command-name">Q&A</div>
+            <div class="command-desc"><a href="https://answers.opencv.org/" target="_blank">answers.opencv.org</a></div>
+            <div class="command-name">Лицензия</div>
+            <div class="command-desc"><a href="https://opencv.org/license/" target="_blank">opencv.org/license</a></div>
+            <div class="command-name">Roadmap</div>
+            <div class="command-desc"><a href="https://github.com/opencv/opencv/wiki" target="_blank">github.com/opencv/opencv/wiki</a></div>
+        </div>
+
+        <br>
+        <div class="gray">[?] Помощь по командам: help, works, keys, howto, notes</div>
+
+    </div>
+</div>
+
+</body>
+</html>

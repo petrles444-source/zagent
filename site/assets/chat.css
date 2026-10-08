@@ -1,0 +1,135 @@
+/* Neural Archive — стили помощника.
+ *
+ * Отдельный файл, а не продолжение style.css: виджет подключается
+ * независимо от основной страницы, и если его не будет, портал должен
+ * остаться рабочим — просто без помощника.
+ */
+
+.chat {
+  display: grid;
+  gap: 12px;
+  max-width: 860px;
+  padding: clamp(14px, 2.4vw, 22px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  clip-path: var(--cut);
+  box-shadow: var(--shadow);
+}
+
+.chat-quick { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.chat-log {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-height: 180px;
+  max-height: min(52vh, 520px);
+  padding: 14px;
+  overflow-y: auto;
+  background:
+    repeating-linear-gradient(
+      to bottom, rgba(255, 255, 255, 0.015) 0 2px, transparent 2px 4px),
+    rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--line-soft);
+}
+
+.chat-row { display: grid; gap: 3px; max-width: 82%; }
+.chat-row b {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.chat-row p {
+  margin: 0;
+  padding: 9px 12px;
+  font-size: 14px;
+  line-height: 1.55;
+  border: 1px solid transparent;
+  /* Ответ модели может содержать что угодно, включая очень длинную
+     строку без пробелов: без overflow-wrap она растёт вбок и ломает
+     всю вёрстку страницы. */
+  overflow-wrap: anywhere;
+}
+.chat-row strong { color: var(--yellow); font-weight: 600; }
+.chat-row code {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  padding: 1px 4px;
+  color: var(--cyan);
+  background: rgba(0, 240, 255, .08);
+  border-radius: 3px;
+}
+
+/* Реплики человека — справа, помощника — слева. Разные цвета бордюра
+   позволяют отличить их на градациях серого. */
+.chat-row.me { justify-self: end; }
+.chat-row.me p {
+  color: #04121a;
+  background: var(--cyan);
+  border-color: var(--cyan);
+  font-weight: 500;
+}
+.chat-row.me b { justify-self: end; }
+
+.chat-row.bot p {
+  color: var(--text);
+  background: rgba(0, 240, 255, 0.06);
+  border-color: var(--line);
+}
+.chat-row.bot b { color: var(--yellow); }
+
+.chat-row.sys { max-width: 100%; }
+.chat-row.sys p {
+  color: var(--dim);
+  background: transparent;
+  border-color: var(--line-soft);
+  border-style: dashed;
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+
+.chat-row.waiting p { color: var(--yellow); font-family: var(--mono); }
+
+.chat-meta {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.chat-form { display: flex; gap: 8px; align-items: flex-end; }
+
+.chat-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 10px 12px;
+  font-family: var(--body);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  background: rgba(0, 0, 0, .5);
+  border: 1px solid var(--line);
+  clip-path: var(--cut-sm);
+  resize: vertical;
+}
+.chat-input:focus { outline: none; border-color: var(--cyan); }
+.chat-input::placeholder { color: #4a5b60; }
+
+.chat-send { flex-shrink: 0; align-self: stretch; }
+
+.chat-hint {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #5c6b70;
+  max-width: 70ch;
+}
+
+@media (max-width: 720px) {
+  .chat-form { flex-direction: column; align-items: stretch; }
+  .chat-send { align-self: stretch; }
+  .chat-row { max-width: 94%; }
+}

@@ -1,0 +1,315 @@
+/* Калькулятор калорий — продолжает подачу LUMEN.
+ *
+ * Оформление не новое: те же стеклянные панели, стальной акцент и
+ * системный гротеск, что и на странице. Поэтому здесь нет ни одной
+ * чужой переменной — только те, что уже объявлены в style.css, плюс
+ * несколько для калькулятора.
+ *
+ * Почему отдельный файл
+ * ---------------------
+ * Калькулятор можно свернуть: разметка и стили лежат рядом, и если
+ * файл не загрузился, страница остаётся читаемой. Общий style.css при
+ * этом не трогаем — портфолио не должно зависеть от того, открыл ли
+ * посетитель секцию.
+ */
+
+:root {
+  /* Наследуем палитру страницы; здесь только то, чего на ней нет. */
+  --ok: #4c7f5d;         /* нормальный показатель */
+  --warn: #8a6d3b;       /* пограничный */
+  --care: #8a4b4b;       /* требует внимания врача */
+}
+
+/* Секция. Отступ сверху тот же, что у соседних разделов. */
+.calc {
+  margin-top: clamp(30px, 5vw, 52px);
+}
+
+.calc-intro {
+  margin: 0 0 18px;
+  max-width: 62ch;
+  color: var(--ink-soft);
+}
+
+/* Сетка полей: четыре колонки на широком экране, одна на узком. */
+.calc-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 860px) {
+  .calc-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 480px) {
+  .calc-grid { grid-template-columns: 1fr; }
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field label {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.field input,
+.field select {
+  font-family: inherit;
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 9px 11px;
+  /* Без этого iOS при фокусе увеличивает страницу: 16px не меньше. */
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+}
+
+.field select {
+  /* Своя стрелка: системная на разных платформах выглядит по-разному. */
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+                    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 17px) calc(50% + 1px),
+                       calc(100% - 12px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 32px;
+}
+
+.field input:focus,
+.field select:focus {
+  outline: none;
+  border-color: var(--steel);
+  box-shadow: 0 0 0 3px rgba(91, 124, 153, 0.14);
+}
+
+.field .hint {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* Ползунок дефицита — на всю ширину своей колонки. */
+.slider-field {
+  grid-column: 1 / -1;
+}
+
+.slider-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.slider-value {
+  font-size: 13px;
+  color: var(--steel-deep);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, 'Courier New', monospace;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 22px;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 3px;
+  background: var(--rule);
+  border-radius: 2px;
+}
+
+input[type="range"]::-moz-range-track {
+  height: 3px;
+  background: var(--rule);
+  border-radius: 2px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 17px;
+  height: 17px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background: var(--steel);
+  border: 2px solid var(--paper);
+  box-shadow: 0 1px 3px rgba(27, 32, 38, 0.25);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--steel);
+  border: 2px solid var(--paper);
+}
+
+/* Кнопка — та же стеклянная панель, но с заливкой при наведении. */
+.calc-go {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+button.calc-btn {
+  font-family: inherit;
+  font-size: 15px;
+  color: var(--steel-deep);
+  background: var(--glass);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 10px 22px;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+button.calc-btn:hover {
+  background: var(--mist);
+  border-color: var(--steel);
+}
+
+button.calc-btn:focus-visible {
+  outline: 2px solid var(--steel);
+  outline-offset: 2px;
+}
+
+.calc-note {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* Результат: те же карточки, что у работ. */
+.calc-out {
+  margin-top: 16px;
+}
+
+.calc-out:empty { display: none; }
+
+.calc-nums {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.calc-num {
+  background: var(--glass);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 14px 16px;
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+}
+
+.calc-num .k {
+  display: block;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 5px;
+}
+
+.calc-num .v {
+  font-size: clamp(20px, 3vw, 25px);
+  font-weight: 300;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.calc-num.is-target { border-color: var(--steel); }
+.calc-num.is-target .v { color: var(--steel-deep); font-weight: 400; }
+
+/* ИМТ: цвет по границам, принятым ВОЗ. */
+.bmi-ok   { color: var(--ok) !important; }
+.bmi-warn { color: var(--warn) !important; }
+.bmi-bad  { color: var(--care) !important; }
+
+/* Раскладка БЖУ. */
+.macros {
+  background: var(--glass);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 16px 18px;
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+}
+
+.macros-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.bar-macros {
+  display: flex;
+  height: 9px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--mist);
+  margin-bottom: 12px;
+}
+
+.bar-macros i { display: block; height: 100%; }
+.bar-macros .p { background: var(--steel); }
+.bar-macros .f { background: #7fa3bd; }
+.bar-macros .c { background: #b9cad8; }
+
+.macro-row {
+  display: grid;
+  grid-template-columns: 7em 1fr auto;
+  gap: 10px;
+  align-items: center;
+  font-size: 14.5px;
+  padding: 6px 0;
+  border-top: 1px solid var(--rule-soft);
+  color: var(--ink-soft);
+}
+
+.macro-row:first-of-type { border-top: 0; }
+
+.macro-row b {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.macro-row .kcal {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, 'Courier New', monospace;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* Предупреждение о нижней границе: её нельзя опускать. */
+.calc-warn {
+  margin-top: 12px;
+  padding: 13px 16px;
+  background: var(--mist);
+  border: 1px solid var(--rule);
+  border-left: 2px solid var(--warn);
+  border-radius: 0 8px 8px 0;
+  font-size: 14.5px;
+  color: var(--ink-soft);
+}
+
+.calc-warn:empty { display: none; }

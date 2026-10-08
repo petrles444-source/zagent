@@ -419,13 +419,31 @@ def _snippet(text: str, limit: int = 200) -> str:
 
 #: Признаки того, что аккаунт пуст, а не исчерпал лимит. У всех провайдеров
 #: текст разный, но смысл один: денег нет, и ждать бесполезно.
+#: Признаки того, что на аккаунте реально нет денег, и которые нельзя
+#: спутать с лимитом запросов. Проверяются первыми: у настоящего
+#: insufficient_quota есть и слово «quota», а значит это кошелёк, а не
+#: «подождите минуту».
+STRONG_EMPTY_MARKERS = (
+    "insufficient_quota",
+    "insufficient balance",
+    "insufficient funds",
+    "insufficient credit",
+    "payment required",
+    "credit balance is too low",
+    "out of credits",
+    "no credits",
+)
+
+#: Признаки пустого кошелька, слабее: встречаются и в других телах.
 EMPTY_ACCOUNT_MARKERS = (
-    "insufficient",
+    # Слово «billing» здесь раньше было, и оно стоило недели простоя
+    # живого платного ключа: OpenAI пишет про лимит запросов в минуту
+    # «Billing tier rate limit exceeded» — это «подожди», а не «пополняй».
+    # Слово без диагностики («тариф») ничего не различает.
     "no resource package",
     "recharge",
     "quota exceeded for",
-    "out of credits",
-    "billing",
+    "account has insufficient",
 )
 
 #: Признаки настоящего лимита — квота кончилась, но восстановится.
@@ -447,8 +465,19 @@ def _limit_reason(body: str) -> str:
     пока не пополнят.
     """
     text = _snippet(body, 400).lower()
-    if any(marker in text for marker in EMPTY_ACCOUNT_MARKERS):
+    # Порядок проверок важен, и раньше он был обратным. Текст может
+    # содержать признаки обоих исходов сразу, и тогда побеждать должен
+    # более безопасный для кошелька: «подожди» вместо «пополняй».
+    # Карантин EMPTY_ACCOUNT — почти семь суток, и снимается он только
+    # успешным ответом, а шлюз в это время отвечает 429.
+    #
+    # Поэтому сначала признаки, которые прямо называют деньги: у них
+    # приоритет даже над словом «quota», хотя настоящий insufficient_quota
+    # означает именно пустой кошелёк, а не «подождите минуту».
+    if any(marker in text for marker in STRONG_EMPTY_MARKERS):
         return "429 нет баланса на аккаунте — пополните его"
     if any(marker in text for marker in LIMIT_MARKERS):
         return "429 лимит запросов, попробуйте позже"
+    if any(marker in text for marker in EMPTY_ACCOUNT_MARKERS):
+        return "429 нет баланса на аккаунте — пополните его"
     return f"429 {_snippet(body, 120)}"

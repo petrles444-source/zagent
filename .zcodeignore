@@ -1,0 +1,156 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Test / coverage
+.pytest_cache/
+pytest-of-*/
+pytest-cache-files-*/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Черновики и временные файлы
+tmp/
+*.tmp
+*.bak
+*.orig
+*.rej
+# Пробные задания стенда, если кто-то положит их в корень.
+tmp*.yaml
+# Каталоги, которые tempfile оставляет при падении теста или скрипта.
+tmp*/
+tmpv*/
+tmp_*/
+_tmp*/
+
+# Результаты работы агента. Не в код: это то, что он создал по задачам, и
+# один `git add .` закинул бы их в репозиторий вместе с исходниками.
+projects/
+
+# Папки замеров `check_agent_works.py`. По одной на модель, каждая со
+# своей копией результата, и в гит они попадать не должны: их оставляют
+# только ради разбора после `--keep`.
+zagent-works-*/
+probe-*/
+dbg-*/
+
+# Отчёты аудита: документы для чтения, не часть программы.
+audit/
+
+# Присылаемые обновления (входная папка, а не часть кода). Внутри бывают
+# настоящие ключи — например, в vpn-guide.txt, — поэтому в репозиторий
+# не попадает ничего оттуда.
+update/
+
+# Мусор одноразовых скриптов в корне (tempfile у нас пишет в рабочую папку).
+vault-*/
+*-probe-*/
+
+# Отчёты стенда: генерируются заново при каждом прогоне
+reports/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Environment / secrets
+.env
+.env.*
+*.pem
+*.key
+config/secrets.local.json
+secrets.local.json
+# Реальные ключи в отдельном файле. В `.gitignore` его не было:
+# `git status` показывал `config/keys.json` как новый файл с настоящими ключами, и
+# `git add -A` отправил бы их в публичный репозиторий. Рядом — его пустая
+# форма `config/keys.json.example`, его как раз легат пушить.
+config/keys.json
+
+# Logs / data
+logs/
+*.log
+saves/
+models/
+data/
+*.zip
+*.rar
+
+# Скриншоты, профили браузера и состояние агента
+screenshots/
+browser-profile/
+web-state/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- портал Neural Archive ----
+# site-dist — результат tools\build_site.py: плоская копия сайта для
+# заливки по FTP. Собирается из site/, хранить её в репозитории незачем.
+site-dist/
+
+# Копия движка Ruffle внутри site\. Исходник один — web-static\ruffle,
+# а tools\build_site.py кладёт его в сборку сам. Двадцать восемь
+# мегабайт дубля в истории репозитория — это много и незачем.
+site/ruffle/
+# ---- PythonAnywhere и телеграм-боты ----
+# Токен API лежит в credentials.json: им заходят в аккаунт и перезаписывают
+# файлы. В репозитории ему не место; рядом лежит только схема без значения.
+hosting/pythonanywhere/credentials.json
+# Настоящий конфиг бота с ключами провайдеров и токеном Telegram.
+hosting/pythonanywhere/bots/config.json
+hosting/pythonanywhere/bots/config.local.json
+# ---- раздача решений ----
+# Готовые архивы для публикации. В репозитории им не место: это сборный
+# продукт, который пересобирается одной командой tools\build_packages.py.
+publish/
+
+# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====
+.git/
+.hg/
+.svn/
+node_modules/
+bower_components/
+jspm_packages/
+site-packages/
+coverage/
+lcov-report/
+cmakefiles/
+cmake-build-*/
+bazel-*/
+pods/
+deriveddata/
+storybook-static/
+playwright-report/
+test-results/
+allure-results/
+allure-report/
+cdk.out/
+*.dist-info/
+eggs/
+wheels/
+# ----- ↑ 以上为 ZCode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----
+# 自定义规则写在下方（本行提示可删除）

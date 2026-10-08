@@ -1,0 +1,44 @@
+/* Оформление плашки «демо-заготовка».
+ *
+ * Отдельный файл, а не дописывание в css.css: правки в чужую вёрстку
+ * не переживают следующую её обновление, а плашка — единственное,
+ * что здесь добавлено нами. По той же причине, по которой виджет
+ * агента вынесен в ai.css.
+ *
+ * Вид намеренно отличается от страницы: шаблон тёмный и с градиентами,
+ * а плашка — светлая полоса с рамкой. Она должна читаться как
+ * предупреждение, а не как часть дизайна, и не теряться среди
+ * секций лендинга.
+ */
+
+.demo-note {
+  max-width: 1180px;
+  margin: 18px auto 0;
+  padding: 14px 18px;
+  background: #FFF8E6;
+  border: 1px solid #E8C97A;
+  border-left: 4px solid #D9A441;
+  border-radius: 8px;
+  color: #6B5416;
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+.demo-note strong {
+  color: #4A3A0C;
+  font-weight: 600;
+}
+
+@media (max-width: 1200px) {
+  .demo-note {
+    margin: 18px 20px 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .demo-note {
+    margin: 12px 14px 0;
+    padding: 12px 14px;
+    font-size: 13.5px;
+  }
+}

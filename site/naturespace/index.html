@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="ru" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nature Space | Faraway from the noisy city</title>
+    <!-- Tailwind CSS CDN -->
+    <script ></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="aetheris-font.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" >
+    <link rel="preconnect"  crossorigin>
+    <link href="naturespace-font.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        serif: ['"Playfair Display"', 'serif'],
+                        sans: ['Montserrat', 'sans-serif'],
+                    },
+                    colors: {
+                        serene: {
+                            light: '#FAF8F5',
+                            DEFAULT: '#F2EDE4',
+                            dark: '#D8D0C1',
+                            accent: '#6B635B',
+                            charcoal: '#2D2825'
+                        }
+                    },
+                    letterSpacing: {
+                        widest: '.2em',
+                        mega: '.3em'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: #FAF8F5;
+            color: #2D2825;
+        }
+        .zoom-img {
+            transition: transform 1.2s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+        .group:hover .zoom-img {
+            transform: scale(1.06);
+        }
+    </style>
+</head>
+<body class="antialiased selection:bg-serene-accent selection:text-white">
+
+    <!-- Header / Navigation -->
+    <header class="w-full bg-[#FAF8F5]/95 backdrop-blur-md border-b border-serene-dark/20 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-20">
+                
+                <!-- Logo & Brand -->
+                <div class="flex items-center space-x-3">
+                    <div class="w-8 h-8 rounded-full bg-serene-accent/20 flex items-center justify-center text-serene-accent">
+                        <i class="fa-solid fa-leaf text-xs"></i>
+                    </div>
+                    <div>
+                        <span class="font-serif text-lg tracking-widest text-serene-charcoal font-medium">Nature Space</span>
+                        <span class="block text-[9px] uppercase tracking-mega text-serene-accent font-sans">Faraway Hotel</span>
+                    </div>
+                </div>
+
+                <!-- Desktop Navigation Links -->
+                <nav class="hidden md:flex items-center space-x-10">
+                    <a href="#home" class="text-xs uppercase tracking-widest text-serene-charcoal hover:text-serene-accent transition-colors font-medium">Главная</a>
+                    <a href="#about" class="text-xs uppercase tracking-widest text-serene-charcoal hover:text-serene-accent transition-colors font-medium">О нас</a>
+                    <a href="#rooms" class="text-xs uppercase tracking-widest text-serene-charcoal hover:text-serene-accent transition-colors font-medium">Номера</a>
+                    <a href="#booking" class="text-xs uppercase tracking-widest text-serene-charcoal hover:text-serene-accent transition-colors font-medium">Бронирование</a>
+                    <a href="#contact" class="text-xs uppercase tracking-widest text-serene-charcoal hover:text-serene-accent transition-colors font-medium">Контакты</a>
+                </nav>
+
+                <!-- Action Button & Mobile Menu Toggle -->
+                <div class="flex items-center space-x-4">
+                    <a href="#booking" class="hidden sm:inline-block bg-serene-accent text-white px-6 py-2.5 text-xs uppercase tracking-widest rounded-none hover:bg-serene-charcoal transition-all">
+                        Забронировать
+                    </a>
+                    <button id="mobile-menu-btn" class="md:hidden text-serene-charcoal hover:text-serene-accent p-2">
+                        <i class="fa-solid fa-bars text-xl"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Menu Drawer -->
+        <div id="mobile-menu" class="hidden md:hidden bg-serene-light border-b border-serene-dark/20 px-6 py-6 space-y-4 shadow-lg">
+            <a href="#home" onclick="toggleMobileMenu()" class="block text-sm uppercase tracking-widest text-serene-charcoal">Главная</a>
+            <a href="#about" onclick="toggleMobileMenu()" class="block text-sm uppercase tracking-widest text-serene-charcoal">О нас</a>
+            <a href="#rooms" onclick="toggleMobileMenu()" class="block text-sm uppercase tracking-widest text-serene-charcoal">Номера</a>
+            <a href="#booking" onclick="toggleMobileMenu()" class="block text-sm uppercase tracking-widest text-serene-charcoal">Бронирование</a>
+            <a href="#contact" onclick="toggleMobileMenu()" class="block text-sm uppercase tracking-widest text-serene-charcoal">Контакты</a>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section id="home" class="relative w-full min-h-[85vh] flex items-center justify-center bg-serene overflow-hidden px-4 sm:px-6 lg:px-8 py-16">
+        <div class="max-w-7xl w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+            
+            <!-- Hero Image / Banner -->
+            <div class="lg:col-span-8 relative group overflow-hidden shadow-2xl aspect-[16/10]">
+                <img src="photo-159892850631.jpg" 
+                     alt="Minimalist bedroom with bright sunlight" 
+                     class="w-full h-full object-cover zoom-img"
+                     onerror="this.src='2d2825.js'">
+                <div class="absolute inset-0 bg-black/10"></div>
+                <div class="absolute bottom-8 left-8 right-8 md:bottom-12 md:left-12 text-white">
+                    <span class="text-xs uppercase tracking-mega text-white/90 font-medium block mb-2">Эко-отель в гармонии с природой</span>
+                    <h1 class="font-serif text-3xl sm:text-5xl lg:text-6xl tracking-wide font-light leading-tight">
+                        FARAWAY <br><span class="text-2xl sm:text-4xl font-sans tracking-widest font-light opacity-90">FROM THE NOISY CITY</span>
+                    </h1>
+                </div>
+            </div>
+
+            <!-- Hero Sidebar / Quick Stats or Quote -->
+            <div class="lg:col-span-4 bg-white p-8 sm:p-10 border border-serene-dark/20 space-y-6 shadow-sm">
+                <div class="w-10 h-10 rounded-full bg-serene flex items-center justify-center text-serene-accent">
+                    <i class="fa-solid fa-mountain-sun text-lg"></i>
+                </div>
+                <h3 class="font-serif text-2xl text-serene-charcoal">Тишина. Уединение. Комфорт.</h3>
+                <p class="text-xs text-serene-accent leading-relaxed font-light">
+                    Погрузитесь в атмосферу спокойствия вдалеке от городской суеты. Утром вас разбудит пение птиц и вид на живописные горы и океан.
+                </p>
+                <div class="pt-2">
+                    <a href="#rooms" class="inline-flex items-center space-x-2 text-xs uppercase tracking-widest text-serene-charcoal hover:text-serene-accent font-medium">
+                        <span>Выбрать номер</span>
+                        <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- About Us Section -->
+    <section id="about" class="py-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+            
+            <!-- Left Image Interior -->
+            <div class="relative overflow-hidden aspect-[4/3] shadow-lg bg-serene">
+                <img src="photo-161822119571.jpg" 
+                     alt="Minimalist Living Room" 
+                     class="w-full h-full object-cover zoom-img"
+                     onerror="this.src='2d2825-2.js'">
+            </div>
+
+            <!-- Right Text Content -->
+            <div class="space-y-6">
+                <span class="text-xs uppercase tracking-mega text-serene-accent font-medium block">О нас</span>
+                <h2 class="font-serif text-3xl sm:text-4xl text-serene-charcoal leading-snug">
+                    Пространство для отдыха и вдохновения
+                </h2>
+                <p class="text-sm text-serene-charcoal/80 font-light leading-relaxed">
+                    A wonderful vacation on dream. The beach with the breeze, enjoying the sunset in summer, and bathing the stars at midnight.
+                </p>
+                <p class="text-xs text-serene-accent leading-relaxed font-light">
+                    Что может быть прекраснее, чем проснуться утром с видом на утреннее небо, горы и океан перед вами? Вы можете полностью познакомиться с ярким и теплым днем, удивительной сценой и нашим сладким сервисом. Faraway from the noisy city right now.
+                </p>
+                <div class="pt-4 flex items-center space-x-6">
+                    <div>
+                        <span class="block font-serif text-2xl text-serene-charcoal">100%</span>
+                        <span class="text-[10px] uppercase tracking-widest text-serene-accent">Экологично</span>
+                    </div>
+                    <div class="w-[1px] h-10 bg-serene-dark/40"></div>
+                    <div>
+                        <span class="block font-serif text-2xl text-serene-charcoal">24/7</span>
+                        <span class="text-[10px] uppercase tracking-widest text-serene-accent">Забота о гостях</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Rooms Section -->
+    <section id="rooms" class="py-24 bg-serene px-4 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-center max-w-2xl mx-auto mb-16">
+                <span class="text-xs uppercase tracking-mega text-serene-accent block mb-2">Наши апартаменты</span>
+                <h2 class="font-serif text-3xl sm:text-4xl text-serene-charcoal">Номера и Люксы</h2>
+                <div class="w-12 h-[1px] bg-serene-accent mx-auto mt-4"></div>
+            </div>
+
+            <!-- Rooms Grid (6 rooms mirroring screenshot) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                
+                <!-- Room 1 -->
+                <div class="group bg-white overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer" onclick="selectRoomAndScroll('Single Room')">
+                    <div class="relative aspect-[4/3] overflow-hidden bg-serene">
+                        <img src="photo-159049036018.jpg" 
+                             alt="Single Room" class="w-full h-full object-cover zoom-img"
+                             onerror="this.src='2d2825-3.js'">
+                        <span class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 text-[10px] uppercase tracking-widest text-serene-charcoal">от 6,500 ₽</span>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="font-serif text-xl text-serene-charcoal">Single Room</h3>
+                        <p class="text-xs text-serene-accent mt-2 font-light">Уютный одноместный номер с видом на тихий внутренний сад.</p>
+                        <span class="inline-block mt-4 text-[11px] uppercase tracking-widest text-serene-charcoal group-hover:text-serene-accent font-medium">Забронировать →</span>
+                    </div>
+                </div>
+
+                <!-- Room 2 -->
+                <div class="group bg-white overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer" onclick="selectRoomAndScroll('Deluxe Single Room')">
+                    <div class="relative aspect-[4/3] overflow-hidden bg-serene">
+                        <img src="photo-156666579773.jpg" 
+                             alt="Deluxe Single Room" class="w-full h-full object-cover zoom-img"
+                             onerror="this.src='2d2825-4.js'">
+                        <span class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 text-[10px] uppercase tracking-widest text-serene-charcoal">от 9,200 ₽</span>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="font-serif text-xl text-serene-charcoal">Deluxe Single Room</h3>
+                        <p class="text-xs text-serene-accent mt-2 font-light">Просторный улучшенный номер с панорамными окнами.</p>
+                        <span class="inline-block mt-4 text-[11px] uppercase tracking-widest text-serene-charcoal group-hover:text-serene-accent font-medium">Забронировать →</span>
+                    </div>
+                </div>
+
+                <!-- Room 3 -->
+                <div class="group bg-white overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer" onclick="selectRoomAndScroll('Double Room')">
+                    <div class="relative aspect-[4/3] overflow-hidden bg-serene">
+                        <img src="photo-158271947825.jpg" 
+                             alt="Double Room" class="w-full h-full object-cover zoom-img"
+                             onerror="this.src='2d2825-5.js'">
+                        <span class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 text-[10px] uppercase tracking-widest text-serene-charcoal">от 12,000 ₽</span>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="font-serif text-xl text-serene-charcoal">Double Room</h3>
+                        <p class="text-xs text-serene-accent mt-2 font-light">Идеально для пары: большая двуспальная кровать и терраса.</p>
+                        <span class="inline-block mt-4 text-[11px] uppercase tracking-widest text-serene-charcoal group-hover:text-serene-accent font-medium">Забронировать →</span>
+                    </div>
+                </div>
+
+                <!-- Room 4 -->
+                <div class="group bg-white overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer" onclick="selectRoomAndScroll('Deluxe Double Room')">
+                    <div class="relative aspect-[4/3] overflow-hidden bg-serene">
+                        <img src="photo-157868301023.jpg" 
+                             alt="Deluxe Double Room" class="w-full h-full object-cover zoom-img"
+                             onerror="this.src='2d2825-6.js'">
+                        <span class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 text-[10px] uppercase tracking-widest text-serene-charcoal">от 16,500 ₽</span>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="font-serif text-xl text-serene-charcoal">Deluxe Double Room</h3>
+                        <p class="text-xs text-serene-accent mt-2 font-light">Премиальный люкс с потрясающим видом на закат и горы.</p>
+                        <span class="inline-block mt-4 text-[11px] uppercase tracking-widest text-serene-charcoal group-hover:text-serene-accent font-medium">Забронировать →</span>
+                    </div>
+                </div>
+
+                <!-- Room 5 -->
+                <div class="group bg-white overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer" onclick="selectRoomAndScroll('Twin Room')">
+                    <div class="relative aspect-[4/3] overflow-hidden bg-serene">
+                        <img src="missing-photo.jpg" 
+                             alt="Twin Room" class="w-full h-full object-cover zoom-img"
+                             onerror="this.src='2d2825-7.js'">
+                        <span class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 text-[10px] uppercase tracking-widest text-serene-charcoal">от 11,000 ₽</span>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="font-serif text-xl text-serene-charcoal">Twin Room</h3>
+                        <p class="text-xs text-serene-accent mt-2 font-light">Комфортабельный номер с двумя раздельными кроватями.</p>
+                        <span class="inline-block mt-4 text-[11px] uppercase tracking-widest text-serene-charcoal group-hover:text-serene-accent font-medium">Забронировать →</span>
+                    </div>
+                </div>
+
+                <!-- Room 6 -->
+                <div class="group bg-white overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer" onclick="selectRoomAndScroll('Deluxe Twin Room')">
+                    <div class="relative aspect-[4/3] overflow-hidden bg-serene">
+                        <img src="photo-159108839833.jpg" 
+                             alt="Deluxe Twin Room" class="w-full h-full object-cover zoom-img"
+                             onerror="this.src='2d2825-8.js'">
+                        <span class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 text-[10px] uppercase tracking-widest text-serene-charcoal">от 15,000 ₽</span>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="font-serif text-xl text-serene-charcoal">Deluxe Twin Room</h3>
+                        <p class="text-xs text-serene-accent mt-2 font-light">Просторный двухместный номер повышенной комфортности.</p>
+                        <span class="inline-block mt-4 text-[11px] uppercase tracking-widest text-serene-charcoal group-hover:text-serene-accent font-medium">Забронировать →</span>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Booking & Reservation System -->
+    <section id="booking" class="py-24 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
+        <div class="text-center max-w-xl mx-auto mb-16">
+            <span class="text-xs uppercase tracking-mega text-serene-accent block mb-2">Система бронирования</span>
+            <h2 class="font-serif text-3xl sm:text-4xl text-serene-charcoal">Забронируйте ваш отдых</h2>
+            <div class="w-12 h-[1px] bg-serene-accent mx-auto mt-4"></div>
+        </div>
+
+        <div class="bg-white p-8 sm:p-12 border border-serene-dark/20 shadow-lg">
+            <form id="reservation-form" onsubmit="handleReservation(event)" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <div class="space-y-2">
+                    <label class="block text-xs uppercase tracking-widest text-serene-charcoal font-medium">Ваше имя</label>
+                    <input type="text" id="res-name" required placeholder="Введите ваше имя" 
+                           class="w-full bg-serene/50 border border-serene-dark/40 px-4 py-3 text-xs text-serene-charcoal placeholder-serene-accent/60 focus:outline-none focus:border-serene-accent">
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block text-xs uppercase tracking-widest text-serene-charcoal font-medium">Телефон или Email</label>
+                    <input type="text" id="res-contact" required placeholder="+7 (999) 000-00-00" 
+                           class="w-full bg-serene/50 border border-serene-dark/40 px-4 py-3 text-xs text-serene-charcoal placeholder-serene-accent/60 focus:outline-none focus:border-serene-accent">
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block text-xs uppercase tracking-widest text-serene-charcoal font-medium">Дата заезда</label>
+                    <input type="date" id="res-checkin" required 
+                           class="w-full bg-serene/50 border border-serene-dark/40 px-4 py-3 text-xs text-serene-charcoal focus:outline-none focus:border-serene-accent">
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block text-xs uppercase tracking-widest text-serene-charcoal font-medium">Дата выезда</label>
+                    <input type="date" id="res-checkout" required 
+                           class="w-full bg-serene/50 border border-serene-dark/40 px-4 py-3 text-xs text-serene-charcoal focus:outline-none focus:border-serene-accent">
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block text-xs uppercase tracking-widest text-serene-charcoal font-medium">Тип номера</label>
+                    <select id="res-room" class="w-full bg-serene/50 border border-serene-dark/40 px-4 py-3 text-xs text-serene-charcoal focus:outline-none focus:border-serene-accent">
+                        <option value="Single Room">Single Room (от 6,500 ₽)</option>
+                        <option value="Deluxe Single Room">Deluxe Single Room (от 9,200 ₽)</option>
+                        <option value="Double Room">Double Room (от 12,000 ₽)</option>
+                        <option value="Deluxe Double Room">Deluxe Double Room (от 16,500 ₽)</option>
+                        <option value="Twin Room">Twin Room (от 11,000 ₽)</option>
+                        <option value="Deluxe Twin Room">Deluxe Twin Room (от 15,000 ₽)</option>
+                    </select>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block text-xs uppercase tracking-widest text-serene-charcoal font-medium">Количество гостей</label>
+                    <select id="res-guests" class="w-full bg-serene/50 border border-serene-dark/40 px-4 py-3 text-xs text-serene-charcoal focus:outline-none focus:border-serene-accent">
+                        <option value="1 гость">1 гость</option>
+                        <option value="2 гостя" selected>2 гостя</option>
+                        <option value="3 гостя">3 гостя</option>
+                        <option value="4+ гостей">4+ гостей</option>
+                    </select>
+                </div>
+
+                <div class="md:col-span-2 pt-4">
+                    <button type="submit" class="w-full bg-serene-accent text-white py-4 text-xs uppercase tracking-widest font-medium hover:bg-serene-charcoal transition-colors">
+                        Подтвердить бронирование
+                    </button>
+                </div>
+            </form>
+
+            <!-- Bookings History / Storage View -->
+            <div id="booking-history-box" class="mt-12 hidden pt-8 border-t border-serene-dark/20">
+                <h4 class="font-serif text-lg text-serene-charcoal mb-4">Ваши активные бронирования:</h4>
+                <div id="booking-list-container" class="space-y-3"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Us Section -->
+    <section id="contact" class="py-24 bg-serene px-4 sm:px-6 lg:px-8">
+        <div class="max-w-3xl mx-auto bg-white p-8 sm:p-12 border border-serene-dark/20 shadow-sm">
+            <div class="text-center mb-10">
+                <span class="text-xs uppercase tracking-mega text-serene-accent block mb-2">Свяжитесь с нами</span>
+                <h2 class="font-serif text-3xl text-serene-charcoal">Contact us</h2>
+                <div class="w-10 h-[1px] bg-serene-accent mx-auto mt-3"></div>
+            </div>
+
+            <form onsubmit="handleContact(event)" class="space-y-6">
+                <div>
+                    <input type="text" id="contact-name" required placeholder="Your name" 
+                           class="w-full bg-serene/30 border border-serene-dark/40 px-4 py-3 text-xs text-serene-charcoal placeholder-serene-accent/60 focus:outline-none focus:border-serene-accent">
+                </div>
+                <div>
+                    <input type="email" id="contact-email" required placeholder="Your E-mail address" 
+                           class="w-full bg-serene/30 border border-serene-dark/40 px-4 py-3 text-xs text-serene-charcoal placeholder-serene-accent/60 focus:outline-none focus:border-serene-accent">
+                </div>
+                <div>
+                    <textarea id="contact-msg" rows="4" required placeholder="Your message" 
+                              class="w-full bg-serene/30 border border-serene-dark/40 px-4 py-3 text-xs text-serene-charcoal placeholder-serene-accent/60 focus:outline-none focus:border-serene-accent"></textarea>
+                </div>
+                <div class="text-right">
+                    <button type="submit" class="bg-serene-accent text-white px-10 py-3.5 text-xs uppercase tracking-widest font-medium hover:bg-serene-charcoal transition-colors">
+                        Send
+                    </button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-serene-charcoal text-serene py-12 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+            <div class="text-center md:text-left">
+                <span class="font-serif text-lg tracking-widest text-white">Nature Space</span>
+                <p class="text-[10px] uppercase tracking-widest text-serene/60 mt-1">+886-2-2345-6789 #0</p>
+            </div>
+            <div class="flex space-x-6 text-sm text-serene/80">
+                <a href="#" class="hover:text-white transition-colors"><i class="fa-brands fa-instagram"></i></a>
+                <a href="#" class="hover:text-white transition-colors"><i class="fa-brands fa-facebook-f"></i></a>
+                <a href="#" class="hover:text-white transition-colors"><i class="fa-brands fa-whatsapp"></i></a>
+            </div>
+            <div class="text-center md:text-right text-[11px] text-serene/60 font-light">
+                © 2019-2026 Nature Space. All Rights Reserved.
+            </div>
+        </div>
+    </footer>
+
+    <!-- Toast Notification Banner -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 bg-serene-charcoal text-white px-6 py-3 text-xs tracking-wider shadow-2xl transform translate-y-20 opacity-0 transition-all duration-300">
+        Уведомление
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // Toggle Mobile Navigation Menu
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobile-menu');
+            menu.classList.toggle('hidden');
+        }
+
+        document.getElementById('mobile-menu-btn').addEventListener('click', toggleMobileMenu);
+
+        // Select Room from catalog and jump to booking form
+        function selectRoomAndScroll(roomName) {
+            const selectEl = document.getElementById('res-room');
+            for(let i=0; i<selectEl.options.length; i++) {
+                if(selectEl.options[i].value.includes(roomName)) {
+                    selectEl.selectedIndex = i;
+                    break;
+                }
+            }
+            document.getElementById('booking').scrollIntoView({ behavior: 'smooth' });
+            showToast(`Выбран номер: ${roomName}`);
+        }
+
+        // Reservation Form Handler & LocalStorage support
+        function handleReservation(e) {
+            e.preventDefault();
+            const name = document.getElementById('res-name').value;
+            const contact = document.getElementById('res-contact').value;
+            const checkin = document.getElementById('res-checkin').value;
+            const checkout = document.getElementById('res-checkout').value;
+            const room = document.getElementById('res-room').value;
+            const guests = document.getElementById('res-guests').value;
+
+            const bookingItem = { name, contact, checkin, checkout, room, guests, id: Date.now() };
+            
+            let bookings = JSON.parse(localStorage.getItem('nature_space_bookings') || '[]');
+            bookings.push(bookingItem);
+            localStorage.setItem('nature_space_bookings', JSON.stringify(bookings));
+
+            showToast('Бронирование успешно оформлено!');
+            document.getElementById('reservation-form').reset();
+            renderBookings();
+        }
+
+        // Render bookings from localStorage
+        function renderBookings() {
+            const bookings = JSON.parse(localStorage.getItem('nature_space_bookings') || '[]');
+            const container = document.getElementById('booking-list-container');
+            const box = document.getElementById('booking-history-box');
+
+            if (bookings.length === 0) {
+                box.classList.add('hidden');
+                return;
+            }
+
+            box.classList.remove('hidden');
+            let html = '';
+            bookings.forEach((b, index) => {
+                html += `
+                    <div class="bg-serene/50 p-4 border border-serene-dark/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-xs">
+                        <div>
+                            <span class="font-medium text-serene-charcoal">${b.room}</span> (${b.guests})<br>
+                            <span class="text-serene-accent">Заезд: ${b.checkin} | Выезд: ${b.checkout}</span><br>
+                            <span class="text-[10px] text-serene-charcoal/70">Гость: ${b.name} (${b.contact})</span>
+                        </div>
+                        <button onclick="cancelBooking(${b.id})" class="text-red-600 hover:text-red-800 uppercase tracking-widest text-[10px]">
+                            Отменить
+                        </button>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function cancelBooking(id) {
+            let bookings = JSON.parse(localStorage.getItem('nature_space_bookings') || '[]');
+            bookings = bookings.filter(b => b.id !== id);
+            localStorage.setItem('nature_space_bookings', JSON.stringify(bookings));
+            renderBookings();
+            showToast('Бронирование отменено');
+        }
+
+        // Contact Form Handler
+        function handleContact(e) {
+            e.preventDefault();
+            const name = document.getElementById('contact-name').value;
+            showToast(`Спасибо, ${name}! Ваше сообщение отправлено.`);
+            document.getElementById('contact-name').value = '';
+            document.getElementById('contact-email').value = '';
+            document.getElementById('contact-msg').value = '';
+        }
+
+        // Toast notification helper
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.innerText = message;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3500);
+        }
+
+        // Load bookings on startup
+        window.onload = function() {
+            renderBookings();
+        }
+    </script>
+
+<!-- Демонстрационная страница из materials/demo. Бизнеса за ней нет: цены, контакты и отзывы вымышлены. Всё грузится с этого же адреса, внешних загрузок нет. -->
+</body>
+</html>

@@ -1611,7 +1611,15 @@ class Agent:
             # реального действия, а если она упирается — поднимаем запрос сами.
             handled = await self._handle_boundary_refusal(final)
             if handled:
-                self.finished = True
+                # Готово - только когда мы действительно остановились ждать
+                # человека. Раньше здесь стояло безусловное finished = True,
+                # и на ветке «нудж» (первое требование вызвать инструмент)
+                # это было ложью: запрос разрешения ещё не поднят, задача не
+                # сделана, но run() выходил по флагу finished и отдавал
+                # ok=True, а воркер ставил задаче статус done. Человек видел
+                # «сделано» после того, как модель отказалась работать с
+                # границей воркспейса, - и больше никогда задачу не увидел бы.
+                self.finished = self.pending_permission is not None
                 return "stop" if self.pending_permission is not None else "continue"
 
             await self._step(Phase.THINKING, final, model=model, duration_ms=duration)

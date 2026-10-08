@@ -1,0 +1,1376 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>КЛИК — сайты, обложки и постеры недорого</title>
+    <style>
+        /* === ИМПОРТ ШРИФТОВ === */
+        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap');
+
+        /* === ПЕРЕМЕННЫЕ И СБРОС === */
+        :root {
+            --bg: #fbfbfd;
+            --bg-soft: #f4f6fb;
+            --white: #ffffff;
+            --text: #1c1f26;
+            --text-muted: #6b7280;
+            --border: #e8eaf0;
+            --accent: #4a6cf7;
+            --accent-soft: #eef2ff;
+            --accent-hover: #3a57d6;
+            --green: #10b981;
+            --radius: 16px;
+            --radius-sm: 12px;
+            --shadow-sm: 0 1px 3px rgba(28, 31, 38, 0.04), 0 4px 12px rgba(28, 31, 38, 0.04);
+            --shadow-md: 0 12px 32px rgba(28, 31, 38, 0.08);
+            --shadow-hover: 0 20px 40px rgba(28, 31, 38, 0.12);
+            --font-heading: 'Manrope', sans-serif;
+            --font-body: 'Inter', sans-serif;
+            --transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font-body);
+            font-size: 16px;
+            line-height: 1.65;
+            -webkit-font-smoothing: antialiased;
+            overflow-x: hidden;
+        }
+
+        h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; }
+        a { color: inherit; text-decoration: none; }
+        img { max-width: 100%; display: block; object-fit: cover; }
+
+        ::selection { background: var(--accent); color: #fff; }
+
+        /* === ОБЩИЕ КЛАССЫ === */
+        .container {
+            max-width: 1140px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        .section { padding: 96px 0; }
+        .section-head { text-align: center; max-width: 640px; margin: 0 auto 60px; }
+        .section-label {
+            display: inline-block;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--accent);
+            background: var(--accent-soft);
+            padding: 6px 16px;
+            border-radius: 50px;
+            margin-bottom: 16px;
+        }
+        .section-title { font-size: 2.3rem; margin-bottom: 16px; }
+        .section-sub { color: var(--text-muted); font-size: 1.05rem; }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 15px 32px;
+            border-radius: 50px;
+            font-family: var(--font-heading);
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            border: none;
+            transition: var(--transition);
+            white-space: nowrap;
+        }
+        .btn-primary { background: var(--accent); color: #fff; }
+        .btn-primary:hover { background: var(--accent-hover); transform: translateY(-3px); box-shadow: 0 12px 24px rgba(74, 108, 247, 0.3); }
+
+        .btn-ghost { background: #fff; color: var(--text); border: 1px solid var(--border); }
+        .btn-ghost:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-3px); }
+
+        /* === НАВИГАЦИЯ === */
+        nav {
+            position: sticky;
+            top: 0;
+            background: rgba(251, 251, 253, 0.9);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border);
+            z-index: 100;
+            transition: var(--transition);
+        }
+        nav.scrolled { box-shadow: 0 4px 20px rgba(0,0,0,0.03); }
+        .nav-inner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            max-width: 1140px;
+            margin: 0 auto;
+        }
+        .logo {
+            font-family: var(--font-heading);
+            font-weight: 800;
+            font-size: 1.5rem;
+            letter-spacing: -0.03em;
+        }
+        .logo span { color: var(--accent); }
+
+        .nav-links { display: flex; gap: 32px; }
+        .nav-links a {
+            font-size: 0.92rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            transition: var(--transition);
+            position: relative;
+        }
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: -4px; left: 0; width: 0; height: 2px;
+            background: var(--accent);
+            transition: var(--transition);
+        }
+        .nav-links a:hover { color: var(--text); }
+        .nav-links a:hover::after { width: 100%; }
+
+        .nav-cta { padding: 11px 24px; font-size: 0.9rem; }
+
+        /* === ГЛАВНЫЙ ЭКРАН (HERO) === */
+        .hero {
+            padding: 80px 0 100px;
+            position: relative;
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -200px; right: -150px;
+            width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(74,108,247,0.08) 0%, transparent 70%);
+            border-radius: 50%;
+            z-index: -1;
+        }
+        
+        .hero-inner {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            align-items: center;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: #fff;
+            border: 1px solid var(--border);
+            padding: 8px 18px;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 28px;
+            box-shadow: var(--shadow-sm);
+            animation: pulse 2s infinite;
+        }
+        .hero-badge .dot {
+            width: 8px; height: 8px;
+            background: var(--green);
+            border-radius: 50%;
+            box-shadow: 0 0 0 3px rgba(16,185,129,0.2);
+        }
+
+        .hero h1 {
+            font-size: clamp(2.4rem, 5vw, 3.8rem);
+            margin-bottom: 24px;
+        }
+        .hero h1 em { font-style: normal; color: var(--accent); }
+        .hero p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            max-width: 480px;
+            margin-bottom: 40px;
+        }
+        .hero-actions { display: flex; gap: 16px; flex-wrap: wrap; }
+
+        /* Исправленный блок с мокапами (без наложений) */
+        .hero-visual {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            position: relative;
+        }
+        
+        .visual-card {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-md);
+            padding: 16px;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .visual-card:hover { transform: translateY(-5px) scale(1.02); box-shadow: var(--shadow-hover); z-index: 10; }
+        
+        .vc-img {
+            width: 100px;
+            height: 80px;
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        .vc-img img { width: 100%; height: 100%; }
+        
+        .vc-text { flex: 1; }
+        .vc-title { font-family: var(--font-heading); font-weight: 700; font-size: 1.05rem; margin-bottom: 4px; }
+        .vc-caption { font-size: 0.85rem; color: var(--text-muted); }
+        
+        .vc-1 { margin-left: 0; }
+        .vc-2 { margin-left: 40px; }
+        .vc-3 { margin-left: 80px; }
+
+        /* === ПОЛОСА ДОВЕРИЯ === */
+        .trust-bar {
+            background: #fff;
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            padding: 32px 0;
+        }
+        .trust-inner {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 24px;
+        }
+        .trust-item { text-align: center; }
+        .trust-num {
+            font-family: var(--font-heading);
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+        .trust-num span { color: var(--accent); }
+        .trust-label { font-size: 0.85rem; color: var(--text-muted); }
+
+        /* === УСЛУГИ === */
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+        .service-card {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 32px 28px;
+            transition: var(--transition);
+        }
+        .service-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-6px);
+            box-shadow: var(--shadow-md);
+        }
+        .service-icon {
+            width: 52px; height: 52px;
+            border-radius: 14px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 22px;
+        }
+        .service-icon svg { width: 26px; height: 26px; }
+        .service-card h3 { font-size: 1.2rem; margin-bottom: 12px; }
+        .service-card p { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 20px; }
+        .service-price {
+            font-family: var(--font-heading);
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--text);
+            padding-top: 18px;
+            border-top: 1px solid var(--border);
+        }
+        .service-price small { color: var(--text-muted); font-weight: 400; font-size: 0.85rem; font-family: var(--font-body); }
+
+        /* === ПОРТФОЛИО === */
+        .portfolio { background: var(--bg-soft); }
+        .portfolio-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+        .work-card {
+            background: #fff;
+            border-radius: var(--radius);
+            overflow: hidden;
+            border: 1px solid var(--border);
+            transition: var(--transition);
+        }
+        .work-card:hover { transform: translateY(-6px); box-shadow: var(--shadow-md); }
+        .work-preview {
+            height: 220px;
+            position: relative;
+            overflow: hidden;
+        }
+        .work-preview img {
+            width: 100%; height: 100%;
+            transition: transform 0.6s ease;
+        }
+        .work-card:hover .work-preview img { transform: scale(1.08); }
+        
+        .work-info { padding: 24px; }
+        .work-info h4 { font-size: 1.1rem; margin-bottom: 8px; }
+        .work-info p { color: var(--text-muted); font-size: 0.9rem; }
+        .work-tag {
+            display: inline-block;
+            font-size: 0.75rem;
+            color: var(--accent);
+            background: var(--accent-soft);
+            padding: 4px 12px;
+            border-radius: 50px;
+            margin-top: 16px;
+            font-weight: 600;
+        }
+
+        /* === ПОЧЕМУ МЫ === */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 24px;
+        }
+        .feature-item {
+            text-align: center;
+            padding: 30px 20px;
+            background: #fff;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            transition: var(--transition);
+        }
+        .feature-item:hover { transform: translateY(-5px); border-color: var(--accent); }
+        .feature-icon {
+            width: 56px; height: 56px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+        }
+        .feature-icon svg { width: 28px; height: 28px; }
+        .feature-item h4 { font-size: 1.05rem; margin-bottom: 10px; }
+        .feature-item p { color: var(--text-muted); font-size: 0.9rem; }
+
+        /* === ЦЕНЫ === */
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            align-items: stretch;
+        }
+        .price-card {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 36px 30px;
+            display: flex;
+            flex-direction: column;
+            transition: var(--transition);
+            position: relative;
+        }
+        .price-card:hover { transform: translateY(-6px); box-shadow: var(--shadow-md); }
+        .price-card.featured {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px var(--accent-soft);
+        }
+        .price-tag-pop {
+            position: absolute;
+            top: -14px; left: 50%;
+            transform: translateX(-50%);
+            background: var(--accent);
+            color: #fff;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 6px 16px;
+            border-radius: 50px;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+        .price-card h3 { font-size: 1.3rem; margin-bottom: 8px; }
+        .price-desc { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 24px; }
+        .price-amount {
+            font-family: var(--font-heading);
+            font-size: 2.4rem;
+            font-weight: 800;
+            margin-bottom: 6px;
+        }
+        .price-amount small { font-size: 0.95rem; color: var(--text-muted); font-weight: 500; font-family: var(--font-body); }
+        .price-note { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 28px; }
+        .price-features { list-style: none; margin-bottom: 32px; flex: 1; }
+        .price-features li {
+            font-size: 0.95rem;
+            padding: 10px 0;
+            color: var(--text);
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .price-features li::before {
+            content: '';
+            flex-shrink: 0;
+            width: 20px; height: 20px;
+            background: var(--accent-soft);
+            border-radius: 50%;
+            margin-top: 2px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234a6cf7' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+
+        /* === ЭТАПЫ РАБОТЫ === */
+        .steps-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 24px;
+        }
+        .step {
+            text-align: center;
+            padding: 30px 16px;
+            background: #fff;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            transition: var(--transition);
+        }
+        .step:hover { border-color: var(--accent); transform: translateY(-4px); }
+        .step-num {
+            width: 50px; height: 50px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-heading);
+            font-weight: 800;
+            font-size: 1.3rem;
+            margin: 0 auto 20px;
+        }
+        .step h4 { font-size: 1.05rem; margin-bottom: 10px; }
+        .step p { color: var(--text-muted); font-size: 0.9rem; }
+
+        /* === ОТЗЫВЫ === */
+        .testimonials { background: var(--bg-soft); }
+        .reviews-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+        .review-card {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 32px;
+            transition: var(--transition);
+        }
+        .review-card:hover { transform: translateY(-5px); box-shadow: var(--shadow-md); }
+        .review-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .review-avatar {
+            width: 48px; height: 48px;
+            border-radius: 50%;
+            overflow: hidden;
+            background: var(--accent-soft);
+            flex-shrink: 0;
+        }
+        .review-avatar img { width: 100%; height: 100%; }
+        .review-name { font-family: var(--font-heading); font-weight: 700; font-size: 1rem; }
+        .review-role { font-size: 0.8rem; color: var(--text-muted); }
+        .review-text { font-size: 0.95rem; color: var(--text-muted); font-style: italic; }
+        .review-stars { color: #f59e0b; margin-top: 16px; font-size: 0.9rem; letter-spacing: 2px; }
+
+        /* === БЛОГ === */
+        .blog-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+        .blog-card {
+            background: #fff;
+            border-radius: var(--radius);
+            overflow: hidden;
+            border: 1px solid var(--border);
+            transition: var(--transition);
+        }
+        .blog-card:hover { transform: translateY(-5px); box-shadow: var(--shadow-md); }
+        .blog-img { height: 180px; }
+        .blog-img img { width: 100%; height: 100%; }
+        .blog-content { padding: 24px; }
+        .blog-date { font-size: 0.8rem; color: var(--accent); font-weight: 600; margin-bottom: 10px; display: block; }
+        .blog-content h4 { font-size: 1.05rem; margin-bottom: 10px; line-height: 1.4; }
+        .blog-content p { font-size: 0.9rem; color: var(--text-muted); }
+
+        /* === FAQ === */
+        .faq-list { max-width: 800px; margin: 0 auto; }
+        .faq-item {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            margin-bottom: 14px;
+            overflow: hidden;
+            transition: var(--transition);
+        }
+        .faq-item:hover { border-color: #d6dae5; }
+        .faq-q {
+            padding: 22px 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1.05rem;
+            font-family: var(--font-heading);
+            gap: 16px;
+        }
+        .faq-icon {
+            width: 22px; height: 22px;
+            flex-shrink: 0;
+            position: relative;
+        }
+        .faq-icon::before, .faq-icon::after {
+            content: '';
+            position: absolute;
+            background: var(--accent);
+            border-radius: 2px;
+            transition: var(--transition);
+        }
+        .faq-icon::before { top: 10px; left: 2px; width: 18px; height: 2px; }
+        .faq-icon::after { top: 2px; left: 10px; width: 2px; height: 18px; }
+        .faq-item.active .faq-icon::after { transform: rotate(90deg); opacity: 0; }
+        .faq-a {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s ease;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            padding: 0 28px;
+        }
+        .faq-item.active .faq-a { max-height: 300px; padding-bottom: 24px; }
+
+        /* === CTA / КОНТАКТЫ === */
+        .cta {
+            background: linear-gradient(135deg, #eef2ff 0%, #f4f6fb 100%);
+            border-radius: 24px;
+            padding: 64px 48px;
+            margin: 0 auto;
+            max-width: 1140px;
+        }
+        .cta-inner {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            align-items: center;
+        }
+        .cta h2 { font-size: 2rem; margin-bottom: 16px; }
+        .cta p { color: var(--text-muted); margin-bottom: 30px; }
+        .contact-info { display: flex; flex-direction: column; gap: 14px; font-size: 0.95rem; color: var(--text-muted); }
+        .contact-info div { display: flex; align-items: center; gap: 10px; }
+
+        .contact-form { display: grid; gap: 16px; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .contact-form input,
+        .contact-form select,
+        .contact-form textarea {
+            width: 100%;
+            padding: 16px 18px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-family: var(--font-body);
+            font-size: 0.95rem;
+            color: var(--text);
+            background: #fff;
+            outline: none;
+            transition: var(--transition);
+        }
+        .contact-form input:focus,
+        .contact-form select:focus,
+        .contact-form textarea:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px var(--accent-soft);
+        }
+        .contact-form textarea { resize: vertical; min-height: 120px; }
+        .contact-form .btn { width: 100%; }
+        .form-note { font-size: 0.8rem; color: var(--text-muted); text-align: center; }
+
+        /* === ПОДВАЛ === */
+        footer {
+            background: #fff;
+            border-top: 1px solid var(--border);
+            padding: 64px 0 32px;
+            margin-top: 96px;
+        }
+        .footer-inner {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1.5fr;
+            gap: 48px;
+            margin-bottom: 48px;
+        }
+        .footer-brand p { color: var(--text-muted); font-size: 0.95rem; margin-top: 16px; max-width: 300px; }
+        .footer-col h5 {
+            font-family: var(--font-heading);
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+        .footer-col a {
+            display: block;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-bottom: 12px;
+            transition: var(--transition);
+        }
+        .footer-col a:hover { color: var(--accent); transform: translateX(4px); }
+        .footer-bottom {
+            border-top: 1px solid var(--border);
+            padding-top: 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        /* === АНИМАЦИИ === */
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        .reveal {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .reveal.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .reveal-left {
+            opacity: 0;
+            transform: translateX(-40px);
+            transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .reveal-left.visible { opacity: 1; transform: translateX(0); }
+        .reveal-right {
+            opacity: 0;
+            transform: translateX(40px);
+            transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .reveal-right.visible { opacity: 1; transform: translateX(0); }
+
+        /* Задержки для каскада */
+        .delay-1 { transition-delay: 0.1s; }
+        .delay-2 { transition-delay: 0.2s; }
+        .delay-3 { transition-delay: 0.3s; }
+        .delay-4 { transition-delay: 0.4s; }
+
+        /* === АДАПТИВ === */
+        @media (max-width: 1024px) {
+            .hero-inner { grid-template-columns: 1fr; gap: 48px; }
+            .hero-visual { max-width: 500px; margin: 0 auto; }
+            .vc-1, .vc-2, .vc-3 { margin-left: 0; }
+            .services-grid, .portfolio-grid, .pricing-grid, .reviews-grid, .blog-grid { grid-template-columns: repeat(2, 1fr); }
+            .features-grid { grid-template-columns: repeat(2, 1fr); }
+            .steps-grid { grid-template-columns: repeat(2, 1fr); }
+            .cta-inner { grid-template-columns: 1fr; gap: 40px; }
+            .footer-inner { grid-template-columns: 1fr 1fr; }
+        }
+
+        @media (max-width: 768px) {
+            .nav-links { display: none; }
+            .section { padding: 64px 0; }
+            .section-title { font-size: 1.8rem; }
+            .services-grid, .portfolio-grid, .pricing-grid, .reviews-grid, .blog-grid, .features-grid, .steps-grid { grid-template-columns: 1fr; }
+            .form-row { grid-template-columns: 1fr; }
+            .cta { padding: 40px 24px; border-radius: 20px; }
+            .footer-inner { grid-template-columns: 1fr; gap: 32px; }
+            .footer-bottom { flex-direction: column; text-align: center; }
+            .visual-card { flex-direction: column; text-align: center; }
+            .vc-img { width: 100%; height: 120px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- НАВИГАЦИЯ -->
+    <nav id="navbar">
+        <div class="nav-inner">
+            <a href="#" class="logo">КЛИК<span>.</span></a>
+            <div class="nav-links">
+                <a href="#services">Услуги</a>
+                <a href="#portfolio">Работы</a>
+                <a href="#pricing">Цены</a>
+                <a href="#reviews">Отзывы</a>
+                <a href="#faq">Вопросы</a>
+                <a href="#contact">Контакты</a>
+            </div>
+            <a href="#contact" class="btn btn-primary nav-cta">Обсудить проект</a>
+        </div>
+    </nav>
+
+    <!-- ГЛАВНЫЙ ЭКРАН -->
+    <header class="hero">
+        <div class="container hero-inner">
+            <div class="reveal-left">
+                <div class="hero-badge">
+                    <span class="dot"></span>
+                    Свободны для новых заказов
+                </div>
+                <h1>Сайты, обложки и постеры <em>без переплат</em></h1>
+                <p>Делаем дизайн, который работает на результат. Быстро, аккуратно и по-человечески. Берём даже небольшие задачи.</p>
+                <div class="hero-actions">
+                    <a href="#pricing" class="btn btn-primary">Посмотреть цены</a>
+                    <a href="#portfolio" class="btn btn-ghost">Примеры работ</a>
+                </div>
+            </div>
+
+            <!-- Исправленный блок с мокапами -->
+            <div class="hero-visual reveal-right delay-2">
+                <div class="visual-card vc-1">
+                    <div class="vc-img">
+                        <img src="https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?auto=format&fit=crop&w=300&q=80" alt="Лендинг">
+                    </div>
+                    <div class="vc-text">
+                        <div class="vc-title">Лендинг для кофейни</div>
+                        <div class="vc-caption">Срок: 3 дня · от 5 000 ₽</div>
+                    </div>
+                </div>
+                <div class="visual-card vc-2">
+                    <div class="vc-img">
+                        <img src="https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?auto=format&fit=crop&w=300&q=80" alt="Обложка ВК">
+                    </div>
+                    <div class="vc-text">
+                        <div class="vc-title">Обложка для группы ВК</div>
+                        <div class="vc-caption">Срок: 1 день · от 800 ₽</div>
+                    </div>
+                </div>
+                <div class="visual-card vc-3">
+                    <div class="vc-img">
+                        <img src="https://images.unsplash.com/photo-1561070791-2526d30994b5?auto=format&fit=crop&w=300&q=80" alt="Постер">
+                    </div>
+                    <div class="vc-text">
+                        <div class="vc-title">Афиша мероприятия</div>
+                        <div class="vc-caption">Срок: 1 день · от 1 200 ₽</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ПОЛОСА ДОВЕРИЯ -->
+    <section class="trust-bar reveal">
+        <div class="container trust-inner">
+            <div class="trust-item">
+                <div class="trust-num">150<span>+</span></div>
+                <div class="trust-label">выполненных заказов</div>
+            </div>
+            <div class="trust-item">
+                <div class="trust-num">4.9<span>★</span></div>
+                <div class="trust-label">средняя оценка клиентов</div>
+            </div>
+            <div class="trust-item">
+                <div class="trust-num">24<span>ч</span></div>
+                <div class="trust-label">средний срок сдачи</div>
+            </div>
+            <div class="trust-item">
+                <div class="trust-num">3<span> года</span></div>
+                <div class="trust-label">опыта в дизайне</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- УСЛУГИ -->
+    <section class="section" id="services">
+        <div class="container">
+            <div class="section-head reveal">
+                <span class="section-label">Услуги</span>
+                <h2 class="section-title">Что мы делаем</h2>
+                <p class="section-sub">Простой и понятный набор услуг. Если чего-то нет в списке — напишите, обсудим индивидуально.</p>
+            </div>
+
+            <div class="services-grid">
+                <div class="service-card reveal delay-1">
+                    <div class="service-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    </div>
+                    <h3>Сайты под ключ</h3>
+                    <p>Лендинги, визитки, портфолио. Адаптивно, быстро, аккуратно. Поможем с текстом и структурой.</p>
+                    <div class="service-price">от 5 000 ₽ <small>· 2–5 дней</small></div>
+                </div>
+
+                <div class="service-card reveal delay-2">
+                    <div class="service-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                    </div>
+                    <h3>Обложки для ВК</h3>
+                    <p>Оформление групп и пабликов: обложка, аватар, меню. Единый стиль и читаемость на всех устройствах.</p>
+                    <div class="service-price">от 800 ₽ <small>· 1 день</small></div>
+                </div>
+
+                <div class="service-card reveal delay-3">
+                    <div class="service-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v12H4z"/><path d="M8 20h8"/><path d="M12 16v4"/></svg>
+                    </div>
+                    <h3>Постеры и афиши</h3>
+                    <p>Афиши концертов, постеры для соцсетей, рекламные баннеры. Под печать и под веб.</p>
+                    <div class="service-price">от 1 200 ₽ <small>· 1 день</small></div>
+                </div>
+
+                <div class="service-card reveal delay-1">
+                    <div class="service-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                    </div>
+                    <h3>Дизайн сообществ</h3>
+                    <p>Полное оформление группы ВК: обложки, посты, сторис, шаблоны для регулярной публикации.</p>
+                    <div class="service-price">от 2 500 ₽ <small>· 3 дня</small></div>
+                </div>
+
+                <div class="service-card reveal delay-2">
+                    <div class="service-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                    </div>
+                    <h3>Рекламные креативы</h3>
+                    <p>Баннеры для таргета, креативы для сторис, оформление акций. Под каждый формат — своя версия.</p>
+                    <div class="service-price">от 900 ₽ <small>· 1 день</small></div>
+                </div>
+
+                <div class="service-card reveal delay-3">
+                    <div class="service-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                    </div>
+                    <h3>Срочные заказы</h3>
+                    <p>Нужно «вчера»? Делаем в течение нескольких часов. Небольшие правки и доработки — бесплатно.</p>
+                    <div class="service-price">от 1 500 ₽ <small>· в день заказа</small></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ПОРТФОЛИО -->
+    <section class="section portfolio" id="portfolio">
+        <div class="container">
+            <div class="section-head reveal">
+                <span class="section-label">Портфолио</span>
+                <h2 class="section-title">Примеры работ</h2>
+                <p class="section-sub">Ниже — небольшая подборка последних проектов. Больше кейсов пришлём в личных сообщениях.</p>
+            </div>
+
+            <div class="portfolio-grid">
+                <div class="work-card reveal delay-1">
+                    <div class="work-preview">
+                        <img src="https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?auto=format&fit=crop&w=600&q=80" alt="Лендинг">
+                    </div>
+                    <div class="work-info">
+                        <h4>Сайт для студии маникюра</h4>
+                        <p>Одностраничник с записью онлайн и галереей работ.</p>
+                        <span class="work-tag">Сайты</span>
+                    </div>
+                </div>
+                <div class="work-card reveal delay-2">
+                    <div class="work-preview">
+                        <img src="https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?auto=format&fit=crop&w=600&q=80" alt="Обложка ВК">
+                    </div>
+                    <div class="work-info">
+                        <h4>Оформление группы по кулинарии</h4>
+                        <p>Обложка, аватар и меню в едином стиле.</p>
+                        <span class="work-tag">Соцсети</span>
+                    </div>
+                </div>
+                <div class="work-card reveal delay-3">
+                    <div class="work-preview">
+                        <img src="https://images.unsplash.com/photo-1561070791-2526d30994b5?auto=format&fit=crop&w=600&q=80" alt="Постер">
+                    </div>
+                    <div class="work-info">
+                        <h4>Афиша музыкального вечера</h4>
+                        <p>Печатный вариант + версия для соцсетей.</p>
+                        <span class="work-tag">Постеры</span>
+                    </div>
+                </div>
+                <div class="work-card reveal delay-1">
+                    <div class="work-preview">
+                        <img src="https://images.unsplash.com/photo-1542744173-8e7e53415bb0?auto=format&fit=crop&w=600&q=80" alt="Креатив">
+                    </div>
+                    <div class="work-info">
+                        <h4>Баннеры для таргета</h4>
+                        <p>Серия из 6 креативов для тестирования гипотез.</p>
+                        <span class="work-tag">Реклама</span>
+                    </div>
+                </div>
+                <div class="work-card reveal delay-2">
+                    <div class="work-preview">
+                        <img src="https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=600&q=80" alt="Сайт">
+                    </div>
+                    <div class="work-info">
+                        <h4>Визитка для фотографа</h4>
+                        <p>Минималистичный сайт-портфолио с галереей.</p>
+                        <span class="work-tag">Сайты</span>
+                    </div>
+                </div>
+                <div class="work-card reveal delay-3">
+                    <div class="work-preview">
+                        <img src="https://images.unsplash.com/photo-1611162616475-46b635cb6868?auto=format&fit=crop&w=600&q=80" alt="Оформление">
+                    </div>
+                    <div class="work-info">
+                        <h4>Паблик о путешествиях</h4>
+                        <p>Комплект оформления + шаблоны постов.</p>
+                        <span class="work-tag">Соцсети</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ПОЧЕМУ МЫ -->
+    <section class="section">
+        <div class="container">
+            <div class="section-head reveal">
+                <span class="section-label">Почему мы</span>
+                <h2 class="section-title">Наши преимущества</h2>
+            </div>
+            <div class="features-grid">
+                <div class="feature-item reveal delay-1">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    </div>
+                    <h4>Недорого</h4>
+                    <p>Честные цены без скрытых платежей. Работаем с любым бюджетом.</p>
+                </div>
+                <div class="feature-item reveal delay-2">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                    </div>
+                    <h4>Быстро</h4>
+                    <p>Средний срок сдачи — 24 часа. Срочные заказы делаем в день обращения.</p>
+                </div>
+                <div class="feature-item reveal delay-3">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    </div>
+                    <h4>Качественно</h4>
+                    <p>Все работы проходят проверку. Правки вносим до полного удовлетворения.</p>
+                </div>
+                <div class="feature-item reveal delay-4">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    </div>
+                    <h4>По-человечески</h4>
+                    <p>Общаемся простым языком. Не бросаем после сдачи проекта.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ЦЕНЫ -->
+    <section class="section" id="pricing" style="background: var(--bg-soft);">
+        <div class="container">
+            <div class="section-head reveal">
+                <span class="section-label">Цены</span>
+                <h2 class="section-title">Простые и честные тарифы</h2>
+                <p class="section-sub">Никаких скрытых платежей. Оплата после согласования макета. Возможна предоплата 50%.</p>
+            </div>
+
+            <div class="pricing-grid">
+                <div class="price-card reveal delay-1">
+                    <h3>Базовый</h3>
+                    <p class="price-desc">Для небольших задач и старта</p>
+                    <div class="price-amount">800 ₽ <small>/ задача</small></div>
+                    <p class="price-note">Одна единица дизайна</p>
+                    <ul class="price-features">
+                        <li>Обложка или постер</li>
+                        <li>1 вариант на выбор</li>
+                        <li>1 бесплатная правка</li>
+                        <li>Готовые файлы (PNG, JPG)</li>
+                        <li>Срок — 1 рабочий день</li>
+                    </ul>
+                    <a href="#contact" class="btn btn-ghost">Заказать</a>
+                </div>
+
+                <div class="price-card featured reveal delay-2">
+                    <span class="price-tag-pop">Популярный</span>
+                    <h3>Стандарт</h3>
+                    <p class="price-desc">Оптимально для большинства задач</p>
+                    <div class="price-amount">5 000 ₽ <small>/ проект</small></div>
+                    <p class="price-note">Лендинг или комплект оформления</p>
+                    <ul class="price-features">
+                        <li>Лендинг до 5 блоков</li>
+                        <li>Адаптив под мобильные</li>
+                        <li>3 варианта на выбор</li>
+                        <li>3 бесплатные правки</li>
+                        <li>Исходники в Figma</li>
+                        <li>Срок — 2–3 рабочих дня</li>
+                    </ul>
+                    <a href="#contact" class="btn btn-primary">Заказать</a>
+                </div>
+
+                <div class="price-card reveal delay-3">
+                    <h3>Максимум</h3>
+                    <p class="price-desc">Полный цикл под ключ</p>
+                    <div class="price-amount">12 000 ₽ <small>/ проект</small></div>
+                    <p class="price-note">Многостраничный сайт или брендинг</p>
+                    <ul class="price-features">
+                        <li>Сайт до 8 страниц</li>
+                        <li>Уникальный дизайн-макет</li>
+                        <li>Подбор шрифтов и цвета</li>
+                        <li>Неограниченные правки</li>
+                        <li>Помощь с размещением</li>
+                        <li>Срок — от 5 рабочих дней</li>
+                    </ul>
+                    <a href="#contact" class="btn btn-ghost">Заказать</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ЭТАПЫ РАБОТЫ -->
+    <section class="section">
+        <div class="container">
+            <div class="section-head reveal">
+                <span class="section-label">Как мы работаем</span>
+                <h2 class="section-title">Простой процесс в 4 шага</h2>
+            </div>
+
+            <div class="steps-grid">
+                <div class="step reveal delay-1">
+                    <div class="step-num">1</div>
+                    <h4>Заявка</h4>
+                    <p>Пишете задачу в любой удобной форме. Отвечаем в течение часа.</p>
+                </div>
+                <div class="step reveal delay-2">
+                    <div class="step-num">2</div>
+                    <h4>Обсуждение</h4>
+                    <p>Уточняем детали, сроки и бюджет. Фиксируем всё в переписке.</p>
+                </div>
+                <div class="step reveal delay-3">
+                    <div class="step-num">3</div>
+                    <h4>Работа</h4>
+                    <p>Готовим первый вариант и показываем вам. Вносим правки.</p>
+                </div>
+                <div class="step reveal delay-4">
+                    <div class="step-num">4</div>
+                    <h4>Готово</h4>
+                    <p>Отдаём исходники и файлы. Помогаем с размещением при необходимости.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ОТЗЫВЫ -->
+    <section class="section testimonials" id="reviews">
+        <div class="container">
+            <div class="section-head reveal">
+                <span class="section-label">Отзывы</span>
+                <h2 class="section-title">Что говорят клиенты</h2>
+                <p class="section-sub">Мы гордимся своей репутацией. Вот несколько отзывов от наших заказчиков.</p>
+            </div>
+
+            <div class="reviews-grid">
+                <div class="review-card reveal delay-1">
+                    <div class="review-header">
+                        <div class="review-avatar">
+                            <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80" alt="Анна">
+                        </div>
+                        <div>
+                            <div class="review-name">Анна Смирнова</div>
+                            <div class="review-role">Владелец кофейни</div>
+                        </div>
+                    </div>
+                    <p class="review-text">«Заказывала лендинг для своей кофейни. Сделали быстро, красиво и недорого. Отдельное спасибо за помощь с текстом — я совсем не умею писать.»</p>
+                    <div class="review-stars">★★★★★</div>
+                </div>
+
+                <div class="review-card reveal delay-2">
+                    <div class="review-header">
+                        <div class="review-avatar">
+                            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80" alt="Дмитрий">
+                        </div>
+                        <div>
+                            <div class="review-name">Дмитрий Козлов</div>
+                            <div class="review-role">Администратор паблика</div>
+                        </div>
+                    </div>
+                    <p class="review-text">«Оформляли группу ВК. Ребята попали в стиль с первого раза. Обложка, меню, шаблоны постов — всё в едином стиле. Рекомендую!»</p>
+                    <div class="review-stars">★★★★★</div>
+                </div>
+
+                <div class="review-card reveal delay-3">
+                    <div class="review-header">
+                        <div class="review-avatar">
+                            <img src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=100&q=80" alt="Елена">
+                        </div>
+                        <div>
+                            <div class="review-name">Елена Петрова</div>
+                            <div class="review-role">Организатор мероприятий</div>
+                        </div>
+                    </div>
+                    <p class="review-text">«Нужна была срочная афиша на вечер. Сделали за 3 часа! Очень выручили. Качество отличное, будем работать ещё.»</p>
+                    <div class="review-stars">★★★★★</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- БЛОГ -->
+    <section class="section">
+        <div class="container">
+            <div class="section-head reveal">
+                <span class="section-label">Блог</span>
+                <h2 class="section-title">Полезные статьи</h2>
+                <p class="section-sub">Делимся советами о дизайне, сайтах и оформлении соцсетей.</p>
+            </div>
+
+            <div class="blog-grid">
+                <div class="blog-card reveal delay-1">
+                    <div class="blog-img">
+                        <img src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80" alt="Статья 1">
+                    </div>
+                    <div class="blog-content">
+                        <span class="blog-date">15 января 2024</span>
+                        <h4>Зачем малому бизнесу лендинг?</h4>
+                        <p>Разбираем, почему даже небольшая кофейня или салон красоты нуждается в собственном сайте.</p>
+                    </div>
+                </div>
+
+                <div class="blog-card reveal delay-2">
+                    <div class="blog-img">
+                        <img src="https://images.unsplash.com/photo-1611162616475-46b635cb6868?auto=format&fit=crop&w=600&q=80" alt="Статья 2">
+                    </div>
+                    <div class="blog-content">
+                        <span class="blog-date">10 января 2024</span>
+                        <h4>Как выбрать обложку для группы ВК</h4>
+                        <p>5 простых правил, которые помогут сделать вашу группу заметной и привлекательной.</p>
+                    </div>
+                </div>
+
+                <div class="blog-card reveal delay-3">
+                    <div class="blog-img">
+                        <img src="https://images.unsplash.com/photo-1561070791-2526d30994b5?auto=format&fit=crop&w=600&q=80" alt="Статья 3">
+                    </div>
+                    <div class="blog-content">
+                        <span class="blog-date">5 января 2024</span>
+                        <h4>Постеры, которые работают</h4>
+                        <p>Как создать афишу, которая привлечёт внимание и запомнится вашей аудитории.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="section" id="faq" style="background: var(--bg-soft);">
+        <div class="container">
+            <div class="section-head reveal">
+                <span class="section-label">Вопросы</span>
+                <h2 class="section-title">Частые вопросы</h2>
+                <p class="section-sub">Если не нашли ответ — напишите, ответим лично.</p>
+            </div>
+
+            <div class="faq-list">
+                <div class="faq-item reveal delay-1">
+                    <div class="faq-q">
+                        <span>Сколько стоит сайт и от чего зависит цена?</span>
+                        <span class="faq-icon"></span>
+                    </div>
+                    <div class="faq-a">
+                        Простой лендинг — от 5 000 ₽, многостраничный сайт — от 12 000 ₽. Цена зависит от количества блоков, сложности дизайна и сроков. Точную стоимость скажем после короткого обсуждения задачи.
+                    </div>
+                </div>
+
+                <div class="faq-item reveal delay-2">
+                    <div class="faq-q">
+                        <span>Работаете ли вы с небольшими заказами?</span>
+                        <span class="faq-icon"></span>
+                    </div>
+                    <div class="faq-a">
+                        Да, и с удовольствием. Обложка за 800 ₽ или постер за 1 200 ₽ — обычная для нас задача. Мы не считаем «маленькие» заказы несерьёзными.
+                    </div>
+                </div>
+
+                <div class="faq-item reveal delay-3">
+                    <div class="faq-q">
+                        <span>Что нужно, чтобы начать работу?</span>
+                        <span class="faq-icon"></span>
+                    </div>
+                    <div class="faq-a">
+                        Достаточно коротко описать задачу и, если есть, прислать примеры стиля, которые вам нравятся. Всё остальное подскажем и уточним сами.
+                    </div>
+                </div>
+
+                <div class="faq-item reveal delay-4">
+                    <div class="faq-q">
+                        <span>Сколько правок входит в стоимость?</span>
+                        <span class="faq-icon"></span>
+                    </div>
+                    <div class="faq-a">
+                        На тарифе «Базовый» — одна бесплатная правка, на «Стандарт» — три, на «Максимум» — без ограничений. Правки по мелким деталям (цвет, отступ, размер) делаем бесплатно в любом тарифе.
+                    </div>
+                </div>
+
+                <div class="faq-item reveal delay-4">
+                    <div class="faq-q">
+                        <span>Как проходит оплата?</span>
+                        <span class="faq-icon"></span>
+                    </div>
+                    <div class="faq-a">
+                        Обычно 50% предоплата, остальное — после согласования финального макета. Для заказов до 2 000 ₽ можно оплатить полностью после сдачи работы.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA / КОНТАКТЫ -->
+    <section class="section" id="contact">
+        <div class="cta reveal">
+            <div class="cta-inner">
+                <div>
+                    <h2>Остались вопросы? Давайте обсудим</h2>
+                    <p>Опишите задачу в двух словах — ответим в течение часа и подскажем, как сделать лучше и дешевле.</p>
+                    <div class="contact-info">
+                        <div>📩 hello@klik-studio.ru</div>
+                        <div>💬 Telegram: @klik_studio</div>
+                        <div>🕐 Отвечаем с 10:00 до 22:00</div>
+                    </div>
+                </div>
+
+                <form class="contact-form" onsubmit="event.preventDefault(); this.querySelector('.btn').textContent='✓ Заявка отправлена'; this.querySelector('.btn').style.background='#10b981'; setTimeout(()=>{this.reset(); this.querySelector('.btn').textContent='Отправить заявку'; this.querySelector('.btn').style.background='';}, 2500);">
+                    <div class="form-row">
+                        <input type="text" placeholder="Ваше имя" required>
+                        <input type="text" placeholder="Контакт (TG, VK, телефон)" required>
+                    </div>
+                    <select required>
+                        <option value="">Что нужно сделать?</option>
+                        <option>Сайт / лендинг</option>
+                        <option>Обложка для ВК</option>
+                        <option>Постер / афиша</option>
+                        <option>Оформление сообщества</option>
+                        <option>Рекламный креатив</option>
+                        <option>Другое</option>
+                    </select>
+                    <textarea placeholder="Коротко опишите задачу (по желанию)"></textarea>
+                    <button type="submit" class="btn btn-primary">Отправить заявку</button>
+                    <p class="form-note">Нажимая кнопку, вы соглашаетесь с обработкой персональных данных</p>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- ПОДВАЛ -->
+    <footer>
+        <div class="container">
+            <div class="footer-inner">
+                <div class="footer-brand">
+                    <a href="#" class="logo">КЛИК<span>.</span></a>
+                    <p>Небольшая студия дизайна. Делаем сайты, оформление для соцсетей и постеры недорого и с душой.</p>
+                </div>
+                <div class="footer-col">
+                    <h5>Услуги</h5>
+                    <a href="#services">Сайты</a>
+                    <a href="#services">Обложки для ВК</a>
+                    <a href="#services">Постеры</a>
+                    <a href="#services">Оформление групп</a>
+                </div>
+                <div class="footer-col">
+                    <h5>Студия</h5>
+                    <a href="#portfolio">Портфолио</a>
+                    <a href="#pricing">Цены</a>
+                    <a href="#reviews">Отзывы</a>
+                    <a href="#faq">Вопросы</a>
+                </div>
+                <div class="footer-col">
+                    <h5>Связь</h5>
+                    <a href="#">Telegram</a>
+                    <a href="#">ВКонтакте</a>
+                    <a href="#">Email</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <span>© 2024 Студия «КЛИК». Все права защищены.</span>
+                <span>Сделано с заботой о деталях</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script>
+        // 1. Эффект навигации при скролле
+        const navbar = document.getElementById('navbar');
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 50) {
+                navbar.classList.add('scrolled');
+            } else {
+                navbar.classList.remove('scrolled');
+            }
+        });
+
+        // 2. Аккордеон FAQ
+        document.querySelectorAll('.faq-item').forEach(item => {
+            const q = item.querySelector('.faq-q');
+            q.addEventListener('click', () => {
+                const isOpen = item.classList.contains('active');
+                document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('active'));
+                if (!isOpen) item.classList.add('active');
+            });
+        });
+
+        // 3. Красивое появление блоков при скролле (Intersection Observer)
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: "0px 0px -50px 0px"
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                    // Отписываемся после появления, чтобы анимация не повторялась
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, observerOptions);
+
+        // Наблюдаем за всеми элементами с классами reveal, reveal-left, reveal-right
+        document.querySelectorAll('.reveal, .reveal-left, .reveal-right').forEach(el => {
+            observer.observe(el);
+        });
+
+        // 4. Плавный скролл для якорных ссылок
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>

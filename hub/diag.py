@@ -150,18 +150,25 @@ class Diag:
         with self._lock:
             try:
                 path.parent.mkdir(parents=True, exist_ok=True)
-                with path.open("a+", encoding="utf-8") as handle:
-                    # Если файл оборвался на середине записи (процесс убили
-                    # между двумя вызовами write), следующая строка приклеилась
-                    # бы к обрывку — и обе записи исчезли бы разом. Дописать
-                    # перевод строки перед новой записью стоит один seek и
-                    # спасает весь хвост журнала.
-                    handle.seek(0, os.SEEK_END)
-                    if handle.tell():
-                        handle.seek(handle.tell() - 1)
-                        if handle.read(1) != "\n":
-                            handle.write("\n")
-                    handle.write(line + "\n")
+                # Открываем в бинарном режиме намеренно. Раньше файл был
+                # текстовым с encoding="utf-8", а проверка последнего
+                # символа делалась так: seek(tell() - 1), read(1).
+                # Для текстового файла tell() - это НЕ смещение в байтах,
+                # а непрозрачный cookie позиционирования: он кодирует
+                # стартовую позицию и состояние декодера. Вычитать из него
+                # единицу и читать «последний символ» бессмысленно, а
+                # чтение с середины многобайтового кириллического символа
+                # может дать UnicodeDecodeError - и ровно в тот момент,
+                # когда журнал ошибок нужнее всего.
+                #
+                # Байты здесь честные: файл сам по себе UTF-8, а последний
+                # байт перевода строки (0x0A) в кириллице не встречается.
+                with path.open("ab+") as handle:
+                    if handle.seek(0, os.SEEK_END):
+                        handle.seek(-1, os.SEEK_END)
+                        if handle.read(1) != b"\n":
+                            handle.write(b"\n")
+                    handle.write((line + "\n").encode("utf-8"))
                 self.count += 1
                 self._rotate(path)
             except OSError:
@@ -169,6 +176,9 @@ class Diag:
                 # антивирусом — причины разные, а поступление одинаковое:
                 # ошибку мы не записали. Считаем и продолжаем работать.
                 self.lost += 1
+                # Помечаем потерю в общем файле: знание о том, что запись
+                # не дошла, не должно умирать вместе с процессом.
+                self._add_lost(1)
 
     def _rotate(self, path: Path) -> None:
         """Обрезать начало, когда файл переполнен.
@@ -194,7 +204,11 @@ class Diag:
         # Первая строка после обрезки может оказаться половиной JSON —
         # её выкидываем, иначе панель будет читать мусор.
         cut = tail.find(b"\n")
-        tail = tail[cut + 1:] if cut >= 0 else tail
+        # Если перевода строки нет, срез начат посреди записи (частая
+        # история: стек-трейс на десятки килобайт занимал всю строку
+        # JSON). Такой кусок не восстановим - раньше он возвращался в
+        # файл, и журнал оставался испорченным навсегда.
+        tail = tail[cut + 1:] if cut >= 0 else b""
         try:
             tmp = path.with_suffix(".tmp")
             tmp.write_bytes(tail)
@@ -243,6 +257,57 @@ class Diag:
             except OSError:
                 pass
 
+    def _meta_path(self) -> Path | None:
+        """Служебный файл рядом с журналом: там живёт общее число потерянных.
+
+        Отдельный файл нужен потому, что в сам журнал записать нельзя: если
+        он недоступен (диск, антивирус), то и счётчик потерь туда не
+        положить. А терять его нельзя - именно в этом случае он и нужен.
+        """
+        path = self.path
+        return path.with_suffix(".lost") if path is not None else None
+
+    def _count_lines(self) -> int:
+        """Сколько записей в журнале на самом деле.
+
+        Читается файл, а не память процесса: журналом пользуются два
+        процесса (сайт и донорский шлюз), и показывать им разные числа
+        об одном файле нельзя.
+        """
+        path = self.path
+        if path is None or not path.exists():
+            return 0
+        try:
+            with path.open("rb") as handle:
+                return sum(1 for line in handle if line.strip())
+        except OSError:
+            return 0
+
+    def _lost_total(self) -> int:
+        """Сумма потерь по всем процессам, а не только по текущему."""
+        meta = self._meta_path()
+        if meta is None or not meta.exists():
+            return self.lost
+        try:
+            return max(int(meta.read_text(encoding="utf-8").strip() or "0"),
+                       self.lost)
+        except (OSError, ValueError):
+            return self.lost
+
+    def _add_lost(self, how_many: int) -> None:
+        """Отметить потерю так, чтобы её увидели все процессы."""
+        meta = self._meta_path()
+        if meta is None:
+            return
+        try:
+            current = 0
+            if meta.exists():
+                current = int(meta.read_text(encoding="utf-8").strip() or "0")
+            meta.write_text(str(current + how_many), encoding="utf-8")
+        except (OSError, ValueError):
+            # Нечем записать счётчик потерь - молча, потеря и так уже есть.
+            pass
+
     def stats(self) -> dict[str, Any]:
         """Сводка для панели: где лежит журнал, сколько записей."""
         path = self.path
@@ -254,8 +319,14 @@ class Diag:
                 size = 0
         return {
             "path": str(path) if path else "",
-            "count": self.count,
-            "lost": self.lost,
+            # Числа - из файлов, а не из памяти процесса: панель сайта и
+            # панель шлюза читают один журнал и обязаны показывать одно
+            # и то же. Раньше сайт писал count=0, шлюз count=34 по одному
+            # и тому же файлу.
+            "count": self._count_lines(),
+            "lost": self._lost_total(),
+            "count_in_process": self.count,
+            "lost_in_process": self.lost,
             "size": size,
             "keep_bytes": self.keep_bytes,
         }

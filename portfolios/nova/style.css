@@ -1,0 +1,422 @@
+/* Нова — заглушка. Розовое неоновое зарево на чёрном.
+ *
+ * Палитра взята из pic.jpg, а не выдумана: заглушка не должна
+ * спорить с собственным снимком. Оттуда же и тёмный фон — певец
+ * снимка почти чёрный в верхней трети, и подложка повторяет его,
+ * иначе картинка выглядит вклеенной на чужой фон.
+ *
+ * ЧТО ЗДЕСЬ РЕШЕНО И ПОЧЕМУ
+ *
+ * 1. Полоса снимка не тянется на весь экран. Картинка 740 на 334 —
+ *    соотношение 2.2:1. Высота окна кадра ограничена сверху и снизу,
+ *    потому что в распорке на весь экран розовое зарево сливается в
+ *    одно пятно и проверять в нём нечего, а на телефоне такое
+ *    растягивание ещё и тормозит.
+ *
+ * 2. Свечение текста только лёгкое (0 0 18px у заголовка, и то
+ *    отключается ниже 560px). Розовый на чёрном и так высокий
+ *    контраст, а добавленное свечение на телефоне превращает буквы
+ *    в мутное пятно: на маленьком экране важнее форма буквы,
+ *    чем эффект.
+ *
+ * 3. Разрез между колонками сделан клипом, а не линейкой. Линейка
+ *    была бы ровной и дала бы странице вид обычной колонки текста;
+ *    срез продолжает наклон линий сетки на снимке и держит всю
+ *    полосу в одном характере. Клип не трогает текст — только фон
+ *    и границу, поэтому ничего не обрезается по вертикали.
+ *
+ * 4. Ширина текста ограничена 58 знаками. На чёрном фоне глаз
+ *    скользит по строке хуже, чем на белом, и длинная строка
+ *    читается рывками.
+ *
+ * Внешних загрузок нет: ни одной ссылки на сеть, ни одного
+ * @font-face. Шрифты только системные.
+ */
+
+:root {
+  /* Цвета из снимка: почти чёрный верх, розовое зарево, розовый
+     приглушённый тон для второстепенного текста. */
+  --bg: #14060F;
+  --fg: #FFEAF6;
+  --muted: #D98BB4;
+  --line: #6B2A4C;
+  --glow: 255 92 176;      /* розовый как тройка каналов: удобно
+                             подставлять в rgba() без повторов */
+
+  /* Горизонт кадра. Значение по умолчанию — середина, и оно же
+     стоит в разметке (value ползунка), поэтому без JS страница
+     выглядит ровно так же, как с ним. */
+  --pan: 50%;
+}
+
+* { box-sizing: border-box; }
+
+html { background: var(--bg); }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial,
+               sans-serif;
+  font-size: 17px;
+  line-height: 1.6;
+  /* Без этого длинная строка в фактах или подпись может вытолкнуть
+     страницу в горизонтальную прокрутку на узком экране. */
+  overflow-x: hidden;
+}
+
+/* Обёртка: только ширина и отсутствие горизонтального выхода.
+   Раскладка живёт в .band — так её видно в разметке, а не
+   собирается в одном неразбираемом правиле. */
+.page {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 clamp(16px, 4vw, 40px) 0;
+}
+
+.band { padding: clamp(28px, 5vw, 56px) 0; }
+
+.band--shot { padding-top: 0; }
+
+/* Полоса снимка. Без скруглений и без рамки: кадр должен читаться
+   как кадр, а не как карточка из каталога. */
+.frame {
+  margin: 0;
+}
+
+.window {
+  position: relative;
+  width: 100%;
+  /* Высота кадра: полоса, а не экран. Верхняя граница 130px и
+     нижняя 240px — подобраны так, чтобы полоса на телефоне не стала
+     квадратом, а на широком экране не превратилась в узкую ленту. */
+  height: clamp(130px, 22vw, 240px);
+  overflow: hidden;
+  background: #0B0308;
+  /* Тонкие волосяные рамки сверху и снизу: они есть у настоящих
+     неоновых рамок в кадре и продолжают его, но не отнимают
+     высоты у изображения. */
+  box-shadow: inset 0 1px 0 rgba(var(--glow), 0.35),
+              inset 0 -1px 0 rgba(var(--glow), 0.35);
+}
+
+/* object-fit: cover сдвигает кадр внутри окна и никогда его не
+   растягивает — пропорции 2.2:1 сохраняются при любой ширине.
+   Положение по вертикали — это и есть тот самый горизонт,
+   которым управляет ползунок. */
+.pic {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% var(--pan);
+}
+
+/* Зарево поверх снимка. Мягкая розовая полоса, которая едет вместе
+   с горизонтом: она показывает, где сейчас «линия зари», и на узком
+   экране работает заметнее, чем сам сдвиг кадра. */
+.glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 55% at 50% calc(var(--pan) + 12%),
+              rgba(var(--glow), 0.22), rgba(var(--glow), 0) 70%);
+}
+
+/* Строчки поверх снимка — тонкая горизонтальная штриховка, как на
+   старом мониторе. Не анимируется намеренно: движущийся фон на
+   странице-заглушке отвлекает сильнее, чем помогает, и мешает
+   читать. */
+.scan {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.18;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.16) 0 1px,
+    rgba(255, 255, 255, 0) 1px 4px);
+}
+
+.shot-cap {
+  margin: 12px 0 0;
+  max-width: 62ch;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+/* Шапка второй полосы. Заголовок не над колонками, а над всей
+   полосой: так «Нова» читается как имя страницы, а не как
+   заголовок левой колонки. */
+.head { margin: 0 0 clamp(24px, 4vw, 40px); }
+
+.tag {
+  margin: 0 0 10px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: clamp(34px, 6vw, 58px);
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  /* Свечение лёгкое, одним слоем: розовый на чёрном читается и без
+     него, а два-три слоя на телефоне съедают форму букв. */
+  text-shadow: 0 0 18px rgba(var(--glow), 0.28);
+}
+
+.tagline {
+  margin: 0;
+  font-size: clamp(16px, 2.2vw, 20px);
+  color: var(--muted);
+}
+
+/* Две равные колонки и срез между ними. */
+.split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(24px, 4vw, 56px);
+  align-items: start;
+}
+
+.cell { min-width: 0; }   /* без этого длинная строка в .facts
+                             растянула бы колонку и дала
+                             горизонтальную прокрутку */
+
+/* Правая колонка — «заметка о заглушке». Она сдвинута срезом и
+   отличается фоном, но текст остаётся тем же: контраст решает
+   цвет, а не рамка. */
+.cell--note {
+  position: relative;
+  padding: clamp(20px, 3vw, 32px);
+  background: #1B0A17;
+  /* Срез идёт по левому верхнему углу и продолжает наклон линий
+     снимка. Клип применяется к фону и рамке; содержимое внутри
+     остаётся целым, потому что clip-path не обрезает содержимое
+     вложенных блочных элементов по вертикали, а здесь он
+     задан достаточно пологo, чтобы текст в него не попал. */
+  clip-path: polygon(28px 0, 100% 0, 100% 100%, 0 100%, 0 28px);
+  border: 1px solid var(--line);
+}
+
+.cell--note::before {
+  /* Тонкая неоновая нить по срезу: видна на любом фоне и стоит
+     ровно одного градиента. */
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(135deg, rgba(var(--glow), 0.9),
+              rgba(var(--glow), 0) 55%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box,
+                linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  padding: 1px;
+}
+
+.h2 {
+  margin: 0 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.body {
+  margin: 0 0 26px;
+  max-width: 58ch;
+}
+
+/* --- Интерактив: горизонт кадра ------------------------------- */
+
+.pano {
+  margin: 0 0 28px;
+  padding: 18px 20px 16px;
+  border: 1px solid var(--line);
+  background: #170713;
+}
+
+.pano-label {
+  display: block;
+  margin: 0 0 10px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Ползунок оформлен вручную, потому что стандартный на разных
+   системах выглядит по-разному и здесь его всё равно пришлось бы
+   подгонять под тон. Трек и ползунок — два своих правила, без
+   картинок и внешних ресурсов. */
+.pano-range {
+  display: block;
+  width: 100%;
+  height: 22px;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.pano-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right,
+              rgba(var(--glow), 0.75), rgba(var(--glow), 0.15));
+}
+
+.pano-range::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border-radius: 50%;
+  border: 1px solid #FFC2E2;
+  background: #FF5CB0;
+  box-shadow: 0 0 10px rgba(var(--glow), 0.7);
+}
+
+.pano-range::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right,
+              rgba(var(--glow), 0.75), rgba(var(--glow), 0.15));
+}
+
+.pano-range::-moz-range-thumb {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1px solid #FFC2E2;
+  background: #FF5CB0;
+  box-shadow: 0 0 10px rgba(var(--glow), 0.7);
+}
+
+.pano-now {
+  margin: 10px 0 0;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13px;
+}
+
+.pano-now output { color: var(--fg); }
+
+.hint {
+  margin: 10px 0 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* --- Факты списком определений --------------------------------- */
+
+.facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 18px;
+  font-size: 14.5px;
+}
+
+.facts dt {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.facts dd { margin: 0; }
+
+/* --- Что страница не делает ------------------------------------ */
+
+.absent {
+  margin: 0 0 18px;
+  padding-left: 20px;
+}
+
+.absent li { margin: 0 0 6px; }
+
+.cell--note p { max-width: 56ch; }
+
+/* --- Подвал ---------------------------------------------------- */
+
+.band--foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 24px;
+  align-items: baseline;
+  border-top: 1px solid var(--line);
+}
+
+.foot { margin: 0; font-size: 16px; }
+
+.foot a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255, 234, 246, 0.5);
+  padding-bottom: 1px;
+}
+
+.foot a:hover, .foot a:focus-visible {
+  color: #FFC2E2;
+  border-bottom-color: #FFC2E2;
+}
+
+.foot-note {
+  margin: 0;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+/* Фокус виден везде: на тёмном фоне стандартная рамка браузера
+   иногда теряется, поэтому задана явно. */
+:focus-visible {
+  outline: 2px solid var(--muted);
+  outline-offset: 3px;
+}
+
+/* --- Узкий экран ----------------------------------------------- */
+
+@media (max-width: 720px) {
+  /* Колонки складываются в одну. Срез при этом остаётся — он
+     становится верхним краем второй половины и всё ещё читается
+     как диагональ, а не как разрыв страницы. */
+  .split { grid-template-columns: 1fr; }
+}
+
+/* --- Мелкий экран: бережём форму букв ------------------------- */
+
+@media (max-width: 560px) {
+  body { font-size: 16px; }
+
+  /* Свечение заголовка на телефоне убираем совсем. Розовый на
+     чёрном читается и без него, а с ним буквы на 16–34 px
+     сливаются в пятно — ровно тот случай, о котором предупреждают
+     при выборе размера текста под контраст. */
+  h1 { text-shadow: none; }
+
+  .window { height: clamp(120px, 34vw, 170px); }
+
+  .cell--note { padding: 18px 16px; }
+
+  .facts { grid-template-columns: 1fr; gap: 2px; }
+  .facts dd { margin: 0 0 10px; }
+}

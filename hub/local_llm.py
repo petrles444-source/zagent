@@ -159,11 +159,21 @@ def stream_chat(model: str, messages: list[dict[str, Any]],
                 yield piece
     # Хвост в лог: сколько на деле заняло — человек спрашивает «почему так
     # долго», и ответ обязан быть где-то виден.
-    diag = {"scope": "local_chat", "model": model,
-            "ms": int((time.perf_counter() - started) * 1000)}
+    # Имя не должно совпадать с именем модуля: раньше здесь был словарь
+    # `diag`, потом `from hub import diag` перетирал его модулем, и
+    # `**diag` пытался распаковать модуль - TypeError, который глотал
+    # except ниже.
+    #
+    # И ключа `scope` внутри быть не должно: первый позиционный аргумент
+    # note() уже называется `scope`, и `note("local_chat_done", **payload)`
+    # падало с «multiple values for argument 'scope'» - тоже тихо. Теперь
+    # место и область различаются: scope задаётся позиционно, payload несёт
+    # только факты о запросе.
+    payload = {"model": model,
+               "ms": int((time.perf_counter() - started) * 1000)}
     try:
         from hub import diag
 
-        diag.note("local_chat_done", **diag)
+        diag.note("local_chat_done", **payload)
     except Exception:  # noqa: BLE001 — журнал не должен мешать чату
         pass

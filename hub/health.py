@@ -23,6 +23,11 @@ SLOW_AFTER_S = 5.0
 STATUS_OK = "ok"
 STATUS_SLOW = "slow"
 STATUS_DOWN = "down"
+#: Лимит запросов исчерпан, но модель жива: через минуту отвечит снова.
+#: Раньше такой случай считался `down`, и модель выпадала из ротации
+#: как нерабочая - хотя в реестре тот же 429 честно помечается
+#: как `limited`.
+STATUS_LIMITED = "limited"
 
 HEALTH_ROLE = "health"
 
@@ -50,6 +55,12 @@ class HealthReport:
 
 
 def _classify(result: dict[str, Any], slow_after: float) -> str:
+    # 429 и 529 - это не поломка модели, а исчерпанный лимит. Проверяем
+    # раньше общего «есть ошибка - значит down», иначе живая модель на
+    # минуту уходит из ротации и портит статистику.
+    status_code = result.get("status") or result.get("status_code")
+    if status_code in (429, 529):
+        return STATUS_LIMITED
     if result.get("error") is not None:
         return STATUS_DOWN
     if not str(result.get("text") or "").strip():

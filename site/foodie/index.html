@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FOODIE — вкусная еда с доставкой</title>
+<style>
+:root{
+  --bg:#fffaf5; --card:#fff; --text:#171717; --muted:#777;
+  --accent:#ff5a36; --accent2:#ff8a45; --dark:#202020;
+  --line:#eee7df; --shadow:0 14px 40px rgba(38,25,15,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.5}
+button,input{font:inherit}
+button{cursor:pointer;border:0}
+a{text-decoration:none;color:inherit}
+.container{width:min(1180px,calc(100% - 40px));margin:auto}
+header{height:78px;background:rgba(255,250,245,.94);backdrop-filter:blur(14px);position:sticky;top:0;z-index:50;border-bottom:1px solid var(--line)}
+.nav{height:100%;display:flex;align-items:center;gap:34px}
+.logo{font-size:28px;font-weight:900;letter-spacing:-1.5px}
+.logo span{color:var(--accent)}
+nav{display:flex;gap:25px;font-size:14px;color:#555;flex:1}
+nav a:hover{color:var(--accent)}
+.actions{display:flex;align-items:center;gap:10px}
+.icon-btn{width:42px;height:42px;border-radius:50%;background:#fff;border:1px solid var(--line);position:relative}
+.badge{position:absolute;right:-2px;top:-4px;background:var(--accent);color:#fff;font-size:10px;min-width:18px;height:18px;border-radius:20px;display:grid;place-items:center}
+.primary{background:var(--accent);color:#fff;border-radius:13px;padding:13px 21px;font-weight:700;box-shadow:0 8px 20px rgba(255,90,54,.22)}
+.primary:hover{background:#ef4725}
+.hero{padding:58px 0 40px}
+.hero-grid{display:grid;grid-template-columns:1fr 1.05fr;gap:30px;align-items:center}
+.kicker{color:var(--accent);font-size:13px;font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:16px}
+h1{font-size:clamp(45px,6vw,78px);line-height:.98;letter-spacing:-4px;max-width:650px}
+h1 span{color:var(--accent)}
+.hero p{font-size:18px;color:#666;max-width:520px;margin:25px 0}
+.hero-buttons{display:flex;gap:12px;align-items:center}
+.secondary{padding:13px 21px;border-radius:13px;background:#fff;border:1px solid var(--line);font-weight:700}
+.hero-image{height:520px;border-radius:34px;overflow:hidden;position:relative;background:linear-gradient(135deg,#ffb37e,#ff5a36)}
+.hero-image img{width:100%;height:100%;object-fit:cover}
+.hero-tag{position:absolute;left:22px;bottom:22px;background:#fff;padding:14px 18px;border-radius:17px;font-weight:800;box-shadow:var(--shadow)}
+.features{padding:22px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.feature-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.feature{display:flex;gap:13px;align-items:center;padding:12px 18px;border-right:1px solid var(--line)}
+.feature:last-child{border:0}
+.feature-icon{width:42px;height:42px;border-radius:13px;background:#fff0ea;display:grid;place-items:center;font-size:21px}
+.feature strong{display:block;font-size:14px}.feature small{color:var(--muted)}
+section{padding:75px 0}
+.section-head{display:flex;align-items:end;justify-content:space-between;margin-bottom:28px}
+.section-head h2{font-size:38px;letter-spacing:-1.8px}
+.section-head p{color:var(--muted);margin-top:5px}
+.categories{display:grid;grid-template-columns:repeat(6,1fr);gap:14px}
+.category{background:#fff;border:1px solid var(--line);border-radius:20px;padding:15px;text-align:center;transition:.25s;box-shadow:0 4px 16px rgba(0,0,0,.025)}
+.category:hover{transform:translateY(-5px);box-shadow:var(--shadow)}
+.category img{width:100%;aspect-ratio:1;border-radius:15px;object-fit:cover;margin-bottom:10px}
+.category b{font-size:14px}
+.products{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.product{background:#fff;border:1px solid var(--line);border-radius:22px;overflow:hidden;position:relative;transition:.25s}
+.product:hover{transform:translateY(-5px);box-shadow:var(--shadow)}
+.product-img{height:245px;position:relative;overflow:hidden;background:#f4eee7}
+.product-img img{width:100%;height:100%;object-fit:cover;transition:.4s}
+.product:hover .product-img img{transform:scale(1.05)}
+.fav{position:absolute;right:13px;top:13px;width:38px;height:38px;border-radius:50%;background:#fff;box-shadow:0 5px 16px #0002;font-size:18px}
+.product-info{padding:17px}
+.product-info small{color:var(--accent);font-weight:700}
+.product-info h3{font-size:18px;margin:4px 0 5px}
+.product-info p{font-size:13px;color:var(--muted);min-height:40px}
+.price-row{display:flex;justify-content:space-between;align-items:center;margin-top:14px}
+.price{font-size:20px;font-weight:900}
+.add{width:40px;height:40px;border-radius:12px;background:var(--dark);color:#fff;font-size:21px}
+.promo{background:var(--dark);color:#fff;border-radius:30px;padding:48px;display:grid;grid-template-columns:1fr 1fr;align-items:center;overflow:hidden;position:relative}
+.promo h2{font-size:46px;line-height:1;letter-spacing:-2px;max-width:540px}
+.promo p{color:#c9c9c9;margin:18px 0 24px;max-width:500px}
+.promo .primary{background:var(--accent)}
+.promo-img{height:330px;border-radius:25px;overflow:hidden}
+.promo-img img{width:100%;height:100%;object-fit:cover}
+.about{display:grid;grid-template-columns:1fr 1fr;gap:50px;align-items:center}
+.about img{width:100%;height:390px;object-fit:cover;border-radius:28px}
+.about h2{font-size:43px;line-height:1.05;letter-spacing:-2px}
+.about p{color:#666;margin:18px 0}
+.checks{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:25px}
+.check{font-weight:700}.check span{color:var(--accent);margin-right:8px}
+footer{background:#171717;color:#fff;padding:45px 0 25px}
+.footer-grid{display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr;gap:35px}
+footer .logo{margin-bottom:13px} footer p,footer a{color:#aaa;font-size:14px}
+footer h4{margin-bottom:12px}
+.copy{border-top:1px solid #333;margin-top:35px;padding-top:20px;color:#777;font-size:12px}
+.modal{position:fixed;inset:0;background:#0008;display:none;place-items:center;z-index:100;padding:20px}
+.modal.open{display:grid}
+.modal-box{background:#fff;border-radius:25px;width:min(460px,100%);padding:28px;position:relative}
+.close{position:absolute;right:18px;top:15px;background:#f4f4f4;width:36px;height:36px;border-radius:50%}
+.cart-list{margin:20px 0;max-height:300px;overflow:auto}
+.cart-item{display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.cart-item img{width:58px;height:58px;object-fit:cover;border-radius:12px}
+.cart-total{display:flex;justify-content:space-between;font-weight:900;font-size:20px;margin:20px 0}
+.search{display:none;position:absolute;top:78px;left:0;right:0;background:#fff;border-bottom:1px solid var(--line);padding:15px}
+.search input{width:min(700px,100%);display:block;margin:auto;border:1px solid var(--line);border-radius:14px;padding:14px 18px;outline:0}
+.toast{position:fixed;right:20px;bottom:20px;background:#202020;color:#fff;padding:14px 18px;border-radius:14px;transform:translateY(100px);opacity:0;transition:.3s;z-index:120}
+.toast.show{transform:none;opacity:1}
+.menu{display:none}
+@media(max-width:950px){
+ nav{display:none}.menu{display:block}.hero-grid,.about,.promo{grid-template-columns:1fr}.hero-image{height:420px}
+ .categories{grid-template-columns:repeat(3,1fr)}.products{grid-template-columns:repeat(2,1fr)}
+ .feature-grid{grid-template-columns:repeat(2,1fr)}.feature:nth-child(2){border:0}
+ .footer-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:600px){
+ .container{width:min(100% - 24px,1180px)}header{height:68px}.hero{padding-top:35px}
+ h1{font-size:48px;letter-spacing:-2.5px}.hero-image{height:340px;border-radius:24px}
+ .categories{grid-template-columns:repeat(2,1fr)}.products{grid-template-columns:1fr}
+ .feature-grid{grid-template-columns:1fr}.feature{border:0;border-bottom:1px solid var(--line)}
+ section{padding:50px 0}.section-head{display:block}.section-head h2{font-size:32px}
+ .promo{padding:28px}.promo h2{font-size:36px}.promo-img{height:240px;margin-top:25px}
+ .about img{height:280px}.about h2{font-size:35px}.footer-grid{grid-template-columns:1fr}
+ .actions .primary{display:none}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container nav">
+    <a class="logo" href="#">FOOD<span>IE</span></a>
+    <nav>
+      <a href="#menu">Меню</a><a href="#categories">Категории</a><a href="#popular">Популярное</a>
+      <a href="#about">О нас</a><a href="#delivery">Доставка</a>
+    </nav>
+    <div class="actions">
+      <button class="icon-btn" id="searchBtn">⌕</button>
+      <button class="icon-btn" id="cartBtn">🛒<span class="badge" id="cartCount">0</span></button>
+      <button class="primary">Заказать</button>
+      <button class="icon-btn menu" onclick="document.querySelector('nav').style.display=document.querySelector('nav').style.display==='flex'?'none':'flex'">☰</button>
+    </div>
+  </div>
+  <div class="search" id="searchBox"><input id="searchInput" placeholder="Найти блюдо, например: пицца..."></div>
+</header>
+
+<main>
+<section class="hero">
+<div class="container hero-grid">
+  <div>
+    <div class="kicker">Свежо • Быстро • Вкусно</div>
+    <h1>Еда, которую <span>хочется</span> повторить.</h1>
+    <p>Ресторанные блюда, приготовленные с любовью. Закажите любимую еду с доставкой прямо к двери.</p>
+    <div class="hero-buttons"><a class="primary" href="#menu">Смотреть меню →</a><a class="secondary" href="#categories">Выбрать категорию</a></div>
+  </div>
+  <div class="hero-image">
+    <img src="photo-156529962494.jpg" alt="Пицца">
+    <div class="hero-tag">🔥 Хит недели — пицца от 690 ₽</div>
+  </div>
+</div>
+</section>
+
+<div class="features"><div class="container feature-grid">
+ <div class="feature"><div class="feature-icon">⚡</div><div><strong>Быстрая доставка</strong><small>от 30 минут</small></div></div>
+ <div class="feature"><div class="feature-icon">🥬</div><div><strong>Свежие продукты</strong><small>каждый день</small></div></div>
+ <div class="feature"><div class="feature-icon">👨‍🍳</div><div><strong>Готовим сразу</strong><small>после заказа</small></div></div>
+ <div class="feature"><div class="feature-icon">❤️</div><div><strong>Любим гостей</strong><small>и хорошую еду</small></div></div>
+</div></div>
+
+<section id="categories"><div class="container">
+ <div class="section-head"><div><h2>Что будем есть?</h2><p>Выберите любимую категорию</p></div></div>
+ <div class="categories">
+  <a class="category" href="#menu"><img src="photo-157975162665.jpg"><b>Пицца</b></a>
+  <a class="category" href="#menu"><img src="photo-1553621042-f.jpg"><b>Суши</b></a>
+  <a class="category" href="#menu"><img src="photo-156890134637.jpg"><b>Бургеры</b></a>
+  <a class="category" href="#menu"><img src="photo-147309329504.jpg"><b>Паста</b></a>
+  <a class="category" href="#menu"><img src="photo-1547592180-8.jpg"><b>Салаты</b></a>
+  <a class="category" href="#menu"><img src="photo-1551024506-0.jpg"><b>Десерты</b></a>
+ </div>
+</div></section>
+
+<section id="menu"><div class="container">
+ <div class="section-head"><div><h2>Популярное меню</h2><p>То, что заказывают чаще всего</p></div><a href="#menu">Смотреть всё →</a></div>
+ <div class="products" id="productGrid"></div>
+</div></section>
+
+<section id="delivery"><div class="container"><div class="promo">
+ <div><div class="kicker">Доставка сегодня</div><h2>Первый заказ — со скидкой 20%</h2><p>Введите промокод FOODIE20 при оформлении заказа и получите скидку.</p><button class="primary" onclick="showToast('Промокод FOODIE20 скопирован')">Получить промокод</button></div>
+ <div class="promo-img"><img src="photo-1547592180-8-2.jpg"></div>
+</div></div></section>
+
+<section id="about"><div class="container about">
+ <img src="photo-1556910103-1.jpg" alt="Кухня">
+ <div><div class="kicker">Почему FOODIE</div><h2>Просто хорошая еда. Без лишних слов.</h2><p>Мы выбираем продукты каждый день, готовим блюда после заказа и привозим их горячими. Наша задача — чтобы открывая коробку, вы улыбались.</p>
+ <div class="checks"><div class="check"><span>✓</span>Натуральные продукты</div><div class="check"><span>✓</span>Без долгого ожидания</div><div class="check"><span>✓</span>Честные цены</div><div class="check"><span>✓</span>Контроль качества</div></div></div>
+</div></section>
+</main>
+
+<footer><div class="container">
+ <div class="footer-grid"><div><div class="logo">FOOD<span>IE</span></div><p>Вкусная еда с доставкой домой и в офис.</p></div>
+ <div><h4>Меню</h4><a href="#menu">Популярное</a><br><a href="#categories">Категории</a></div>
+ <div><h4>Помощь</h4><a href="#">Доставка</a><br><a href="#">Оплата</a><br><a href="#">Контакты</a></div>
+ <div><h4>Мы на связи</h4><p>+7 (800) 555-35-35</p><p>Ежедневно 10:00–23:00</p></div></div>
+ <div class="copy">© 2026 FOODIE. Все права защищены.</div>
+</div></footer>
+
+<div class="modal" id="cartModal"><div class="modal-box"><button class="close" onclick="closeCart()">×</button><h2>Ваша корзина</h2><div class="cart-list" id="cartList"></div><div class="cart-total"><span>Итого</span><span id="total">0 ₽</span></div><button class="primary" style="width:100%" onclick="showToast('Заказ принят! Менеджер свяжется с вами.');closeCart()">Оформить заказ</button></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const products=[
+ {name:'Пицца Пепперони',cat:'Пицца',desc:'Томатный соус, моцарелла, пепперони',price:690,img:'https://images.unsplash.com/photo-1628840042765-356cda07504e?auto=format&fit=crop&w=700&q=80'},
+ {name:'Бургер BBQ',cat:'Бургеры',desc:'Говядина, чеддер, бекон, соус BBQ',price:590,img:'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=700&q=80'},
+ {name:'Сет Филадельфия',cat:'Суши',desc:'Лосось, сливочный сыр, авокадо',price:890,img:'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?auto=format&fit=crop&w=700&q=80'},
+ {name:'Паста Карбонара',cat:'Паста',desc:'Спагетти, бекон, пармезан, сливочный соус',price:620,img:'https://images.unsplash.com/photo-1612874742237-6526221588e3?auto=format&fit=crop&w=700&q=80'},
+ {name:'Цезарь с курицей',cat:'Салаты',desc:'Курица, романо, пармезан, соус Цезарь',price:520,img:'https://images.unsplash.com/photo-1546793665-c74683f339c1?auto=format&fit=crop&w=700&q=80'},
+ {name:'Поке с лососем',cat:'Полезное',desc:'Лосось, рис, авокадо, овощи, соус',price:760,img:'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=700&q=80'},
+ {name:'Том Ям',cat:'Супы',desc:'Креветки, кокосовое молоко, грибы',price:650,img:'https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=700&q=80'},
+ {name:'Чизкейк',cat:'Десерты',desc:'Нежный сливочный чизкейк с ягодами',price:390,img:'https://images.unsplash.com/photo-1565958011703-44f9829ba187?auto=format&fit=crop&w=700&q=80'}
+];
+let cart=[];
+const grid=document.getElementById('productGrid');
+function renderProducts(list=products){
+ grid.innerHTML=list.map((p,i)=>`<article class="product"><div class="product-img"><img src="${p.img}" alt="${p.name}"><button class="fav" onclick="fav(this)">♡</button></div><div class="product-info"><small>${p.cat}</small><h3>${p.name}</h3><p>${p.desc}</p><div class="price-row"><span class="price">${p.price} ₽</span><button class="add" onclick="add(${products.indexOf(p)})">+</button></div></div></article>`).join('');
+}
+function add(i){cart.push(products[i]);updateCart();showToast(products[i].name+' добавлен в корзину')}
+function updateCart(){
+ document.getElementById('cartCount').textContent=cart.length;
+ document.getElementById('cartList').innerHTML=cart.length?cart.map((p,i)=>`<div class="cart-item"><img src="${p.img}"><div style="flex:1"><b>${p.name}</b><div>${p.price} ₽</div></div><button onclick="removeCart(${i})">×</button></div>`).join(''):'<p style="color:#777">Корзина пока пустая.</p>';
+ document.getElementById('total').textContent=cart.reduce((s,p)=>s+p.price,0)+' ₽';
+}
+function removeCart(i){cart.splice(i,1);updateCart()}
+function fav(btn){btn.textContent=btn.textContent==='♡'?'♥':'♡';btn.style.color=btn.textContent==='♥'?'#ff5a36':''}
+function showToast(t){const x=document.getElementById('toast');x.textContent=t;x.classList.add('show');setTimeout(()=>x.classList.remove('show'),2200)}
+document.getElementById('cartBtn').onclick=()=>document.getElementById('cartModal').classList.add('open');
+function closeCart(){document.getElementById('cartModal').classList.remove('open')}
+document.getElementById('searchBtn').onclick=()=>{const s=document.getElementById('searchBox');s.style.display=s.style.display==='block'?'none':'block';if(s.style.display==='block')document.getElementById('searchInput').focus()}
+document.getElementById('searchInput').addEventListener('input',e=>{const q=e.target.value.toLowerCase();renderProducts(products.filter(p=>(p.name+' '+p.cat+' '+p.desc).toLowerCase().includes(q)))});
+document.getElementById('cartModal').addEventListener('click',e=>{if(e.target.id==='cartModal')closeCart()});
+renderProducts();updateCart();
+</script>
+
+<!-- Демонстрационная страница из materials/demo. Бизнеса за ней нет: цены, контакты и отзывы вымышлены. Всё грузится с этого же адреса, внешних загрузок нет. -->
+</body>
+</html>

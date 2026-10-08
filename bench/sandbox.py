@@ -33,6 +33,14 @@ BINARY_SUFFIXES = {
     ".ttf", ".otf", ".mp3", ".mp4", ".sqlite", ".db",
 }
 
+#: Куда складывать песочницы.
+#:
+#: Раньше папка создавалась через `tempfile.mkdtemp(prefix=...)` без
+#: указания пути, и оказывалась в корне проекта: `tempfile.gettempdir()`
+#: отдавал корень, и все 33 папки `zagent-bench-*` выросли именно там.
+#: Теперь путь задан явно, и песочницы попадают в `tmp/`.
+SANDBOX_ROOT = Path(__file__).resolve().parent.parent / "tmp" / "bench"
+
 
 @dataclass
 class RunResult:
@@ -64,7 +72,11 @@ class Sandbox:
 
     @classmethod
     def create(cls, *, keep: bool = False, prefix: str = "zagent-bench-") -> "Sandbox":
-        path = Path(tempfile.mkdtemp(prefix=prefix))
+        # Каталог создаётся заранее: `mkdtemp` не обязан создавать
+        # родительский, и без этого первый же запуск на чистой машине
+        # упал бы с отказом.
+        SANDBOX_ROOT.mkdir(parents=True, exist_ok=True)
+        path = Path(tempfile.mkdtemp(prefix=prefix, dir=str(SANDBOX_ROOT)))
         # mkdtemp даёт права 700 на POSIX; на Windows выставляем явно не нужно.
         box = cls(root=path, keep=keep)
         box.ref_dir.mkdir(exist_ok=True)

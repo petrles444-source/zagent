@@ -1,0 +1,247 @@
+/* Призма — заглушка.
+
+   Отличие от остальных заглушек не в цвете, а в раскладке:
+   здесь две колонки (рельса слева, текст справа) вместо одной
+   линейной. Рельса узкая и не несёт ничего длиннее подписи,
+   поэтому на узком экране она просто уезжает наверх — порядок
+   чтения не ломается.
+
+   Палитр четыре, и все они светлые: подача «призма» — тональная,
+   и проверять её имеет смысл только на светлом. Названия честные,
+   это не брендовые слоганы, а описание того, что видно.
+   Переключение живёт в app.js, здесь только сами наборы тонов.
+
+   Шрифты системные: подключать гарнитуру ради заглушки незачем,
+   а вес файла на заглушке виден невооружённым глазом.
+*/
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+/* Тон 0 — базовый. Он же запасной: если скрипт не отработал,
+   страница всё равно выглядит как задумано, а не бесцветной. */
+:root,
+html[data-palette="0"] {
+  --bg: #F4F4F2;
+  --panel: #FBFBF9;
+  --fg: #2A2A2E;
+  --muted: #83838C;
+  --line: #DEDEDA;
+  --dot: #C3C3C0;
+}
+
+/* Тон 1 — холоднее. Проверяем, не начинает ли текст сливаться
+   с фоном на холодном сером, самый частый провал в светлых подачах. */
+html[data-palette="1"] {
+  --bg: #EFF1F4;
+  --panel: #F9FAFC;
+  --fg: #26282E;
+  --muted: #7C8290;
+  --line: #D8DBE1;
+  --dot: #BFC5CE;
+}
+
+/* Тон 2 — тёплый бумажный. Проверяем, не «пластиково» ли смотрится
+   серый текст на почти белом. */
+html[data-palette="2"] {
+  --bg: #F5F1EA;
+  --panel: #FCFAF6;
+  --fg: #2E2A26;
+  --muted: #8A8177;
+  --line: #E2DACE;
+  --dot: #CFC6B8;
+}
+
+/* Тон 3 — самый контрастный. Не для красоты, а как проверка:
+   если текст читается здесь, он прочитается и в остальных тонах. */
+html[data-palette="3"] {
+  --bg: #FAFAF8;
+  --panel: #FFFFFF;
+  --fg: #141416;
+  --muted: #6E6E75;
+  --line: #D2D2CE;
+  --dot: #B4B4B0;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial,
+               sans-serif;
+  font-size: 17px;
+  line-height: 1.65;
+  /* Тон меняется целиком, без переездов: поэтому переход короткий
+     и только на цвета. Ничего не перескакивает, глаз не цепляется. */
+  transition: background-color 220ms ease, color 220ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body { transition: none; }
+}
+
+/* Сетка страницы. Две колонки с зазором: рельса прилипает к левому
+   краю окна, текст живёт в комфортной ширине. max-width на обёртке
+   стоит, чтобы на широком мониторе строка не растягивалась в пол-экрана. */
+.shell {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 72px 32px;
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: 56px;
+  align-items: start;
+}
+
+.rail {
+  position: sticky;
+  top: 72px;
+}
+
+.rail-tag,
+.tone-now {
+  margin: 0 0 14px;
+  font-family: ui-monospace, Consolas, 'Courier New', monospace;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+h1 {
+  margin: 0 0 6px;
+  font-size: 42px;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.tagline {
+  margin: 0 0 28px;
+  font-size: 18px;
+  color: var(--muted);
+}
+
+/* Переключатель. Кнопка не «красивая», а видимая: смысл страницы
+   в том, чтобы состояние было видно сразу, а не искалось в исходнике. */
+.btn {
+  display: inline-block;
+  padding: 9px 16px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--fg);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  /* Мелкий сдвиг при нажатии даёт понять, что кнопка сработала,
+     даже если новый тон почти не отличается от старого. */
+  transition: transform 120ms ease, border-color 120ms ease;
+}
+
+.btn:hover { border-color: var(--muted); }
+.btn:active { transform: scale(0.97); }
+
+.tone-now { margin: 12px 0 0; }
+
+/* Полоса из точек. Семь шариков одного тона подряд: на глаз видно,
+   не проваливается ли светлый круг в фон. Чистый CSS, без картинок. */
+.spectrum {
+  display: flex;
+  gap: 5px;
+  margin-top: 14px;
+}
+
+.spectrum i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--dot);
+  border: 1px solid var(--line);
+}
+
+.col { max-width: 62ch; }
+
+.shot {
+  margin: 0 0 32px;
+}
+
+.pic {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+}
+
+figcaption {
+  margin-top: 10px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.body { margin: 0 0 32px; }
+
+/* Честная пометка. Её нельзя прятать в подвал: человек, который
+   пришёл по ссылке, должен увидеть объяснение раньше, чем решит,
+   что его недосмотрели. Плашка с рамкой, а не серый блок —
+   заметно, но не кричит. */
+.honest {
+  padding: 22px 24px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.honest h2 {
+  margin: 0 0 12px;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.honest p { margin: 0 0 14px; }
+.honest p:last-child { margin-bottom: 0; }
+
+.absent {
+  margin: 0 0 14px;
+  padding-left: 20px;
+}
+
+.absent li { margin-bottom: 6px; }
+
+.back {
+  margin: 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  font-size: 15px;
+}
+
+.back a {
+  color: inherit;
+  opacity: 0.7;
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+}
+
+.back a:hover,
+.back a:focus-visible { opacity: 1; }
+
+:focus-visible {
+  outline: 2px solid var(--muted);
+  outline-offset: 3px;
+}
+
+/* Узкий экран: одна колонка. Рельса перестаёт быть липкой,
+   иначе она занимала бы пол-экрана и мешала читать. */
+@media (max-width: 720px) {
+  .shell {
+    padding: 36px 20px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+  .rail { position: static; }
+  h1 { font-size: 32px; }
+}

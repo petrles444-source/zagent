@@ -135,6 +135,37 @@ def scan_exact(files: list[str], secrets: list[str]) -> list[tuple[str, str]]:
     return hits
 
 
+def _reachable_blobs() -> dict[str, str]:
+    """Все блобы, достижимые из веток и тегов: sha -> путь.
+
+    Один вызов git вместо обхода по коммитам. Путь берётся первый
+    встретившийся: для отчёта этого достаточно, а на факт наличия ключа
+    имя файла не влияет.
+    """
+    out = subprocess.run(["git", "rev-list", "--objects", "--all"],
+                         capture_output=True, text=True, encoding="utf-8",
+                         errors="replace")
+    blobs: dict[str, str] = {}
+    for line in out.stdout.splitlines():
+        parts = line.split(" ", 1)
+        if len(parts) != 2:
+            continue
+        sha, name = parts[0], parts[1]
+        if name in ALLOWED or not name.strip():
+            continue
+        blobs.setdefault(sha, name)
+    if not blobs:
+        # Пустой репозиторий или нет коммитов: берём объекты напрямую.
+        check = subprocess.run(
+            ["git", "cat-file", "--batch-all-objects", "--batch-check=%(objectname) %(objecttype)"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace")
+        for line in check.stdout.splitlines():
+            parts = line.split()
+            if len(parts) == 2 and parts[1] == "blob":
+                blobs[parts[0]] = ""
+    return blobs
+
+
 def scan_history(keys: list[str]) -> list[tuple[str, str, str]]:
     """Проверить всю историю, а не только индекс.
 
@@ -142,37 +173,58 @@ def scan_history(keys: list[str]) -> list[tuple[str, str, str]]:
     GitHub смотрит на каждый. Ключ в промежуточном коммите, удалённый из
     следующего, для неё остаётся ключом — и пуш отклоняется целиком.
 
-    Два прохода: по образцам GitHub (находит то, что человеком написано
-    намеренно) и сверкой с настоящими ключами (находит то, что спрятано под
-    любым именем и выглядит как заглушка).
+    Два прохода по содержимому блоба: по образцам GitHub (находит то, что
+    человеком написано намеренно) и сверкой с настоящими ключами (находит
+    то, что спрятано под любым именем и выглядит как заглушка).
+
+    Читается потоком, без вывода всего в память: `git cat-file --batch`
+    сам отдаёт заголовок, размер и содержимое, поэтому огромный блоб не
+    нужно грузить целиком.
     """
-    revs = subprocess.run(["git", "rev-list", "--all"], capture_output=True,
-                          text=True, encoding="utf-8").stdout.split()
+    blobs = _reachable_blobs()
+    if not blobs:
+        return []
     hits: list[tuple[str, str, str]] = []
-    seen: set[tuple[str, str]] = set()
-    for rev in revs:
-        names = subprocess.run(
-            ["git", "ls-tree", "-r", "--name-only", rev],
-            capture_output=True, text=True, encoding="utf-8",
-            errors="ignore").stdout.splitlines()
-        for name in names:
-            if name in ALLOWED:
-                continue
-            blob = subprocess.run(["git", "show", f"{rev}:{name}"],
-                                  capture_output=True, text=True,
-                                  encoding="utf-8", errors="ignore").stdout
-            if not blob:
-                continue
-            for label, pattern in GITHUB_SHAPES.items():
-                if re.search(pattern, blob) and (rev, name) not in seen:
-                    seen.add((rev, name))
-                    hits.append((rev[:8], name, label))
+    proc = subprocess.Popen(["git", "cat-file", "--batch"],
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL)
+    assert proc.stdin is not None and proc.stdout is not None
+    for sha, name in blobs.items():
+        # По одному объекту за шаг: сначала запрос, потом чтение ответа.
+        #
+        # Раньше сначала дописывались ВСЕ sha, и только потом читался
+        # stdout — и на этом репозитории проверка вставала насмерть.
+        # Буфер анонимного канала в Windows около 4 КБ, список из ~1000
+        # объектов занимает 40 КБ: Python блокируется на записи в stdin,
+        # потому что git уже заблокирован на записи в stdout, который
+        # ещё никто не читает. Оба ждут друг друга до бесконечности.
+        # Чередуя запись и чтение, обе стороны всегда движутся.
+        proc.stdin.write((sha + "\n").encode("ascii"))
+        proc.stdin.flush()
+        header = proc.stdout.readline().decode("utf-8", "replace").split()
+        if len(header) < 3:
+            continue
+        size = int(header[2])
+        payload = proc.stdout.read(size)
+        proc.stdout.read(1)  # перевод строки после содержимого
+        if size == 0 or size > 8_000_000:
+            continue
+        blob = payload.decode("utf-8", "replace")
+        if not blob:
+            continue
+        for label, pattern in GITHUB_SHAPES.items():
+            if re.search(pattern, blob):
+                hits.append((sha[:8], name or "? (без пути)", label))
+                break
+        else:
             for key in keys:
                 if key in blob:
-                    if (rev, name) not in seen:
-                        seen.add((rev, name))
-                        hits.append((rev[:8], name, "настоящий ключ"))
+                    hits.append((sha[:8], name or "? (без пути)",
+                                 "настоящий ключ"))
                     break
+    proc.stdin.close()
+    proc.stdout.close()
+    proc.wait()
     return hits
 
 

@@ -1,0 +1,688 @@
+/* Neural Archive — стили портала.
+ *
+ * Правило проекта: всё локально. Здесь нет ни одного адреса наружу —
+ * шрифты лежат в assets/fonts, движок в ruffle/. Образец, из которого
+ * взят дизайн, грузил Tailwind и FontAwesome с CDN; здесь то же самое
+ * написано руками, потому что сайт должен открываться без интернета.
+ *
+ * Палитра и эффекты — из CYBER_PORTAL: чёрный фон, три неоновых цвета,
+ * срезанные углы панелей, помехи строчной развёртки, глитч в заголовке.
+ */
+
+:root {
+  /* Тёмная основа. Не чёрный: на чистом чёрном сканлайны и свечение
+     пропадают, панели сливаются с фоном. */
+  --bg: #050505;
+  --panel: rgba(10, 10, 10, 0.82);
+  --panel-solid: #0b0b0d;
+  --line: rgba(0, 240, 255, 0.28);
+  --line-soft: rgba(255, 255, 255, 0.08);
+
+  /* Три акцента. Жёлтый — акцент первого плана (метки, цифры),
+     голубой — рамки и ссылки, розовый — опасное и нежное. */
+  --cyan: #00f0ff;
+  --yellow: #fce300;
+  --pink: #ff003c;
+
+  --text: #e8f6f8;
+  --dim: #7d8f95;
+  --shadow: 0 0 18px rgba(0, 240, 255, 0.22);
+
+  --display: 'Orbitron', system-ui, sans-serif;
+  --mono: 'Share Tech Mono', 'JetBrains Mono', ui-monospace, monospace;
+  --body: 'Inter', system-ui, sans-serif;
+
+  /* Срезанный угол — фирменная форма панелей из образца. */
+  --cut: polygon(0 0, calc(100% - 26px) 0, 100% 26px,
+                 100% 100%, 26px 100%, 0 calc(100% - 26px));
+  --cut-sm: polygon(0 0, calc(100% - 12px) 0, 100% 12px,
+                    100% 100%, 12px 100%, 0 calc(100% - 12px));
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* Фоновая сетка-канвас под всем содержимым. */
+#bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: block;
+}
+
+/* Строчная развёртка: поверх страницы, но не мешает кликам. */
+.scanlines {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.02) 0 1px,
+    transparent 1px 3px);
+  mix-blend-mode: overlay;
+}
+
+/* Мягкое свечение сверху — «свечение монитора». */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(120% 60% at 50% 0%,
+              rgba(0, 240, 255, 0.10), transparent 70%);
+}
+
+.wrap { position: relative; z-index: 2; }
+
+/* ---------- шапка ---------- */
+
+header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 12px clamp(14px, 4vw, 44px);
+  background: rgba(5, 5, 5, 0.82);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  font-family: var(--display);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  font-size: 17px;
+  text-transform: uppercase;
+  color: var(--text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.brand b { color: var(--cyan); }
+
+nav { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+
+nav a {
+  padding: 6px 12px;
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+  text-decoration: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  transition: color .18s, border-color .18s, background .18s;
+}
+nav a:hover, nav a:focus-visible {
+  color: var(--cyan);
+  border-color: var(--line);
+  background: rgba(0, 240, 255, 0.06);
+  outline: none;
+}
+
+/* Статус движка в шапке: сразу видно, грузится ли Ruffle. */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--dim);
+  white-space: nowrap;
+}
+.status .dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--dim);
+  box-shadow: 0 0 8px currentColor;
+}
+.status.ok .dot { background: var(--cyan); }
+.status.ok { color: var(--cyan); }
+.status.bad .dot { background: var(--pink); }
+.status.bad { color: var(--pink); }
+.status.busy .dot { background: var(--yellow); }
+.status.busy { color: var(--yellow); }
+
+/* ---------- кнопки ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text);
+  background: rgba(0, 240, 255, 0.05);
+  border: 1px solid var(--line);
+  clip-path: var(--cut-sm);
+  cursor: pointer;
+  transition: background .18s, color .18s, box-shadow .18s;
+}
+.btn:hover, .btn:focus-visible {
+  background: rgba(0, 240, 255, 0.14);
+  box-shadow: var(--shadow);
+  outline: none;
+}
+.btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+.btn.primary {
+  color: #04121a;
+  background: var(--cyan);
+  border-color: var(--cyan);
+  font-weight: 700;
+}
+.btn.primary:hover { background: #7ef7ff; }
+.btn kbd {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 1px 5px;
+  color: var(--dim);
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+}
+.btn.primary kbd { color: #04121a; border-color: rgba(0, 0, 0, .3); }
+
+/* ---------- герой ---------- */
+
+/* Слайдер в герое. Растянут на всю ширину и стоит под текстом:
+   картинка фоновая, а не вставленная в колонку, иначе на узком
+   экране она съела бы половину места. */
+.hero-slider {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  background: radial-gradient(120% 90% at 50% 10%,
+              rgba(0, 240, 255, 0.14), transparent 62%);
+}
+
+.hero-slider .slide {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  /* Пауза на все кадры, кроме текущего: если не задать, при смене
+     картинка слегка «ползёт» вслед за своим кадром. */
+  transition: opacity 1.15s ease;
+}
+.hero-slider .slide.on { opacity: 1; }
+.hero-slider .slide.off { opacity: 0; }
+
+.hero-slider img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  filter: saturate(1.05);
+}
+/* Затемнение под текстом. Обязательно: сгенерированная картинка
+   может оказаться светлой, и белый заголовок на ней не читается. */
+.hero-slider .slide::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(80% 70% at 50% 45%, rgba(5, 5, 5, 0.5), transparent 75%),
+    linear-gradient(to bottom, rgba(5, 5, 5, 0.72), rgba(5, 5, 5, 0.55) 45%,
+                    rgba(5, 5, 5, 0.88));
+}
+/* Картинка не доехала: оставляем заливку, чтобы не было дыры. */
+.hero-slider img.missing { display: none; }
+.hero-slider.no-images .slide-dots { display: none; }
+
+/* Точки переключения. */
+.slide-dots {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: 14px;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  z-index: 3;
+}
+.slide-dot {
+  width: 26px; height: 3px;
+  padding: 0;
+  border: 0;
+  background: rgba(255, 255, 255, 0.22);
+  cursor: pointer;
+  transition: background .25s, width .25s;
+}
+.slide-dot:hover { background: rgba(255, 255, 255, 0.5); }
+.slide-dot.on { background: var(--cyan); width: 40px; }
+
+.hero {
+  position: relative;
+  min-height: clamp(420px, 72vh, 720px);
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: clamp(40px, 8vh, 90px) clamp(14px, 5vw, 40px);
+  border-bottom: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.hero .eyebrow {
+  font-family: var(--mono);
+  font-size: clamp(11px, 1.4vw, 13px);
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--yellow);
+  margin: 0 0 18px;
+}
+
+.hero h1 {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: clamp(30px, 7.2vw, 76px);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  margin: 0 0 20px;
+  color: #fff;
+  text-shadow: 0 0 24px rgba(0, 240, 255, .35);
+}
+
+/* Глитч: две копии заголовка со смещением и разными цветами. */
+.glitch { position: relative; display: inline-block; }
+.glitch::before, .glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.glitch::before { color: var(--pink); animation: glitch-a 3.4s infinite steps(2); }
+.glitch::after { color: var(--cyan); animation: glitch-b 2.7s infinite steps(2); }
+@keyframes glitch-a {
+  0%, 92%, 100% { transform: none; clip-path: none; opacity: 0; }
+  93% { transform: translate(-3px, 1px); clip-path: inset(12% 0 62% 0); opacity: .9; }
+  96% { transform: translate(3px, -2px); clip-path: inset(58% 0 18% 0); opacity: .9; }
+}
+@keyframes glitch-b {
+  0%, 90%, 100% { transform: none; clip-path: none; opacity: 0; }
+  91% { transform: translate(3px, -1px); clip-path: inset(40% 0 34% 0); opacity: .85; }
+  95% { transform: translate(-3px, 2px); clip-path: inset(8% 0 74% 0); opacity: .85; }
+}
+
+.hero p.lead {
+  max-width: 62ch;
+  margin: 0 auto 26px;
+  color: var(--dim);
+  font-size: clamp(14px, 1.8vw, 17px);
+}
+
+.stats {
+  display: flex;
+  justify-content: center;
+  gap: clamp(18px, 5vw, 56px);
+  flex-wrap: wrap;
+  margin-top: 34px;
+}
+.stat { text-align: center; }
+.stat b {
+  display: block;
+  font-family: var(--display);
+  font-size: clamp(20px, 3.4vw, 32px);
+  color: var(--yellow);
+}
+.stat span {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* ---------- секции ---------- */
+
+section { padding: clamp(44px, 8vh, 86px) clamp(14px, 5vw, 40px); }
+
+.sec-head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 26px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.sec-num {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: .2em;
+  color: var(--yellow);
+}
+.sec-head h2 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(19px, 3vw, 28px);
+  text-transform: uppercase;
+  margin: 0;
+  letter-spacing: .02em;
+}
+.sec-head p { margin: 0; color: var(--dim); font-size: 13px; }
+
+/* ---------- панель плеера ---------- */
+
+.player {
+  display: grid;
+  gap: 16px;
+  padding: clamp(14px, 2.4vw, 22px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  clip-path: var(--cut);
+  box-shadow: var(--shadow);
+}
+
+.stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: clamp(260px, 46vh, 460px);
+  background:
+    repeating-conic-gradient(rgba(255,255,255,.02) 0 25%, transparent 0 50%)
+    0 0 / 22px 22px,
+    #000;
+  border: 1px solid var(--line-soft);
+  overflow: hidden;
+}
+.stage ruffle-player { width: 100%; height: 100%; }
+
+.idle {
+  text-align: center;
+  color: var(--dim);
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  padding: 20px;
+}
+.idle b { display: block; color: var(--yellow); margin-bottom: 8px; font-size: 15px; }
+
+/* Полоса поверх сцены: имя файла, время, состояние движка. */
+.hud {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 9px 12px;
+  background: rgba(0, 0, 0, .6);
+  border: 1px solid var(--line-soft);
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--dim);
+}
+.hud .now { color: var(--cyan); text-transform: uppercase; letter-spacing: .06em; }
+.hud .spacer { margin-left: auto; }
+.hud .fps { color: var(--yellow); }
+
+.controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.controls .btn { padding: 7px 12px; }
+
+.speeds { display: flex; gap: 3px; }
+.speeds .btn { padding: 6px 10px; font-size: 12px; }
+.speeds .btn[aria-pressed="true"] {
+  background: var(--cyan);
+  color: #04121a;
+  border-color: var(--cyan);
+}
+
+.bar {
+  position: relative;
+  height: 4px;
+  background: rgba(255, 255, 255, .08);
+  overflow: hidden;
+}
+.bar i {
+  position: absolute;
+  inset: 0 100% 0 0;
+  background: linear-gradient(90deg, var(--cyan), var(--yellow));
+  transition: right .2s linear;
+}
+
+/* ---------- зона загрузки ---------- */
+
+.drop {
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  padding: clamp(18px, 4vw, 34px);
+  text-align: center;
+  background: rgba(0, 240, 255, .04);
+  border: 2px dashed var(--pink);
+  clip-path: var(--cut-sm);
+  transition: background .18s, border-color .18s;
+}
+.drop.hot {
+  background: rgba(255, 0, 60, .12);
+  border-color: var(--yellow);
+}
+.drop h3 {
+  font-family: var(--display);
+  font-size: clamp(15px, 2.4vw, 20px);
+  text-transform: uppercase;
+  margin: 0;
+  letter-spacing: .04em;
+}
+.drop p { margin: 0; color: var(--dim); font-size: 13px; }
+
+.url-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.url-row input {
+  flex: 1 1 260px;
+  min-width: 0;
+  padding: 9px 12px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text);
+  background: rgba(0, 0, 0, .5);
+  border: 1px solid var(--line);
+  clip-path: var(--cut-sm);
+}
+.url-row input:focus { outline: none; border-color: var(--cyan); }
+.url-row input::placeholder { color: #4a5b60; }
+
+/* ---------- каталог ---------- */
+
+.filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.chip {
+  padding: 5px 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--dim);
+  background: transparent;
+  border: 1px solid var(--line-soft);
+  cursor: pointer;
+  transition: color .16s, border-color .16s, background .16s;
+}
+.chip:hover { color: var(--cyan); border-color: var(--line); }
+.chip[aria-pressed="true"] {
+  color: #04121a;
+  background: var(--cyan);
+  border-color: var(--cyan);
+  font-weight: 700;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+}
+
+.card {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  text-align: left;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  clip-path: var(--cut-sm);
+  cursor: pointer;
+  font: inherit;
+  transition: border-color .18s, transform .18s, box-shadow .18s;
+}
+.card:hover, .card:focus-visible {
+  border-color: var(--cyan);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+  outline: none;
+}
+.card.playing { border-color: var(--yellow); box-shadow: 0 0 18px rgba(252,227,0,.2); }
+.card .thumb {
+  height: 92px;
+  display: grid;
+  place-items: center;
+  font-family: var(--display);
+  font-size: 26px;
+  font-weight: 900;
+  color: var(--bg);
+  background: linear-gradient(135deg, var(--cyan), var(--yellow));
+  clip-path: var(--cut-sm);
+}
+.card:nth-child(3n+2) .thumb { background: linear-gradient(135deg, var(--yellow), var(--pink)); }
+.card:nth-child(3n) .thumb { background: linear-gradient(135deg, var(--pink), var(--cyan)); }
+.card .title { font-weight: 600; font-size: 14px; }
+.card .meta {
+  display: flex;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.card .fav {
+  background: none;
+  border: 0;
+  color: var(--dim);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px;
+  margin-left: auto;
+}
+.card .fav[aria-pressed="true"] { color: var(--pink); }
+
+.empty {
+  padding: 30px;
+  text-align: center;
+  color: var(--dim);
+  font-family: var(--mono);
+  border: 1px dashed var(--line-soft);
+}
+
+/* ---------- о проекте ---------- */
+
+.about {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px;
+}
+.note {
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-left: 3px solid var(--cyan);
+  clip-path: var(--cut-sm);
+}
+.note h4 {
+  margin: 0 0 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--yellow);
+}
+.note p { margin: 0; font-size: 13.5px; color: var(--dim); }
+.note a { color: var(--cyan); }
+
+footer {
+  padding: 26px clamp(14px, 5vw, 40px);
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--dim);
+}
+footer .spacer { margin-left: auto; }
+.foot-ver { color: var(--dim); text-decoration: none; }
+.foot-ver:hover { color: var(--cyan); }
+
+/* ---------- уведомления ---------- */
+
+.toasts {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 70;
+  display: grid;
+  gap: 8px;
+  max-width: min(380px, calc(100vw - 32px));
+}
+.toast {
+  padding: 10px 14px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--text);
+  background: rgba(10, 10, 10, .94);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--cyan);
+  clip-path: var(--cut-sm);
+  animation: toast-in .22s ease-out;
+}
+.toast.ok { border-left-color: var(--cyan); }
+.toast.err { border-left-color: var(--pink); color: #ffd9e1; }
+.toast.warn { border-left-color: var(--yellow); }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---------- адаптив ---------- */
+
+/* Узкий экран: колонки складываются в одну, шапка переносится.
+   Раньше портал требовал зума 50%, чтобы увидеть всё: панель плеера и
+   каталог стояли рядом и не помещались по ширине. */
+@media (max-width: 720px) {
+  header { flex-wrap: wrap; gap: 10px; }
+  nav { margin-left: 0; width: 100%; }
+  .status { margin-left: auto; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+  .hero { min-height: auto; }
+  footer .spacer { margin-left: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

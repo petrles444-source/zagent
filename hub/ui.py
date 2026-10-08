@@ -313,8 +313,58 @@ pre.code {
 .hsOwner { color:var(--muted); white-space:nowrap; }
 
 /* Панель субагентов: карточка на часть, след разворачивается по клику. */
-.subsBox { margin: 0 0 8px; }
+.subsBox {
+  margin: 0 0 8px;
+  /* Частей может быть десяток и больше. Без предела по высоте панель
+     растягивалась на пол-экрана и уезжала под поле ввода, а прокрутить
+     её вниз было нечем: колесо крутило страницу целиком. */
+  max-height: 30vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  scroll-behavior: smooth;
+}
 .subsBox:empty { display: none; }
+/* Кнопка «вниз» живёт вне прокручиваемого списка, иначе её уносит вниз
+   вместе с карточками и до неё не добраться. */
+.subsMore {
+  display: none;
+  position: sticky;
+  bottom: 0;
+  margin: -26px 10px 6px auto;
+  width: max-content;
+  padding: 2px 10px;
+  font-size: 11px;
+  border:1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+}
+.subsMore.on { display: block; }
+  /* Пузыри локального чата. Раньше цвета были вбиты прямо в стиль:
+     тёмный фон плюс тёмный текст, читалось только выделением. Теперь
+     всё из токенов темы, и в пяти темах одинаково читаемо. */
+  .lb {
+    max-width:82%; padding:9px 12px; border-radius:10px;
+    margin:6px 0; white-space:pre-wrap; line-height:1.45;
+    color:var(--text); background:var(--panel2);
+    border:1px solid var(--line);
+  }
+  .lb.user {
+    background:var(--accent); color:var(--accent-text);
+    border-color:var(--accent); margin-left:auto;
+  }
+  .lb.bot { background:var(--panel2); color:var(--text); }
+.subsTools {
+  display:flex; align-items:center; gap:6px; padding:2px 4px 4px;
+}
+/* Свернутая часть - одна строка: заголовок и счётчики. Развёрнутый след
+   занимает место только у работающей части, за которой следят. */
+.subCard.folded .subWhy,
+.subCard.folded .subNow,
+.subCard.folded .subFiles { display:none; }
+.subsMore:hover { color: var(--text); border-color: var(--edge); }
 .subCard {
   border:1px solid var(--edge); border-left:3px solid var(--accent);
   border-radius:var(--radius); background:var(--panel);
@@ -929,7 +979,7 @@ code.inl { font-family:var(--mono); font-size:11.5px; background:var(--panel2);
 .fitem .ic { color:var(--dim); flex:0 0 12px; font-size:10px; }
 .fitem .nm { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .fitem .sz { color:var(--dim); font-size:10.5px; }
-#fview { flex:1; overflow:auto; }
+#fview { }
 #fview pre { margin:0; border:0; border-radius:0; background:var(--bg);
   max-height:none; min-height:100%; padding:12px 14px; font-size:12px; }
 
@@ -1029,7 +1079,20 @@ th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase
 @keyframes pulse {
   0%,100% { box-shadow:var(--shadow); }
   50% { box-shadow:0 8px 26px -4px color-mix(in srgb,var(--warn) 45%,transparent); }
-}
+}/* ---------- радио ---------- */
+.radioDot { width:8px; height:8px; border-radius:50%; background:var(--dim); flex-shrink:0; }
+.radioDot.on { background:var(--ok); }
+.radioDot.off { background:var(--bad); }
+.radioRow { display:flex; gap:8px; align-items:center; padding:7px 10px;
+  border-bottom:1px solid var(--edge); cursor:pointer; font-size:12px; }
+.radioRow:hover { background:color-mix(in srgb,var(--accent) 8%,transparent); }
+.radioRow.play { background:color-mix(in srgb,var(--accent) 12%,transparent); }
+.radioRow .radioName { flex:1; overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap; }
+.radioRow .radioMeta { color:var(--dim); font-size:11px; }
+.radioGroup { padding:8px 10px 4px; font-size:11px; text-transform:uppercase;
+  letter-spacing:.6px; color:var(--dim); font-weight:600; }
+
 </style>
 </head>
 <body>
@@ -1069,6 +1132,7 @@ th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase
     <button class="ptab" data-p="queue" onclick="ltab('queue')">Очередь</button>
     <button class="ptab" data-p="local" onclick="ltab('local')">Локальные модели</button>
     <button class="ptab" data-p="guide" onclick="ltab('guide')">Гайды по API</button>
+    <button class="ptab" data-p="radio" onclick="ltab('radio')">Радио</button>
   </div>
   <div class="pbody">
 
@@ -1645,6 +1709,29 @@ th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase
       </div>
     </div>
 
+    <!-- вкладка РАДИО
+
+         Список станций и их статусы приходят с сервера: браузер не может
+         пинговать чужие хосты напрямую (CORS и no-cors не дают читать
+         ответ), поэтому проверку делает `hub/radio.py`, а вкладка лишь
+         показывает результат. Воспроизведение — обычный `<audio>`: потоки
+         mp3/aacp браузер играет сам, сервер тут не нужен. -->
+    <div class="psec" id="p-radio">
+      <div class="row tight" style="padding:8px 10px">
+        <button class="btn sm pri" id="radioPlay" onclick="radioToggle()">▶</button>
+        <button class="btn sm" onclick="radioStop()">⏸</button>
+        <button class="btn sm" onclick="radioNext()">⏭</button>
+        <button class="btn sm" onclick="radioPing()">Проверить</button>
+        <span class="mini dim" id="radioNow"></span>
+      </div>
+      <div class="row tight" style="padding:0 10px 8px">
+        <span class="mini dim">громкость</span>
+        <input type="range" min="0" max="100" value="50" style="flex:1" oninput="radioVol(this.value)">
+        <span class="mini dim" id="radioVolLabel">50%</span>
+      </div>
+      <div id="radioList"></div>
+    </div>
+
   </div>
 </div>
 
@@ -1661,6 +1748,7 @@ th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase
   <!-- Панель частей работы: пока части идут, видно, над чем каждая
      работает; когда отработали — сворачивается. -->
   <div id="subsBox" class="subsBox"></div>
+  <div class="subsTools"><span class="mini dim" data-role="count"></span><button class="btn sm" onclick="subsToggleAll(true)">свернуть все</button><button class="btn sm" onclick="subsToggleAll(false)">развернуть все</button></div><button class="subsMore" onclick="subsScrollToEnd()">вниз ↓</button>
   <!-- План роя: кто на каком аккаунте и кто в резерве. Появляется, когда
        включён режим роя. -->
   <div id="herdBox" class="herdBox"></div>
@@ -1725,10 +1813,13 @@ th { color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase
     <button class="btn sm" onclick="loadTree(fCur)" title="обновить">↻</button>
   </div>
   <div class="fcrumbs" id="fcrumbs"></div>
-  <div class="pbody" id="p-files" style="display:flex;flex-direction:column">
-    <div id="ftree" style="flex:0 0 46%;overflow:auto;border-bottom:1px solid var(--edge)"></div>
-    <div id="fview" style="flex:1;overflow:auto"></div>
-  </div>
+            <!-- Одна прокрутка на всю панель: раньше дерево было зажато
+               в 46% высоты со своим колесом, и проект нельзя было
+               прокрутить ниже - колесо крутило только дерево. -->
+          <div class="pbody" id="p-files" style="overflow:auto">
+            <div id="ftree" style="border-bottom:1px solid var(--edge)"></div>
+            <div id="fview"></div>
+          </div>
 </div>
 
 </div>
@@ -2190,12 +2281,10 @@ async function loadLocalModels(force) {
 function localBubble(role, text) {
   const box = $('localChat');
   const div = document.createElement('div');
-  div.className = role === 'user' ? 'msg user' : 'msg assistant';
-  div.style.cssText = 'max-width:82%;padding:9px 12px;border-radius:10px;' +
-    'margin:6px 0;white-space:pre-wrap;line-height:1.45;' +
-    (role === 'user'
-      ? 'background:#2563eb;color:#fff;margin-left:auto'
-      : 'background:#1b1f28;border:1px solid var(--dim)');
+  // Классы msg основной переписки больше не надеваем: у них свой тёмный
+  // фон, и он перекрывал цвет ответа модели - получался тёмный текст по
+  // тёмному. Свои стили - из токенов темы.
+  div.className = 'lb ' + (role === 'user' ? 'user' : 'bot');
   div.textContent = text;
   box.appendChild(div);
   box.scrollTop = box.scrollHeight;
@@ -2283,6 +2372,123 @@ function ltab(name) {
   // Список локальных моделей меняется на лету: `ollama pull` могли
   // выполнить, пока вкладка была закрыта.
   if (name === 'local') loadLocalModels();
+  // Радио тянет список станций и статусы пинга с сервера при каждом
+  // открытии: станции могли добавиться в music/stations.json руками.
+  if (name === 'radio') loadRadio();
+}
+
+// ---------- радио ----------
+let RADIO = { stations: [], statuses: {}, pinging: false };
+let radioState = { idx: -1, playing: false, audio: null, vol: 0.5 };
+
+async function loadRadio() {
+  const r = await api('/api/radio');
+  if (r && r.ok !== false) {
+    RADIO.stations = r.stations || [];
+    RADIO.statuses = r.statuses || {};
+    RADIO.pinging = !!r.pinging;
+    renderRadio();
+  }
+}
+
+function renderRadio() {
+  const box = $('radioList');
+  if (!box) return;
+  let html = '';
+  let lastGroup = null;
+  RADIO.stations.forEach((s, i) => {
+    const st = RADIO.statuses[s.url];
+    const dot = st ? (st.ok ? 'on' : 'off') : '';
+    const group = s.group || '';
+    if (group !== lastGroup) {
+      if (group) html += `<div class="radioGroup">${esc(group)}</div>`;
+      lastGroup = group;
+    }
+    const playing = i === radioState.idx && radioState.playing;
+    html += `<div class="radioRow${playing ? ' play' : ''}" onclick="radioPick(${i})">`
+      + `<span class="radioDot ${dot}"></span>`
+      + `<span class="radioName">${esc(s.name)}</span>`
+      + `<span class="radioMeta">${esc(s.genre || '')}</span>`
+      + `</div>`;
+  });
+  box.innerHTML = html;
+  const now = $('radioNow');
+  if (now) {
+    const cur = radioState.idx >= 0 ? RADIO.stations[radioState.idx] : null;
+    now.textContent = cur ? (radioState.playing ? '▶ ' : '⏸ ') + cur.name : '';
+  }
+}
+
+function radioPick(i) {
+  const s = RADIO.stations[i];
+  if (!s) return;
+  if (!radioState.audio) {
+    radioState.audio = new Audio();
+    radioState.audio.volume = radioState.vol;
+  }
+  radioState.audio.src = s.url;
+  radioState.audio.play().then(() => {
+    radioState.playing = true;
+    radioState.idx = i;
+    renderRadio();
+  }).catch(() => {
+    radioState.playing = false;
+    renderRadio();
+  });
+}
+
+function radioToggle() {
+  if (!radioState.audio) {
+    if (RADIO.stations.length) radioPick(0);
+    return;
+  }
+  if (radioState.playing) {
+    radioState.audio.pause();
+    radioState.playing = false;
+  } else {
+    radioState.audio.play().then(() => {
+      radioState.playing = true;
+      renderRadio();
+    }).catch(() => {});
+  }
+  renderRadio();
+}
+
+function radioStop() {
+  if (radioState.audio) {
+    radioState.audio.pause();
+    radioState.audio.src = '';
+  }
+  radioState.playing = false;
+  renderRadio();
+}
+
+function radioNext() {
+  if (!RADIO.stations.length) return;
+  radioPick((radioState.idx + 1) % RADIO.stations.length);
+}
+
+function radioVol(v) {
+  radioState.vol = v / 100;
+  if (radioState.audio) radioState.audio.volume = radioState.vol;
+  const label = $('radioVolLabel');
+  if (label) label.textContent = v + '%';
+}
+
+async function radioPing() {
+  if (RADIO.pinging) return;
+  await api('/api/radio/ping', {});
+  // Опрашиваем снимок, пока сервер не закончит проверку станций.
+  const timer = setInterval(async () => {
+    const r = await api('/api/radio');
+    if (r) {
+      RADIO.stations = r.stations || RADIO.stations;
+      RADIO.statuses = r.statuses || RADIO.statuses;
+      RADIO.pinging = !!r.pinging;
+      renderRadio();
+      if (!r.pinging) clearInterval(timer);
+    }
+  }, 800);
 }
 // В правой панели была вторая вкладка «Модели и пинг» — дубль того, что уже
 // слева. Она убрана, поэтому переключателя вкладок здесь больше нет. Функция
@@ -2642,6 +2848,44 @@ function subCardHtml(sub, data) {
   </div>`;
 }
 
+// Прокрутка списка частей.
+//
+// По умолчанию держим список внизу: новая часть или новый шаг появляются
+// именно внизу, и без этого человек их просто не видит. Но если он сам
+// ушёл вверх (читает конкретную часть), прыгать под курсором нельзя -
+// поэтому автопрокрутка выключается, пока он не вернётся к низу сам или
+// не нажмёт «вниз».
+function subsAtBottom(box) {
+  if (!box) return true;
+  return box.scrollHeight - box.scrollTop - box.clientHeight < 48;
+}
+
+function subsFollow(box, force) {
+  if (!box) return;
+  if (force || subsAtBottom(box)) {
+    box.scrollTop = box.scrollHeight;
+  }
+  const more = document.querySelector('.subsMore');
+  if (more) more.classList.toggle('on', !subsAtBottom(box));
+}
+
+function subsScrollToEnd() {
+  const box = $('subsBox');
+  if (box) box.scrollTop = box.scrollHeight;
+}
+
+// Клик по самому списку внизу возвращает автопрокрутку: человек сам
+// показывает, что хочет видеть свежее.
+function subsWatchScroll() {
+  const box = $('subsBox');
+  if (!box || box.dataset.watch) return;
+  box.dataset.watch = '1';
+  box.addEventListener('scroll', () => {
+    const more = document.querySelector('.subsMore');
+    if (more) more.classList.toggle('on', !subsAtBottom(box));
+  });
+}
+
 function ensureSub(sub, data) {
   if (!sub) return null;
   if (!SUBS[sub]) {
@@ -2660,13 +2904,108 @@ function ensureSub(sub, data) {
   const sel = '[data-sub="' + CSS.escape(sub) + '"]';
   let el = box.querySelector(sel);
   if (!el) {
+    // Прокрутку запоминаем ДО вставки: после вставки список уже длиннее
+    // видимого, и «был ли он внизу» определить больше нельзя.
+    const wasBottom = subsAtBottom(box);
     box.insertAdjacentHTML('beforeend', subCardHtml(sub, SUBS[sub].part));
     el = box.querySelector(sel);
     SUBS[sub].el = el;
+    subsWatchScroll();
+    subsFollow(box, wasBottom);
   }
   const title = el && el.querySelector('.subTitle');
   if (title && SUBS[sub].part.title) title.textContent = SUBS[sub].part.title;
   return el;
+}
+
+// Часть отработала? Статусы приходят словами от сервера, поэтому
+// проверка по тексту заголовка, а не по несуществующему флагу.
+const SUB_DONE_WORDS = ['готово', 'сделано', 'выполнено', 'готова', 'сделана',
+                        'задача выполнена', 'done'];
+
+function subLooksDone(el) {
+  if (!el) return false;
+  const why = (el.querySelector('.subWhy') || {}).textContent || '';
+  const now = (el.querySelector('.subNow') || {}).textContent || '';
+  const text = (why + ' ' + now).toLowerCase();
+  return SUB_DONE_WORDS.some(word => text.includes(word));
+}
+
+// Сколько частей могут быть развёрнуты одновременно.
+//
+// Три, а не «все работающие»: на скриншоте одиннадцать частей в состоянии
+// «думает», и все одиннадцать были развёрнуты - переписки не оставалось
+// совсем. Человек всё равно смотрит на те части, где что-то происходит
+// прямо сейчас; остальные ему нужны списком, а не развёрнутыми.
+const SUBS_OPEN_MAX = 3;
+
+function subsFreshSub() {
+  // Какая часть обновилась последней - её и держим открытой.
+  let newest = null, best = -1;
+  for (const sub of Object.keys(SUBS)) {
+    const item = SUBS[sub];
+    const at = item && item.touched ? item.touched : 0;
+    if (at > best) { best = at; newest = sub; }
+  }
+  return newest;
+}
+
+function subsApplyLimit() {
+  // Сворачиваем всё, кроме трёх самых свежих. Развёрнутым остаётся и то,
+  // что человек открыл сам (помечено userOpened).
+  const order = Object.keys(SUBS).sort((a, b) => {
+    const ta = (SUBS[a] && SUBS[a].touched) || 0;
+    const tb = (SUBS[b] && SUBS[b].touched) || 0;
+    return tb - ta;
+  });
+  let kept = 0;
+  for (const sub of order) {
+    const item = SUBS[sub];
+    if (item && item.userOpened) continue;
+    if (kept < SUBS_OPEN_MAX) { kept += 1; continue; }
+    foldSub(sub, true);
+  }
+  subsFollow($('subsBox'));
+}
+
+function foldSub(sub, folded) {
+  const item = SUBS[sub];
+  if (!item || !item.el) return;
+  // Часть, которую человек открыл сам, лимит не трогает.
+  if (folded && item.userOpened) return;
+  item.el.classList.toggle('folded', !!folded);
+  const trail = item.el.querySelector('[data-role="trail"]');
+  if (trail && folded) trail.setAttribute('hidden', '');
+  const more = item.el.querySelector('.subMore');
+  if (more) more.textContent = folded ? 'показать' : 'след ?';
+}
+
+
+
+function subsToggleAll(folded) {
+  const box = $('subsBox');
+  if (!box) return;
+  // «Развернуть все» помечает части как открытые намеренно: иначе лимит
+  // в три развёрнутых сложил бы их обратно на следующем же событии.
+  box.querySelectorAll('.subCard').forEach(el => {
+    const sub = el.dataset.sub;
+    if (!SUBS[sub]) return;
+    if (!folded) {
+      SUBS[sub].userOpened = true;
+      const trail = el.querySelector('[data-role="trail"]');
+      if (trail && trail.hasAttribute('hidden')) {
+        trail.innerHTML = trailHtml(SUBS[sub]);
+        trail.removeAttribute('hidden');
+      }
+      el.classList.remove('folded');
+      const more = el.querySelector('.subMore');
+      if (more) more.textContent = 'след ?';
+    } else {
+      SUBS[sub].userOpened = false;
+      foldSub(sub, true);
+    }
+  });
+  subsFollow(box, true);
 }
 
 function toggleSub(sub) {
@@ -2675,7 +3014,14 @@ function toggleSub(sub) {
   const trail = item.el.querySelector('[data-role="trail"]');
   if (!trail) return;
   const open = trail.hasAttribute('hidden');
-  if (open) { trail.innerHTML = trailHtml(item); trail.removeAttribute('hidden'); }
+  if (open) {
+    trail.innerHTML = trailHtml(item); trail.removeAttribute('hidden');
+    // Человек сам посмотрел след - больше сворачивать не будем.
+    item.userOpened = true;
+    item.el.classList.remove('folded');
+    const more = item.el.querySelector('.subMore');
+    if (more) more.textContent = 'след ?';
+  }
   else trail.setAttribute('hidden', '');
   const more = item.el.querySelector('.subMore');
   if (more) more.textContent = open ? 'след ▴' : 'след ▾';
@@ -2736,7 +3082,20 @@ function subLiveStat(sub) {
   if (prompts) bits.push(`запросов ${prompts}`);
   if (calls) bits.push(`вызовов ${calls}`);
   stat.textContent = bits.join(' · ');
+  // Помечаем часть как «обновлённую сейчас»: по этим меткам выбираются
+  // три, которые останутся развёрнутыми.
+  if (item) item.touched = Date.now();
   subLiveNow(sub);
+  subsApplyLimit();
+  // Отработавшую часть сворачиваем сами: десять развёрнутых карточек
+  // занимают всё окно, и до переписки с полем ввода не добраться.
+  // Человек может развернуть любую щелчком по заголовку.
+  // Завершённая часть сворачивается сама; работающую трогает лимит
+  // в три развёрнутых. То, что человек открыл, не трогаем.
+  if (!item.userOpened && subLooksDone(item.el)) foldSub(sub, true);
+  // Строка шага могла вырасти в блок, поэтому список дотягиваем вниз -
+  // иначе новая работа уезжает под нижний край.
+  subsFollow($('subsBox'));
 }
 
 // Чем конкретная часть занята прямо сейчас. Без этой строки у десяти

@@ -105,6 +105,17 @@ def check_language(answer: str, question: str) -> Check:
         total = cyrillic + latin
         return cyrillic / total if total else 0.0
 
+    # Ответ без единой буквы - это не «латиница», а математика, JSON или
+    # команда. Раньше доля считалась как cyrillic/total, где total - число
+    # букв: при нуле букв получался 0.0, срабатывала ветка «ответ ушёл в
+    # латиницу» и модель получала 0.0 за то, что ответила точно.
+    # Проверять тут нечего - и это не должно ни портить, ни хвалить.
+    letters_in_answer = sum(1 for c in answer if c.isalpha())
+    if not letters_in_answer:
+        return Check("language", True,
+                     "ответ без букв (число, JSON или команда): проверять нечего",
+                     1.0)
+
     q = script_share(question)
     a = script_share(answer)
     if q < 0.5:

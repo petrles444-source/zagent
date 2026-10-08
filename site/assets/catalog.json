@@ -1,0 +1,29 @@
+[
+  {
+    "id": "pulse",
+    "title": "Пульс",
+    "year": 2026,
+    "cat": ["animation", "generated"],
+    "url": "swf/pulse.swf",
+    "frames": 48,
+    "note": "Квадрат, который дышит: масштаб ходит по синусоиде, 48 кадров"
+  },
+  {
+    "id": "orbit",
+    "title": "Орбита",
+    "year": 2026,
+    "cat": ["animation", "generated"],
+    "url": "swf/orbit.swf",
+    "frames": 108,
+    "note": "Три квадрата по кругу, разные цвета и радиусы"
+  },
+  {
+    "id": "bars",
+    "title": "Столбики",
+    "year": 2026,
+    "cat": ["animation", "generated"],
+    "url": "swf/bars.swf",
+    "frames": 240,
+    "note": "Восемь столбиков разной высоты, 240 кадров"
+  }
+]

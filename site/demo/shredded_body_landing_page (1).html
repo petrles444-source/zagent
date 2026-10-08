@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="ru" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>СУШКА ТЕЛА — Авторская программа жиросжигания и трансформации</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Montserrat', 'sans-serif'],
+                    },
+                    colors: {
+                        accent: {
+                            orange: '#ff5500',
+                            orangeHover: '#e04b00',
+                            blue: '#0066ff'
+                        },
+                        darkBg: '#121316',
+                        darkCard: '#1a1c23',
+                        lightBg: '#f4f5f7'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #121316;
+            color: #f4f5f7;
+            font-family: 'Montserrat', sans-serif;
+            overflow-x: hidden;
+        }
+
+        .hero-split-bg {
+            background: linear-gradient(90deg, #121316 55%, #eaecee 55%);
+        }
+
+        @media (max-width: 1023px) {
+            .hero-split-bg {
+                background: #121316;
+            }
+        }
+
+        .glass-card-dark {
+            background: rgba(26, 28, 35, 0.85);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-card-light {
+            background: rgba(255, 255, 255, 0.95);
+            color: #121316;
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+        }
+
+        .accent-button {
+            background: #ff5500;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 10px 25px -5px rgba(255, 85, 0, 0.4);
+        }
+
+        .accent-button:hover {
+            background: #e04b00;
+            transform: translateY(-2px);
+            box-shadow: 0 15px 30px -5px rgba(255, 85, 0, 0.6);
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #121316;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2b2d35;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #ff5500;
+        }
+    </style>
+</head>
+<body class="antialiased selection:bg-orange-500 selection:text-white">
+
+    <header class="fixed top-0 left-0 right-0 z-50 bg-[#121316]/90 backdrop-blur-md border-b border-white/10 transition-all duration-300" id="navbar">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-20">
+                <!-- Logo -->
+                <a href="#" class="flex items-center gap-3 group">
+                    <div class="flex flex-col">
+                        <span class="font-black text-xl sm:text-2xl tracking-tight text-white leading-none">
+                            СУШКА ТЕЛА <span class="text-zinc-500 text-base font-normal">/ SHREDDED BODY</span>
+                        </span>
+                    </div>
+                </a>
+
+                <!-- Desktop Navigation -->
+                <nav class="hidden md:flex items-center space-x-8 text-xs font-bold uppercase tracking-wider text-zinc-300">
+                    <a href="#programs" class="hover:text-white transition-colors">Программы</a>
+                    <a href="#workouts" class="hover:text-white transition-colors">Тренировки</a>
+                    <a href="#nutrition" class="hover:text-white transition-colors">Питание</a>
+                    <a href="#calculator" class="hover:text-white transition-colors">Калькулятор</a>
+                    <a href="#pricing" class="hover:text-white transition-colors">Тарифы</a>
+                </nav>
+
+                <!-- Auth/CTA Button -->
+                <div class="hidden md:flex items-center gap-4">
+                    <button onclick="openModal('Вход в личный кабинет')" class="text-xs font-bold uppercase text-zinc-300 hover:text-white tracking-wider px-3 py-2">
+                        Войти
+                    </button>
+                    <a href="#pricing" class="accent-button text-white font-extrabold text-xs uppercase tracking-wider px-6 py-3 rounded-xl">
+                        Начать путь
+                    </a>
+                </div>
+
+                <!-- Mobile Menu Button -->
+                <div class="md:hidden flex items-center">
+                    <button id="mobile-menu-btn" class="text-zinc-300 hover:text-white p-2">
+                        <i class="fa-solid fa-bars text-2xl"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Menu -->
+        <div id="mobile-menu" class="hidden md:hidden bg-[#1a1c23] border-b border-white/10 px-4 pt-4 pb-6 space-y-3">
+            <a href="#programs" class="block text-zinc-300 hover:text-white py-2 font-semibold">Программы</a>
+            <a href="#workouts" class="block text-zinc-300 hover:text-white py-2 font-semibold">Тренировки</a>
+            <a href="#nutrition" class="block text-zinc-300 hover:text-white py-2 font-semibold">Питание</a>
+            <a href="#calculator" class="block text-zinc-300 hover:text-white py-2 font-semibold">Калькулятор</a>
+            <a href="#pricing" class="block text-zinc-300 hover:text-white py-2 font-semibold">Тарифы</a>
+            <div class="pt-4 border-t border-white/10 flex flex-col gap-2">
+                <button onclick="openModal('Вход в личный кабинет')" class="w-full py-3 text-center text-zinc-300 font-bold uppercase text-xs">Войти</button>
+                <a href="#pricing" class="w-full text-center py-3 accent-button text-white font-bold rounded-xl text-xs uppercase">Начать путь</a>
+            </div>
+        </div>
+    </header>
+
+    <section class="relative pt-28 pb-20 md:pt-36 md:pb-32 hero-split-bg overflow-hidden min-h-screen flex items-center">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full">
+            <div class="grid lg:grid-cols-12 gap-12 items-center">
+                
+                <!-- Left Content (Dark Side) -->
+                <div class="lg:col-span-6 space-y-8 text-left">
+                    <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[11px] font-bold uppercase tracking-widest text-zinc-400">
+                        <span class="w-2 h-2 rounded-full bg-accent-orange animate-ping"></span>
+                        Старт нового потока через 3 дня
+                    </div>
+
+                    <h1 class="text-4xl sm:text-6xl xl:text-7xl font-black uppercase tracking-tight text-white leading-[0.95]">
+                        ТРАНСФОРМИРУЙ <br>
+                        СВОЁ ТЕЛО <br>
+                        <span class="text-zinc-400">ЗА 8 НЕДЕЛЬ</span>
+                    </h1>
+
+                    <p class="text-base sm:text-lg text-zinc-400 max-w-xl font-normal leading-relaxed">
+                        Присоединяйся к мощной программе жиросжигания для получения гарантированного атлетичного рельефа и максимального результата.
+                    </p>
+
+                    <!-- Primary Action Button -->
+                    <div class="pt-2">
+                        <a href="#pricing" class="inline-flex items-center justify-between gap-6 px-8 py-5 bg-white hover:bg-zinc-100 text-black font-black text-sm uppercase tracking-wider rounded-2xl shadow-2xl transition-all border-r-8 border-accent-orange group transform hover:-translate-y-1">
+                            <span>НАЧАТЬ ТРАНСФОРМАЦИЮ СЕЙЧАС</span>
+                            <i class="fa-solid fa-arrow-right text-accent-orange group-hover:translate-x-1 transition-transform"></i>
+                        </a>
+                    </div>
+
+                    <!-- Feature Badges Under Hero -->
+                    <div class="grid grid-cols-3 gap-4 pt-8 border-t border-white/10">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-zinc-300">
+                                <i class="fa-solid fa-bullseye"></i>
+                            </div>
+                            <div class="text-xs">
+                                <span class="font-bold block text-white uppercase">Экспертный</span>
+                                <span class="text-zinc-500">контроль</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-zinc-300">
+                                <i class="fa-solid fa-clipboard-list"></i>
+                            </div>
+                            <div class="text-xs">
+                                <span class="font-bold block text-white uppercase">Персональное</span>
+                                <span class="text-zinc-500">меню БЖУ</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-zinc-300">
+                                <i class="fa-solid fa-circle-check"></i>
+                            </div>
+                            <div class="text-xs">
+                                <span class="font-bold block text-white uppercase">Проверенные</span>
+                                <span class="text-zinc-500">тренировки</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Visual Side (Light Side Accent) -->
+                <div class="lg:col-span-6 relative flex justify-center items-center">
+                    <div class="w-full max-w-md lg:max-w-none relative">
+                        
+                        <!-- Athletic Graphic Overlay Card -->
+                        <div class="glass-card-dark rounded-3xl p-8 relative overflow-hidden border border-white/10 shadow-2xl">
+                            <div class="absolute top-0 right-0 w-32 h-32 bg-accent-orange/10 rounded-full blur-3xl"></div>
+                            
+                            <!-- Visual Representation Body Outline -->
+                            <div class="w-full h-80 sm:h-96 rounded-2xl bg-gradient-to-b from-zinc-800 to-zinc-900 border border-white/10 flex flex-col items-center justify-center relative overflow-hidden">
+                                <svg class="w-44 h-44 text-zinc-700 opacity-50" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 2a2 2 0 100 4 2 2 0 000-4zm-1.5 5h3a2 2 0 012 2v4.5a1 1 0 01-2 0V11h-1v10a1 1 0 01-2 0V11h-1v2.5a1 1 0 01-2 0V9a2 2 0 012-2z"/>
+                                </svg>
+                                <div class="absolute inset-x-0 bottom-0 p-6 bg-gradient-to-t from-black via-black/80 to-transparent">
+                                    <span class="text-[10px] font-extrabold uppercase tracking-widest text-accent-orange">Результат за 60 дней</span>
+                                    <h3 class="text-xl font-black text-white uppercase">Сухой рельеф и тонус</h3>
+                                    <p class="text-xs text-zinc-400 mt-1">Сжигаем подкожный жир, сохраняя мышцы</p>
+                                </div>
+                            </div>
+
+                            <!-- Floating Secondary Callout Card -->
+                            <div class="mt-6 bg-zinc-900/90 p-4 rounded-2xl border border-white/10 flex items-center justify-between">
+                                <div>
+                                    <div class="text-xs font-bold text-white uppercase">Готов изменить своё тело?</div>
+                                    <div class="text-[11px] text-zinc-400">Получи доступ к личному кабинету</div>
+                                </div>
+                                <a href="#pricing" class="px-4 py-2 bg-accent-orange text-white font-bold text-xs uppercase rounded-lg hover:bg-accent-orangeHover transition-colors">
+                                    Старт
+                                </a>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <section id="programs" class="py-24 bg-[#121316] relative border-t border-white/10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center max-w-3xl mx-auto mb-16">
+                <span class="text-xs font-bold uppercase tracking-widest text-accent-orange">Фундамент программы</span>
+                <h2 class="text-3xl sm:text-5xl font-black uppercase mt-2 text-white">План сушки и сжигания жира</h2>
+                <p class="text-zinc-400 mt-4 text-sm sm:text-base">Всё, что вам нужно для достижения идеальной формы в одной понятной системе.</p>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8">
+                <!-- Program Feature 1 -->
+                <div id="workouts" class="glass-card-dark rounded-3xl p-8 border border-white/10 hover:border-accent-orange/50 transition-all">
+                    <div class="w-12 h-12 rounded-2xl bg-accent-orange/10 text-accent-orange flex items-center justify-center text-xl font-bold mb-6">
+                        <i class="fa-solid fa-dumbbell"></i>
+                    </div>
+                    <h3 class="text-xl font-black uppercase text-white mb-3">Силовые & ВИИТ</h3>
+                    <p class="text-zinc-400 text-sm leading-relaxed mb-6">
+                        План тренировок для дома или зала. Интенсивные комплексы для ускорения метаболизма и максимального расхода калорий.
+                    </p>
+                    <ul class="space-y-2 text-xs text-zinc-300 pt-4 border-t border-white/10">
+                        <li class="flex items-center gap-2"><i class="fa-solid fa-check text-accent-orange"></i> Видеоинструкция к каждому упражнению</li>
+                        <li class="flex items-center gap-2"><i class="fa-solid fa-check text-accent-orange"></i> Варианты без дополнительного оборудования</li>
+                    </ul>
+                </div>
+
+                <!-- Program Feature 2 -->
+                <div id="nutrition" class="glass-card-dark rounded-3xl p-8 border border-white/10 hover:border-accent-orange/50 transition-all">
+                    <div class="w-12 h-12 rounded-2xl bg-white/10 text-white flex items-center justify-center text-xl font-bold mb-6">
+                        <i class="fa-solid fa-apple-whole"></i>
+                    </div>
+                    <h3 class="text-xl font-black uppercase text-white mb-3">Рацион Питания</h3>
+                    <p class="text-zinc-400 text-sm leading-relaxed mb-6">
+                        Персональный расчёт КБЖУ с учётом ваших параметров. Готовое меню из доступных продуктов без сильного чувства голода.
+                    </p>
+                    <ul class="space-y-2 text-xs text-zinc-300 pt-4 border-t border-white/10">
+                        <li class="flex items-center gap-2"><i class="fa-solid fa-check text-accent-orange"></i> Гибкая замена продуктов</li>
+                        <li class="flex items-center gap-2"><i class="fa-solid fa-check text-accent-orange"></i> Книга быстрых ПП-рецептов</li>
+                    </ul>
+                </div>
+
+                <!-- Program Feature 3 -->
+                <div class="glass-card-dark rounded-3xl p-8 border border-white/10 hover:border-accent-orange/50 transition-all">
+                    <div class="w-12 h-12 rounded-2xl bg-white/10 text-white flex items-center justify-center text-xl font-bold mb-6">
+                        <i class="fa-solid fa-chart-line"></i>
+                    </div>
+                    <h3 class="text-xl font-black uppercase text-white mb-3">Контроль и Отчеты</h3>
+                    <p class="text-zinc-400 text-sm leading-relaxed mb-6">
+                        Еженедельный мониторинг веса и объемов. Корректировка программы под ваши индивидуальные темпы похудения.
+                    </p>
+                    <ul class="space-y-2 text-xs text-zinc-300 pt-4 border-t border-white/10">
+                        <li class="flex items-center gap-2"><i class="fa-solid fa-check text-accent-orange"></i> Связь с наставником 24/7</li>
+                        <li class="flex items-center gap-2"><i class="fa-solid fa-check text-accent-orange"></i> Защита от срывов и отката</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="calculator" class="py-24 bg-[#181a20] relative border-t border-b border-white/10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center max-w-3xl mx-auto mb-16">
+                <span class="text-xs font-bold uppercase tracking-widest text-accent-orange">Онлайн Расчет</span>
+                <h2 class="text-3xl sm:text-5xl font-black uppercase mt-2 text-white">Калькулятор Калорий и БЖУ</h2>
+                <p class="text-zinc-400 mt-4 text-sm sm:text-base">Рассчитайте идеальную суточную норму питания для эффективного жиросжигания прямо сейчас.</p>
+            </div>
+
+            <div class="grid lg:grid-cols-12 gap-8 items-start">
+                
+                <!-- Input Controls Card -->
+                <div class="lg:col-span-7 glass-card-dark rounded-3xl p-6 sm:p-8 space-y-6 border border-white/10">
+                    
+                    <!-- Gender Picker -->
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-zinc-400 mb-3">Ваш Пол</label>
+                        <div class="grid grid-cols-2 gap-4">
+                            <button type="button" id="gender-male" onclick="setGender('male')" class="gender-btn active py-3 rounded-xl border border-accent-orange bg-accent-orange text-white font-bold text-sm flex items-center justify-center gap-2 transition-all">
+                                <i class="fa-solid fa-mars text-base"></i>
+                                Мужчина
+                            </button>
+                            <button type="button" id="gender-female" onclick="setGender('female')" class="gender-btn py-3 rounded-xl border border-white/10 bg-zinc-900/60 text-zinc-400 hover:text-white font-bold text-sm flex items-center justify-center gap-2 transition-all">
+                                <i class="fa-solid fa-venus text-base"></i>
+                                Женщина
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Metrics Inputs -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label for="input-age" class="block text-xs font-bold uppercase text-zinc-400 mb-2">Возраст (лет)</label>
+                            <input type="number" id="input-age" value="26" min="16" max="80" oninput="calculateMacros()" class="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent-orange font-semibold text-center">
+                        </div>
+                        <div>
+                            <label for="input-weight" class="block text-xs font-bold uppercase text-zinc-400 mb-2">Вес (кг)</label>
+                            <input type="number" id="input-weight" value="72" min="40" max="200" oninput="calculateMacros()" class="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent-orange font-semibold text-center">
+                        </div>
+                        <div>
+                            <label for="input-height" class="block text-xs font-bold uppercase text-zinc-400 mb-2">Рост (см)</label>
+                            <input type="number" id="input-height" value="176" min="130" max="220" oninput="calculateMacros()" class="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent-orange font-semibold text-center">
+                        </div>
+                    </div>
+
+                    <!-- Physical Activity Level -->
+                    <div>
+                        <label for="input-activity" class="block text-xs font-bold uppercase text-zinc-400 mb-2">Уровень физической активности</label>
+                        <select id="input-activity" onchange="calculateMacros()" class="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent-orange font-medium text-sm">
+                            <option value="1.2">Низкая (сидячий образ жизни)</option>
+                            <option value="1.375" selected>Умеренная (тренировки 2–3 раза в неделю)</option>
+                            <option value="1.55">Высокая (тренировки 4–5 раз в неделю)</option>
+                            <option value="1.725">Экстремальная (интенсивный спорт каждый день)</option>
+                        </select>
+                    </div>
+
+                    <!-- Target Deficit -->
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-zinc-400 mb-2">Дефицит Калорий</label>
+                        <div class="grid grid-cols-3 gap-3">
+                            <button type="button" onclick="setDeficit(0.15, this)" class="deficit-btn py-2.5 rounded-xl border border-white/10 bg-zinc-900 text-zinc-300 text-xs font-bold hover:bg-zinc-800 transition-all">Мягкий (-15%)</button>
+                            <button type="button" onclick="setDeficit(0.20, this)" class="deficit-btn active py-2.5 rounded-xl border border-accent-orange bg-accent-orange text-white text-xs font-bold transition-all">Оптимальный (-20%)</button>
+                            <button type="button" onclick="setDeficit(0.25, this)" class="deficit-btn py-2.5 rounded-xl border border-white/10 bg-zinc-900 text-zinc-300 text-xs font-bold hover:bg-zinc-800 transition-all">Максимальный (-25%)</button>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Calculator Output Display -->
+                <div class="lg:col-span-5 glass-card-dark rounded-3xl p-6 sm:p-8 border border-white/20 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-6 pb-4 border-b border-white/10">
+                            <h3 class="font-extrabold text-lg uppercase tracking-wide text-white">Твой Рацион Сушки</h3>
+                            <span class="text-[10px] bg-accent-orange/20 text-accent-orange px-3 py-1 rounded-full font-extrabold uppercase">Расчёт точный</span>
+                        </div>
+
+                        <!-- Target Calories Badge -->
+                        <div class="text-center py-6 bg-zinc-900/90 rounded-2xl border border-white/10 mb-6">
+                            <div class="text-xs uppercase font-bold text-zinc-400 mb-1">Рекомендуемая суточная норма</div>
+                            <div class="text-5xl font-black text-white" id="res-calories">1 780</div>
+                            <div class="text-xs text-zinc-500 mt-1">ккал / день</div>
+                        </div>
+
+                        <!-- BJU Macro Progress Bars -->
+                        <div class="space-y-4">
+                            <!-- Protein -->
+                            <div>
+                                <div class="flex justify-between text-xs font-bold mb-1">
+                                    <span class="text-zinc-300">Белки (40%)</span>
+                                    <span class="text-white" id="res-protein">178 г</span>
+                                </div>
+                                <div class="w-full h-2.5 bg-zinc-800 rounded-full overflow-hidden">
+                                    <div class="h-full bg-accent-orange rounded-full transition-all duration-500" id="bar-protein" style="width: 40%"></div>
+                                </div>
+                            </div>
+
+                            <!-- Fats -->
+                            <div>
+                                <div class="flex justify-between text-xs font-bold mb-1">
+                                    <span class="text-zinc-300">Жиры (25%)</span>
+                                    <span class="text-white" id="res-fats">49 г</span>
+                                </div>
+                                <div class="w-full h-2.5 bg-zinc-800 rounded-full overflow-hidden">
+                                    <div class="h-full bg-zinc-300 rounded-full transition-all duration-500" id="bar-fats" style="width: 25%"></div>
+                                </div>
+                            </div>
+
+                            <!-- Carbs -->
+                            <div>
+                                <div class="flex justify-between text-xs font-bold mb-1">
+                                    <span class="text-zinc-300">Углеводы (35%)</span>
+                                    <span class="text-white" id="res-carbs">155 г</span>
+                                </div>
+                                <div class="w-full h-2.5 bg-zinc-800 rounded-full overflow-hidden">
+                                    <div class="h-full bg-zinc-500 rounded-full transition-all duration-500" id="bar-carbs" style="width: 35%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-8 pt-6 border-t border-white/10">
+                        <button onclick="openModal('Получение персонального меню по калькулятору')" class="w-full py-4 accent-button text-white font-extrabold rounded-2xl text-xs uppercase tracking-wider">
+                            Получить меню под эти цифры
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <section id="pricing" class="py-24 bg-[#121316] relative">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center max-w-3xl mx-auto mb-20">
+                <span class="text-xs font-bold uppercase tracking-widest text-accent-orange">Тарифные Планы</span>
+                <h2 class="text-3xl sm:text-5xl font-black uppercase mt-2 text-white">Выбери вариант участия</h2>
+                <p class="text-zinc-400 mt-4 text-sm sm:text-base">Забронируй место со скидкой до начала нового потока.</p>
+            </div>
+
+            <div class="grid lg:grid-cols-3 gap-8 items-stretch">
+                
+                <!-- Plan 1 -->
+                <div class="glass-card-dark rounded-3xl p-8 flex flex-col justify-between border border-white/10 hover:border-white/20 transition-all">
+                    <div>
+                        <div class="text-xs uppercase font-bold text-zinc-400 tracking-wider">Самостоятельный</div>
+                        <h3 class="text-2xl font-black uppercase text-white mt-1">БАЗОВЫЙ</h3>
+                        <p class="text-xs text-zinc-400 mt-2">Полная программа тренировок и питания для самостоятельного прохождения.</p>
+
+                        <div class="my-6">
+                            <span class="text-4xl font-black text-white">4 900 ₽</span>
+                            <span class="text-xs text-zinc-500 block mt-1">доступ на 8 недель</span>
+                        </div>
+
+                        <ul class="space-y-3 text-xs text-zinc-300 my-6 border-t border-white/10 pt-6">
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-check text-accent-orange"></i> План тренировок (Дом / Зал)</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-check text-accent-orange"></i> Персональный расчёт КБЖУ</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-check text-accent-orange"></i> База из 100+ ПП-рецептов</li>
+                            <li class="flex items-center gap-3 text-zinc-600 line-through"><i class="fa-solid fa-xmark"></i> Чат с личным куратором</li>
+                            <li class="flex items-center gap-3 text-zinc-600 line-through"><i class="fa-solid fa-xmark"></i> Проверка техники упражнений</li>
+                        </ul>
+                    </div>
+
+                    <button onclick="openModal('Тариф БАЗОВЫЙ')" class="w-full py-4 bg-zinc-900 hover:bg-zinc-800 text-white font-bold rounded-2xl border border-white/10 transition-all uppercase text-xs tracking-wider">
+                        Выбрать Базовый
+                    </button>
+                </div>
+
+                <!-- Plan 2 (Highlighted) -->
+                <div class="glass-card-dark rounded-3xl p-8 flex flex-col justify-between border-2 border-accent-orange bg-zinc-900/95 shadow-2xl relative scale-105 z-10">
+                    <div class="absolute -top-4 left-1/2 -translate-x-1/2 bg-accent-orange text-white text-[10px] uppercase font-black tracking-widest px-4 py-1.5 rounded-full shadow-lg">
+                        Хит Продаж
+                    </div>
+
+                    <div>
+                        <div class="text-xs uppercase font-bold text-accent-orange tracking-wider">С сопровождением</div>
+                        <h3 class="text-2xl font-black uppercase text-white mt-1">PRO КУРАТОР</h3>
+                        <p class="text-xs text-zinc-400 mt-2">Максимальный результат с постоянным контролем и поддержкой фитнес-эксперта.</p>
+
+                        <div class="my-6">
+                            <span class="text-4xl font-black text-white">8 900 ₽</span>
+                            <span class="text-xs text-zinc-500 block mt-1">доступ + ведение куратора</span>
+                        </div>
+
+                        <ul class="space-y-3 text-xs text-zinc-300 my-6 border-t border-white/10 pt-6">
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-check text-accent-orange"></i> Всё из тарифа Базовый</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-check text-accent-orange"></i> Личный куратор 24/7 в чате</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-check text-accent-orange"></i> Еженедельная коррекция рациона</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-check text-accent-orange"></i> Проверка видео техники</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-check text-accent-orange"></i> Закрытый чат участников</li>
+                        </ul>
+                    </div>
+
+                    <button onclick="openModal('Тариф PRO КУРАТОР')" class="w-full py-4 accent-button text-white font-extrabold rounded-2xl transition-all uppercase text-xs tracking-wider">
+                        Выбрать PRO
+                    </button>
+                </div>
+
+                <!-- Plan 3 -->
+                <div class="glass-card-dark rounded-3xl p-8 flex flex-col justify-between border border-white/10 hover:border-white/20 transition-all">
+                    <div>
+                        <div class="text-xs uppercase font-bold text-zinc-400 tracking-wider">Индивидуально</div>
+                        <h3 class="text-2xl font-black uppercase text-white mt-1">VIP 1-ON-1</h3>
+                        <p class="text-xs text-zinc-400 mt-2">Персональная работа напрямую с главным тренером программы.</p>
+
+                        <div class="my-6">
+                            <span class="text-4xl font-black text-white">19 900 ₽</span>
+                            <span class="text-xs text-zinc-500 block mt-1">VIP-сопровождение</span>
+                        </div>
+
+                        <ul class="space-y-3 text-xs text-zinc-300 my-6 border-t border-white/10 pt-6">
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-check text-accent-orange"></i> Всё из тарифа PRO</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-check text-accent-orange"></i> Лично главный тренер на связи</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-check text-accent-orange"></i> Еженедельные онлайн Zoom-созвоны</li>
+                            <li class="flex items-center gap-3"><i class="fa-solid fa-check text-accent-orange"></i> Индивидуальный подбор спорпита</li>
+                        </ul>
+                    </div>
+
+                    <button onclick="openModal('Тариф VIP 1-ON-1')" class="w-full py-4 bg-zinc-900 hover:bg-zinc-800 text-white font-bold rounded-2xl border border-white/10 transition-all uppercase text-xs tracking-wider">
+                        Выбрать VIP
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <section id="faq" class="py-24 bg-[#181a20] relative border-t border-white/10">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <span class="text-xs font-bold uppercase tracking-widest text-accent-orange">Частые Вопросы</span>
+                <h2 class="text-3xl sm:text-5xl font-black uppercase mt-2 text-white">Вопросы и Ответы</h2>
+            </div>
+
+            <div class="space-y-4">
+                <div class="glass-card-dark rounded-2xl p-6 cursor-pointer border border-white/10" onclick="toggleFaq(this)">
+                    <div class="flex justify-between items-center">
+                        <h4 class="font-bold text-white text-base">Подходит ли программа новичкам?</h4>
+                        <i class="fa-solid fa-chevron-down text-zinc-400 transition-transform"></i>
+                    </div>
+                    <p class="faq-ans text-zinc-400 text-sm mt-4 hidden">
+                        Да, программа включает вариативность нагрузки. Каждое упражнение имеет подробный разбор техники и облегченные модификации для начинающих.
+                    </p>
+                </div>
+
+                <div class="glass-card-dark rounded-2xl p-6 cursor-pointer border border-white/10" onclick="toggleFaq(this)">
+                    <div class="flex justify-between items-center">
+                        <h4 class="font-bold text-white text-base">Можно ли заниматься только дома?</h4>
+                        <i class="fa-solid fa-chevron-down text-zinc-400 transition-transform"></i>
+                    </div>
+                    <p class="faq-ans text-zinc-400 text-sm mt-4 hidden">
+                        Да! В личном кабинете доступна полноценная домашняя программа тренировок с собственным весом, фитнес-резинками или гантелями.
+                    </p>
+                </div>
+
+                <div class="glass-card-dark rounded-2xl p-6 cursor-pointer border border-white/10" onclick="toggleFaq(this)">
+                    <div class="flex justify-between items-center">
+                        <h4 class="font-bold text-white text-base">Придётся ли голодать на сушке?</h4>
+                        <i class="fa-solid fa-chevron-down text-zinc-400 transition-transform"></i>
+                    </div>
+                    <p class="faq-ans text-zinc-400 text-sm mt-4 hidden">
+                        Категорически нет. Наша методическая база строится на умеренном адекватном дефиците калорий с достаточным содержанием белков и сложных углеводов.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="border-t border-white/10 py-12 bg-[#0d0e11]">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
+            <div class="flex items-center gap-3">
+                <span class="font-black tracking-tight text-base text-white">
+                    СУШКА ТЕЛА <span class="text-zinc-500 font-normal">/ SHREDDED BODY</span>
+                </span>
+            </div>
+
+            <div class="text-xs text-zinc-500 text-center md:text-left">
+                © 2026 СУШКА ТЕЛА / SHREDDED BODY. Все права защищены.
+            </div>
+
+            <div class="flex space-x-6 text-zinc-400">
+                <a href="#" class="hover:text-accent-orange transition-colors"><i class="fa-brands fa-telegram text-xl"></i></a>
+                <a href="#" class="hover:text-accent-orange transition-colors"><i class="fa-brands fa-vk text-xl"></i></a>
+                <a href="#" class="hover:text-accent-orange transition-colors"><i class="fa-brands fa-youtube text-xl"></i></a>
+            </div>
+        </div>
+    </footer>
+
+    <div id="order-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md hidden p-4">
+        <div class="glass-card-dark rounded-3xl max-w-md w-full p-8 border border-white/20 relative">
+            <button onclick="closeModal()" class="absolute top-6 right-6 text-zinc-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+
+            <h3 class="text-2xl font-black uppercase text-white mb-2">Начать путь</h3>
+            <p class="text-xs text-zinc-400 mb-6">Выбрано направление: <span id="modal-tariff-name" class="font-bold text-accent-orange">PRO КУРАТОР</span></p>
+
+            <form onsubmit="handleFormSubmit(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold uppercase text-zinc-400 mb-1">Имя</label>
+                    <input type="text" required placeholder="Александр" class="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent-orange text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase text-zinc-400 mb-1">Телефон / Telegram</label>
+                    <input type="text" required placeholder="+7 (999) 000-00-00 или @username" class="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent-orange text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase text-zinc-400 mb-1">Электронная почта</label>
+                    <input type="email" required placeholder="example@mail.ru" class="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent-orange text-sm">
+                </div>
+
+                <button type="submit" class="w-full py-4 accent-button text-white font-extrabold rounded-xl text-xs tracking-wider uppercase mt-4">
+                    Забронировать участие
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let currentGender = 'male';
+        let currentDeficit = 0.20;
+
+        // Mobile Menu toggle
+        const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+        const mobileMenu = document.getElementById('mobile-menu');
+        mobileMenuBtn.addEventListener('click', () => {
+            mobileMenu.classList.toggle('hidden');
+        });
+
+        // Set Gender
+        function setGender(gender) {
+            currentGender = gender;
+            const maleBtn = document.getElementById('gender-male');
+            const femaleBtn = document.getElementById('gender-female');
+
+            if (gender === 'male') {
+                maleBtn.className = "gender-btn active py-3 rounded-xl border border-accent-orange bg-accent-orange text-white font-bold text-sm flex items-center justify-center gap-2 transition-all";
+                femaleBtn.className = "gender-btn py-3 rounded-xl border border-white/10 bg-zinc-900/60 text-zinc-400 hover:text-white font-bold text-sm flex items-center justify-center gap-2 transition-all";
+            } else {
+                femaleBtn.className = "gender-btn active py-3 rounded-xl border border-accent-orange bg-accent-orange text-white font-bold text-sm flex items-center justify-center gap-2 transition-all";
+                maleBtn.className = "gender-btn py-3 rounded-xl border border-white/10 bg-zinc-900/60 text-zinc-400 hover:text-white font-bold text-sm flex items-center justify-center gap-2 transition-all";
+            }
+            calculateMacros();
+        }
+
+        // Set Deficit Level
+        function setDeficit(val, btnElement) {
+            currentDeficit = val;
+            document.querySelectorAll('.deficit-btn').forEach(btn => {
+                btn.className = "deficit-btn py-2.5 rounded-xl border border-white/10 bg-zinc-900 text-zinc-300 text-xs font-bold hover:bg-zinc-800 transition-all";
+            });
+            btnElement.className = "deficit-btn active py-2.5 rounded-xl border border-accent-orange bg-accent-orange text-white text-xs font-bold transition-all";
+            calculateMacros();
+        }
+
+        // BMR/TDEE & Macro Calculator
+        function calculateMacros() {
+            const age = parseFloat(document.getElementById('input-age').value) || 25;
+            const weight = parseFloat(document.getElementById('input-weight').value) || 70;
+            const height = parseFloat(document.getElementById('input-height').value) || 175;
+            const activity = parseFloat(document.getElementById('input-activity').value) || 1.375;
+
+            // Mifflin-St Jeor Formula
+            let bmr = (10 * weight) + (6.25 * height) - (5 * age);
+            bmr = currentGender === 'male' ? bmr + 5 : bmr - 161;
+
+            const tdee = bmr * activity;
+            const targetCalories = Math.round(tdee * (1 - currentDeficit));
+
+            // Macro ratio (Protein 40%, Fat 25%, Carbs 35%)
+            const proteinGrams = Math.round((targetCalories * 0.40) / 4);
+            const fatGrams = Math.round((targetCalories * 0.25) / 9);
+            const carbsGrams = Math.round((targetCalories * 0.35) / 4);
+
+            document.getElementById('res-calories').innerText = targetCalories.toLocaleString('ru-RU');
+            document.getElementById('res-protein').innerText = `${proteinGrams} г`;
+            document.getElementById('res-fats').innerText = `${fatGrams} г`;
+            document.getElementById('res-carbs').innerText = `${carbsGrams} г`;
+        }
+
+        // FAQ Toggle
+        function toggleFaq(element) {
+            const ans = element.querySelector('.faq-ans');
+            const icon = element.querySelector('i');
+            ans.classList.toggle('hidden');
+            icon.classList.toggle('rotate-180');
+        }
+
+        // Modal Handler
+        function openModal(tariffName) {
+            document.getElementById('modal-tariff-name').innerText = tariffName;
+            document.getElementById('order-modal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('order-modal').classList.add('hidden');
+        }
+
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            alert('Спасибо за вашу заявку! Наш куратор свяжется с вами в течение 10 минут.');
+            closeModal();
+        }
+
+        window.onload = function() {
+            calculateMacros();
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<!-- Рекламная страница-заготовка: Свадебный салон.
+     Сгенерировано tools/make_ads.py из материалов в site/demo.
+     Бизнеса за ней нет — поэтому пометка о демо обязательна и стоит
+     первым экраном, а не в подвале. -->
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Свадебный салон — демо-заготовка</title>
+<meta name="description" content="Платья, которые ждали этого дня. Демонстрационная страница: бизнеса не существует, цены и контакты выдуманы.">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Плашка о демо. В макете стоит телефон «+7 (800) 555-01-23» и
+     обещание доставки за 30 минут: для опубликованной страницы это
+     выдумка, на которую поведут. Поэтому плашка первым экраном. -->
+<div class="demo" role="note">
+  <strong>Демо-заготовка.</strong> Салона не существует. Цены, коллекции и условия выдуманы. Вёрстка и оформление —
+  рабочие, наполнение — пример.
+</div>
+
+<header class="head">
+  <a class="brand" href="#">БЕЛЫЙ САД</a>
+  <a class="to-catalog" href="/catalog.html">ко всем страницам</a>
+</header>
+
+<section class="hero">
+  <img class="hero__pic" src="hero.jpg" alt="" width="1600"
+       height="800" decoding="async">
+  <div class="hero__body">
+    <h1>Свадебный салон</h1>
+    <p class="lead">Платья, которые ждали этого дня</p>
+    <a class="cta" href="#cards">смотреть</a>
+  </div>
+</section>
+
+<section id="cards" class="block">
+  <h2>Предложение</h2>
+  <div class="grid">
+      <article class="card">
+        <img class="card__pic" src="card-1.jpg" alt="" loading="lazy"
+             decoding="async">
+        <h3>Коллекция 2026</h3>
+        <p class="card__price">от 24 000 ₽</p>
+      </article>
+  </div>
+</section>
+
+<section class="block">
+  <h2>Почему к нам</h2>
+  <ul class="features">
+      <li>
+        <h3>Примерка</h3>
+        <p>Полтора часа с бесплатным консультантом</p>
+      </li>
+      <li>
+        <h3>Подгонка</h3>
+        <p>По фигуре, срок — от двух недель</p>
+      </li>
+      <li>
+        <h3>Хранение</h3>
+        <p>Платье доживает до вашей даты</p>
+      </li>
+  </ul>
+</section>
+
+<footer class="foot">
+  <p class="foot__demo">Салона не существует. Цены, коллекции и условия выдуманы.</p>
+  <p class="foot__note">
+    Страница собрана из макета в <code>site/demo</code>. Внешних
+    загрузок нет: шрифты системные, картинки лежат рядом.
+  </p>
+</footer>
+
+</body>
+</html>

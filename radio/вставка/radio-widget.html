@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<!--
+  Радио для вставки в любой сайт.
+
+  Готовый файл: кладётся рядом со страницей и вставляется одним
+  iframe. Ничего пересобирать не нужно.
+
+  Как пользоваться — см. README в папке radio.
+
+  Почему iframe: плеер изолирован от страницы. Сайт не сломает
+  плеер, плеер не сломает сайт. И подключение — копированием
+  одного файла, без правок чужого кода.
+-->
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Радио</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0;
+    background: #14100c;
+    color: #f0e6d8;
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { padding: 16px; }
+  h1 { font-size: 17px; margin: 0 0 4px; letter-spacing: .02em; }
+  .sub { font-size: 12px; color: #9c8b76; margin: 0 0 14px; }
+  audio { width: 100%; margin-bottom: 14px; }
+  .list { display: grid; gap: 6px; max-height: 300px;
+          overflow-y: auto; }
+  button {
+    text-align: left; padding: 9px 11px; border-radius: 8px;
+    border: 1px solid #3a2f24; background: #1e1811; color: #e8dccb;
+    cursor: pointer; font: inherit; font-size: 14px;
+  }
+  button:hover { background: #2a2117; border-color: #56432f; }
+  button[aria-pressed="true"] {
+    background: #3d2c18; border-color: #b07d3f; color: #ffdca8;
+  }
+  .genre { font-size: 12px; color: #9c8b76; margin-left: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Радио</h1>
+  <p class="sub">Выберите станцию — она заиграет сразу.</p>
+
+  <audio id="player" controls preload="none"></audio>
+
+  <div class="list" id="list"></div>
+</div>
+
+<script>
+// Список станций. Кладётся рядом с этим файлом и грузится отдельно,
+// чтобы список можно было править, не трогая сам плеер.
+const SOURCES = [
+  "stations.json",
+  "/music/stations.json",
+  "stations.json?v=" + Date.now()
+];
+
+async function loadStations() {
+  for (const src of SOURCES) {
+    try {
+      const response = await fetch(src, { cache: "no-store" });
+      if (!response.ok) continue;
+      const data = await response.json();
+      if (Array.isArray(data) && data.length) return data;
+    } catch (error) {
+      // Следующий адрес. Отсутствие списка не должно ронять плеер.
+    }
+  }
+  return [];
+}
+
+const list = document.getElementById("list");
+const player = document.getElementById("player");
+let current = null;
+
+function markButton(button) {
+  list.querySelectorAll("button").forEach((b) =>
+    b.setAttribute("aria-pressed", String(b === button)));
+}
+
+loadStations().then((stations) => {
+  if (!stations.length) {
+    list.textContent = "Список станций не найден.";
+    return;
+  }
+  for (const station of stations) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.setAttribute("aria-pressed", "false");
+    button.textContent = station.name;
+
+    if (station.genre) {
+      const note = document.createElement("span");
+      note.className = "genre";
+      note.textContent = station.genre;
+      button.appendChild(note);
+    }
+
+    button.addEventListener("click", () => {
+      // Повторное нажатие на играющей станции её останавливает.
+      if (current === station) {
+        player.pause();
+        current = null;
+        markButton(null);
+        return;
+      }
+      player.src = station.url;
+      player.play().catch(() => {
+        // Браузер может запретить автозапуск до первого клика.
+        // Список уже показан, нажать можно ещё раз.
+      });
+      current = station;
+      markButton(button);
+    });
+    list.appendChild(button);
+  }
+});
+</script>
+</body>
+</html>

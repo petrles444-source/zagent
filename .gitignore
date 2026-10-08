@@ -106,3 +106,58 @@ web-state/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# ---- портал Neural Archive ----
+# site-dist — результат tools\build_site.py: плоская копия сайта для
+# заливки по FTP. Собирается из site/, хранить её в репозитории незачем.
+site-dist/
+
+# Копия движка Ruffle внутри site\. Исходник один — web-static\ruffle,
+# а tools\build_site.py кладёт его в сборку сам. Двадцать восемь
+# мегабайт дубля в истории репозитория — это много и незачем.
+site/ruffle/
+# ---- PythonAnywhere и телеграм-боты ----
+# Токен API лежит в credentials.json: им заходят в аккаунт и перезаписывают
+# файлы. В репозитории ему не место; рядом лежит только схема без значения.
+hosting/pythonanywhere/credentials.json
+# Настоящий конфиг бота с ключами провайдеров и токеном Telegram.
+hosting/pythonanywhere/bots/config.json
+hosting/pythonanywhere/bots/config.local.json
+# ---- раздача решений ----
+# Готовые архивы для публикации. В репозитории им не место: это сборный
+# продукт, который пересобирается одной командой tools\build_packages.py.
+publish/
+# allvpn secrets & local data
+allvpn/data/cloudflare.json
+allvpn/data/state.json
+allvpn/data/geo.json
+allvpn/data/singbox-config.json
+allvpn/data/singbox.log
+allvpn/bin/
+
+# Добавлено при разборке корня проекта
+# Кэш моделей HuggingFace: 236 МБ, к проекту отношения не имеет
+.hf-cache/
+
+# Слепок от антивируса: появляется сам и ничего не значит
+_avast_/
+
+# Пустая папка Windows, остаётся от неудачной переадресации
+nul
+
+# База радио во временной папке: настоящая лежит в web-state/
+zagent_radio_live_*/
+
+# Рабочее пространство demo: картинки весят 84 МБ и в истории git
+# им не место. Демки в html остаются под контролем версий.
+site/demo/_assets/
+site/demo/ДУБЛИ.txt
+
+# Конфиг VPN с приватным ключом. В репозиторий не попадает
+# никогда: один неверный `git add .` — и ключ утёк.
+t.json
+
+# Проект ботов: в нём лежат токены и ключи, поэтому в
+# репозиторий он не идёт целиком. Код бота лежит в
+# hosting/pythonanywhere/bots и едет в репозиторий.
+bots/

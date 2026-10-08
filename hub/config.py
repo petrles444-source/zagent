@@ -12,6 +12,7 @@ import os
 import re
 import time
 from pathlib import Path
+import uuid
 from typing import Any
 
 CONFIG_DIRNAME = "config"
@@ -427,7 +428,12 @@ def atomic_write(path: Path, text: str) -> None:
     падать сразу значило бы изредка терять вставленный ключ из-за чужого
     сканера (живой прогон поймал именно такой отказ).
     """
-    tmp = path.with_name(path.name + ".tmp")
+    # Имя временного файла должно быть уникальным. Фиксированное `.tmp`
+    # делилось между двумя одновременными сохранениями: второй поток
+    # затирал запись первого, а затем получал FileNotFoundError на
+    # os.replace. Именно так терялись настройки и ключи: веб пишет
+    # конфиг, и в тот же момент его может писать кто-то из консоли.
+    tmp = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
     with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(text)
     error: OSError | None = None
