@@ -1,0 +1,1572 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>СОТА — цифровая студия: сайты, обложки, постеры</title>
+    <style>
+        /* === ИМПОРТ ШРИФТОВ === */
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+        /* === ПЕРЕМЕННЫЕ === */
+        :root {
+            --bg: #08080c;
+            --bg-soft: #0f0f16;
+            --bg-card: rgba(255, 255, 255, 0.03);
+            --bg-card-solid: #13131c;
+            --text: #f4f4f8;
+            --text-muted: #8b8b9e;
+            --border: rgba(255, 255, 255, 0.08);
+            --border-hover: rgba(255, 255, 255, 0.18);
+            --accent-1: #7c3aed;   /* Фиолетовый */
+            --accent-2: #ec4899;   /* Розовый */
+            --accent-3: #06b6d4;   /* Циан */
+            --gradient: linear-gradient(135deg, #7c3aed 0%, #ec4899 50%, #f59e0b 100%);
+            --gradient-soft: linear-gradient(135deg, rgba(124,58,237,0.15) 0%, rgba(236,72,153,0.15) 100%);
+            --radius: 18px;
+            --radius-sm: 12px;
+            --font-heading: 'Space Grotesk', sans-serif;
+            --font-body: 'Inter', sans-serif;
+            --transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font-body);
+            font-size: 16px;
+            line-height: 1.65;
+            -webkit-font-smoothing: antialiased;
+            overflow-x: hidden;
+        }
+
+        /* Фоновая сетка + градиентные пятна */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-image: 
+                linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: 600; line-height: 1.1; letter-spacing: -0.02em; }
+        a { color: inherit; text-decoration: none; }
+        img { max-width: 100%; display: block; object-fit: cover; }
+
+        ::selection { background: var(--accent-2); color: #fff; }
+
+        ::-webkit-scrollbar { width: 10px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: linear-gradient(var(--accent-1), var(--accent-2)); border-radius: 5px; }
+
+        /* === ОБЩИЕ === */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .section { padding: 110px 0; }
+
+        .section-head { max-width: 720px; margin-bottom: 64px; }
+        .section-head.center { margin-left: auto; margin-right: auto; text-align: center; }
+
+        .section-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.78rem;
+            font-weight: 500;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 20px;
+        }
+        .section-label::before {
+            content: '';
+            width: 24px; height: 1px;
+            background: var(--gradient);
+        }
+
+        .section-title {
+            font-size: clamp(2rem, 4.5vw, 3.4rem);
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+        .gradient-text {
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .section-sub {
+            color: var(--text-muted);
+            font-size: 1.05rem;
+            max-width: 560px;
+        }
+        .center .section-sub { margin: 0 auto; }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-family: var(--font-heading);
+            font-weight: 500;
+            font-size: 0.95rem;
+            cursor: pointer;
+            border: none;
+            transition: var(--transition);
+            white-space: nowrap;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary {
+            background: var(--gradient);
+            color: #fff;
+            box-shadow: 0 8px 24px rgba(124, 58, 237, 0.35);
+        }
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(236, 72, 153, 0.4);
+        }
+
+        .btn-ghost {
+            background: rgba(255,255,255,0.04);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        .btn-ghost:hover {
+            border-color: var(--border-hover);
+            background: rgba(255,255,255,0.08);
+            transform: translateY(-3px);
+        }
+
+        /* === НАВИГАЦИЯ === */
+        nav {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            padding: 18px 0;
+            z-index: 100;
+            transition: var(--transition);
+        }
+        nav.scrolled {
+            background: rgba(8, 8, 12, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 0;
+        }
+        .nav-inner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+        .logo {
+            font-family: var(--font-heading);
+            font-weight: 700;
+            font-size: 1.4rem;
+            letter-spacing: -0.03em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .logo-mark {
+            width: 26px; height: 26px;
+            border-radius: 7px;
+            background: var(--gradient);
+            position: relative;
+        }
+        .logo-mark::after {
+            content: '';
+            position: absolute;
+            inset: 6px;
+            background: var(--bg);
+            border-radius: 3px;
+        }
+
+        .nav-links { display: flex; gap: 32px; }
+        .nav-links a {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            transition: var(--transition);
+        }
+        .nav-links a:hover { color: var(--text); }
+
+        .nav-cta { padding: 11px 22px; font-size: 0.88rem; }
+
+        /* === HERO === */
+        .hero {
+            padding: 160px 0 100px;
+            position: relative;
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 10%; left: -10%;
+            width: 500px; height: 500px;
+            background: radial-gradient(circle, rgba(124,58,237,0.35) 0%, transparent 70%);
+            border-radius: 50%;
+            filter: blur(40px);
+            z-index: 0;
+            animation: float 12s ease-in-out infinite;
+        }
+        .hero::after {
+            content: '';
+            position: absolute;
+            bottom: 0%; right: -10%;
+            width: 550px; height: 550px;
+            background: radial-gradient(circle, rgba(236,72,153,0.28) 0%, transparent 70%);
+            border-radius: 50%;
+            filter: blur(50px);
+            z-index: 0;
+            animation: float 15s ease-in-out infinite reverse;
+        }
+
+        .hero-inner {
+            display: grid;
+            grid-template-columns: 1.1fr 0.9fr;
+            gap: 60px;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 18px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border);
+            border-radius: 50px;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            margin-bottom: 32px;
+            backdrop-filter: blur(10px);
+        }
+        .hero-badge .dot {
+            width: 7px; height: 7px;
+            background: #22c55e;
+            border-radius: 50%;
+            box-shadow: 0 0 12px #22c55e;
+            animation: pulse 2s infinite;
+        }
+
+        .hero h1 {
+            font-size: clamp(2.6rem, 5.5vw, 4.4rem);
+            margin-bottom: 26px;
+            font-weight: 600;
+        }
+        .hero p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            max-width: 520px;
+            margin-bottom: 40px;
+        }
+        .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; }
+
+        /* Визуальный блок — терминал */
+        .hero-terminal {
+            background: var(--bg-card-solid);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03);
+            backdrop-filter: blur(20px);
+        }
+        .terminal-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(255,255,255,0.02);
+        }
+        .terminal-dot { width: 11px; height: 11px; border-radius: 50%; }
+        .terminal-dot:nth-child(1) { background: #ff5f57; }
+        .terminal-dot:nth-child(2) { background: #febc2e; }
+        .terminal-dot:nth-child(3) { background: #28c840; }
+        .terminal-title {
+            margin-left: 12px;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            font-family: var(--font-body);
+        }
+
+        .terminal-body {
+            padding: 24px;
+            font-family: 'SF Mono', Menlo, monospace;
+            font-size: 0.85rem;
+            line-height: 1.9;
+        }
+        .term-line { display: flex; gap: 12px; margin-bottom: 6px; }
+        .term-num { color: #4b4b5e; min-width: 20px; user-select: none; }
+        .term-key { color: #c084fc; }
+        .term-str { color: #fbbf24; }
+        .term-fn { color: #38bdf8; }
+        .term-punc { color: #8b8b9e; }
+        .term-comment { color: #52526b; font-style: italic; }
+        .term-cursor {
+            display: inline-block;
+            width: 8px; height: 16px;
+            background: var(--accent-2);
+            vertical-align: middle;
+            animation: blink 1s step-end infinite;
+        }
+
+        .terminal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--border);
+            background: rgba(255,255,255,0.02);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        .status-dots { display: flex; gap: 6px; }
+        .status-dots span {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: #22c55e;
+        }
+
+        /* === БЕГУЩАЯ СТРОКА === */
+        .ticker {
+            padding: 24px 0;
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            overflow: hidden;
+            background: var(--bg-soft);
+            position: relative;
+        }
+        .ticker-track {
+            display: flex;
+            gap: 60px;
+            animation: scroll 40s linear infinite;
+            white-space: nowrap;
+            width: max-content;
+        }
+        .ticker-item {
+            font-family: var(--font-heading);
+            font-size: 1.6rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            transition: var(--transition);
+        }
+        .ticker-item::after {
+            content: '✦';
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 1rem;
+        }
+
+        /* === УСЛУГИ === */
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+        .service-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 32px 28px;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+        .service-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 1px;
+            background: var(--gradient);
+            opacity: 0;
+            transition: var(--transition);
+        }
+        .service-card:hover {
+            border-color: var(--border-hover);
+            transform: translateY(-6px);
+            background: rgba(255,255,255,0.05);
+        }
+        .service-card:hover::before { opacity: 1; }
+
+        .service-num {
+            font-family: var(--font-heading);
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            letter-spacing: 0.1em;
+            margin-bottom: 24px;
+            display: block;
+        }
+        .service-icon-wrap {
+            width: 52px; height: 52px;
+            border-radius: 14px;
+            background: var(--gradient-soft);
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent-2);
+            margin-bottom: 24px;
+        }
+        .service-icon-wrap svg { width: 24px; height: 24px; }
+
+        .service-card h3 {
+            font-size: 1.25rem;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+        .service-card p {
+            color: var(--text-muted);
+            font-size: 0.94rem;
+            margin-bottom: 24px;
+        }
+        .service-price {
+            font-family: var(--font-heading);
+            font-size: 1.1rem;
+            font-weight: 600;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+        }
+        .service-price .price-from {
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 1.3rem;
+        }
+        .service-price small {
+            color: var(--text-muted);
+            font-size: 0.82rem;
+            font-weight: 400;
+            font-family: var(--font-body);
+        }
+
+        /* === ПОРТФОЛИО === */
+        .portfolio { background: var(--bg-soft); }
+        .portfolio-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 20px;
+        }
+        .work-card {
+            border-radius: var(--radius);
+            overflow: hidden;
+            position: relative;
+            cursor: pointer;
+            background: var(--bg-card-solid);
+            border: 1px solid var(--border);
+            transition: var(--transition);
+        }
+        .work-card:hover {
+            border-color: var(--border-hover);
+            transform: translateY(-4px);
+        }
+        .work-card.large { grid-column: span 6; }
+        .work-card.small { grid-column: span 3; }
+        .work-card.medium { grid-column: span 4; }
+
+        .work-img {
+            height: 280px;
+            position: relative;
+            overflow: hidden;
+        }
+        .work-card.large .work-img { height: 340px; }
+        .work-img img {
+            width: 100%; height: 100%;
+            transition: transform 0.7s ease;
+            filter: brightness(0.75) saturate(0.9);
+        }
+        .work-card:hover .work-img img {
+            transform: scale(1.06);
+            filter: brightness(0.95) saturate(1.1);
+        }
+        .work-img::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, transparent 40%, rgba(8,8,12,0.95) 100%);
+        }
+        .work-info {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            padding: 24px;
+            z-index: 2;
+        }
+        .work-tag {
+            display: inline-block;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--accent-2);
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+        .work-info h4 {
+            font-size: 1.15rem;
+            margin-bottom: 6px;
+            color: #fff;
+        }
+        .work-info p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* === ПРОЦЕСС === */
+        .process-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 24px;
+            position: relative;
+        }
+        .process-grid::before {
+            content: '';
+            position: absolute;
+            top: 30px; left: 5%; right: 5%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border), var(--border), transparent);
+            z-index: 0;
+        }
+        .process-step {
+            text-align: center;
+            position: relative;
+            z-index: 1;
+        }
+        .process-num {
+            width: 60px; height: 60px;
+            margin: 0 auto 24px;
+            border-radius: 50%;
+            background: var(--bg-card-solid);
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-heading);
+            font-weight: 600;
+            font-size: 1.2rem;
+            color: var(--text);
+            position: relative;
+            transition: var(--transition);
+        }
+        .process-step:hover .process-num {
+            background: var(--gradient);
+            border-color: transparent;
+            transform: scale(1.1);
+        }
+        .process-step h4 {
+            font-size: 1.05rem;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        .process-step p {
+            font-size: 0.88rem;
+            color: var(--text-muted);
+            max-width: 220px;
+            margin: 0 auto;
+        }
+
+        /* === ЦЕНЫ === */
+        .pricing { background: var(--bg-soft); }
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            align-items: stretch;
+        }
+        .price-card {
+            background: var(--bg-card-solid);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 40px 32px;
+            display: flex;
+            flex-direction: column;
+            transition: var(--transition);
+            position: relative;
+        }
+        .price-card:hover {
+            transform: translateY(-6px);
+            border-color: var(--border-hover);
+        }
+        .price-card.featured {
+            border-color: transparent;
+            background: linear-gradient(var(--bg-card-solid), var(--bg-card-solid)) padding-box,
+                        var(--gradient) border-box;
+            border: 1px solid transparent;
+            box-shadow: 0 30px 60px rgba(124, 58, 237, 0.2);
+        }
+        .price-tag-pop {
+            position: absolute;
+            top: -13px; left: 50%;
+            transform: translateX(-50%);
+            background: var(--gradient);
+            color: #fff;
+            font-size: 0.72rem;
+            font-weight: 600;
+            padding: 6px 16px;
+            border-radius: 50px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+        .price-card h3 {
+            font-size: 1.3rem;
+            margin-bottom: 8px;
+        }
+        .price-desc {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 28px;
+            padding-bottom: 28px;
+            border-bottom: 1px solid var(--border);
+        }
+        .price-amount {
+            font-family: var(--font-heading);
+            font-size: 2.6rem;
+            font-weight: 600;
+            margin-bottom: 6px;
+            letter-spacing: -0.03em;
+        }
+        .price-amount small {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-weight: 400;
+            font-family: var(--font-body);
+        }
+        .price-features {
+            list-style: none;
+            margin: 24px 0 32px;
+            flex: 1;
+        }
+        .price-features li {
+            font-size: 0.93rem;
+            padding: 9px 0;
+            color: var(--text-muted);
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .price-features li::before {
+            content: '';
+            flex-shrink: 0;
+            width: 18px; height: 18px;
+            border-radius: 50%;
+            background: var(--gradient-soft);
+            margin-top: 3px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%23ec4899' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+
+        /* === ОТЗЫВЫ === */
+        .reviews-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+        .review-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 32px;
+            backdrop-filter: blur(10px);
+            transition: var(--transition);
+        }
+        .review-card:hover {
+            border-color: var(--border-hover);
+            transform: translateY(-4px);
+        }
+        .review-stars {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 20px;
+            color: #fbbf24;
+            font-size: 0.9rem;
+            letter-spacing: 2px;
+        }
+        .review-text {
+            font-size: 0.97rem;
+            color: var(--text);
+            margin-bottom: 24px;
+            line-height: 1.7;
+        }
+        .review-author {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding-top: 22px;
+            border-top: 1px solid var(--border);
+        }
+        .review-avatar {
+            width: 44px; height: 44px;
+            border-radius: 50%;
+            overflow: hidden;
+            flex-shrink: 0;
+            border: 2px solid var(--border);
+        }
+        .review-avatar img { width: 100%; height: 100%; }
+        .review-name {
+            font-family: var(--font-heading);
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+        .review-role {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        /* === FAQ === */
+        .faq-list { max-width: 800px; margin: 0 auto; }
+        .faq-item {
+            border-bottom: 1px solid var(--border);
+            transition: var(--transition);
+        }
+        .faq-q {
+            padding: 26px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            gap: 24px;
+            font-family: var(--font-heading);
+            font-weight: 500;
+            font-size: 1.08rem;
+            transition: var(--transition);
+        }
+        .faq-q:hover { color: var(--accent-2); }
+        .faq-icon {
+            width: 26px; height: 26px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            position: relative;
+            flex-shrink: 0;
+            transition: var(--transition);
+        }
+        .faq-icon::before, .faq-icon::after {
+            content: '';
+            position: absolute;
+            background: currentColor;
+            border-radius: 2px;
+            transition: var(--transition);
+        }
+        .faq-icon::before { top: 12px; left: 7px; width: 12px; height: 1.5px; }
+        .faq-icon::after { top: 7px; left: 12px; width: 1.5px; height: 12px; }
+        .faq-item.active .faq-icon {
+            background: var(--gradient);
+            border-color: transparent;
+            color: #fff;
+        }
+        .faq-item.active .faq-icon::after { transform: rotate(90deg); opacity: 0; }
+        .faq-a {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s ease;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+        .faq-item.active .faq-a {
+            max-height: 300px;
+            padding-bottom: 26px;
+        }
+
+        /* === CTA === */
+        .cta-wrap {
+            padding: 0 24px;
+            position: relative;
+            z-index: 1;
+        }
+        .cta {
+            max-width: 1200px;
+            margin: 0 auto;
+            border-radius: 28px;
+            padding: 80px 60px;
+            background: var(--bg-card-solid);
+            border: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
+        }
+        .cta::before {
+            content: '';
+            position: absolute;
+            top: -200px; right: -100px;
+            width: 500px; height: 500px;
+            background: radial-gradient(circle, rgba(124,58,237,0.4) 0%, transparent 70%);
+            filter: blur(50px);
+        }
+        .cta::after {
+            content: '';
+            position: absolute;
+            bottom: -200px; left: -100px;
+            width: 500px; height: 500px;
+            background: radial-gradient(circle, rgba(236,72,153,0.3) 0%, transparent 70%);
+            filter: blur(50px);
+        }
+        .cta-inner {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+        }
+        .cta h2 {
+            font-size: clamp(1.8rem, 3vw, 2.6rem);
+            margin-bottom: 16px;
+        }
+        .cta > .cta-inner > div > p {
+            color: var(--text-muted);
+            margin-bottom: 32px;
+            font-size: 1.05rem;
+        }
+        .contact-links { display: flex; flex-direction: column; gap: 14px; }
+        .contact-link {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            transition: var(--transition);
+            padding: 12px 0;
+        }
+        .contact-link:hover { color: var(--text); }
+        .contact-link-icon {
+            width: 38px; height: 38px;
+            border-radius: 10px;
+            background: var(--gradient-soft);
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent-2);
+            flex-shrink: 0;
+        }
+
+        .contact-form { display: grid; gap: 14px; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .contact-form input,
+        .contact-form select,
+        .contact-form textarea {
+            width: 100%;
+            padding: 15px 18px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-family: var(--font-body);
+            font-size: 0.95rem;
+            color: var(--text);
+            background: rgba(255,255,255,0.03);
+            outline: none;
+            transition: var(--transition);
+        }
+        .contact-form input::placeholder,
+        .contact-form textarea::placeholder { color: var(--text-muted); }
+        .contact-form input:focus,
+        .contact-form select:focus,
+        .contact-form textarea:focus {
+            border-color: var(--accent-2);
+            background: rgba(255,255,255,0.05);
+            box-shadow: 0 0 0 4px rgba(236, 72, 153, 0.1);
+        }
+        .contact-form select option { background: var(--bg-card-solid); color: var(--text); }
+        .contact-form textarea { resize: vertical; min-height: 110px; }
+        .contact-form .btn { width: 100%; }
+
+        /* === ПОДВАЛ === */
+        footer {
+            border-top: 1px solid var(--border);
+            padding: 70px 0 30px;
+            margin-top: 110px;
+            position: relative;
+            z-index: 1;
+        }
+        .footer-inner {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 48px;
+            margin-bottom: 48px;
+        }
+        .footer-brand p {
+            color: var(--text-muted);
+            font-size: 0.93rem;
+            margin-top: 20px;
+            max-width: 320px;
+        }
+        .footer-col h5 {
+            font-family: var(--font-heading);
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            letter-spacing: 0.02em;
+        }
+        .footer-col a {
+            display: block;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 12px;
+            transition: var(--transition);
+        }
+        .footer-col a:hover { color: var(--accent-2); }
+        .footer-bottom {
+            border-top: 1px solid var(--border);
+            padding-top: 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--text-muted);
+            font-size: 0.83rem;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        /* === АНИМАЦИИ === */
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(30px, -30px); }
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+        @keyframes scroll {
+            from { transform: translateX(0); }
+            to { transform: translateX(-50%); }
+        }
+
+        .reveal {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1), transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .reveal.visible { opacity: 1; transform: translateY(0); }
+        .reveal-left {
+            opacity: 0;
+            transform: translateX(-50px);
+            transition: opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1), transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .reveal-left.visible { opacity: 1; transform: translateX(0); }
+        .reveal-right {
+            opacity: 0;
+            transform: translateX(50px);
+            transition: opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1), transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .reveal-right.visible { opacity: 1; transform: translateX(0); }
+
+        .d1 { transition-delay: 0.1s; }
+        .d2 { transition-delay: 0.2s; }
+        .d3 { transition-delay: 0.3s; }
+        .d4 { transition-delay: 0.4s; }
+
+        /* === АДАПТИВ === */
+        @media (max-width: 1024px) {
+            .hero-inner { grid-template-columns: 1fr; gap: 48px; }
+            .services-grid, .reviews-grid, .pricing-grid { grid-template-columns: repeat(2, 1fr); }
+            .process-grid { grid-template-columns: repeat(2, 1fr); }
+            .process-grid::before { display: none; }
+            .work-card.large, .work-card.small, .work-card.medium { grid-column: span 6; }
+            .cta-inner { grid-template-columns: 1fr; gap: 40px; }
+            .cta { padding: 60px 40px; }
+            .footer-inner { grid-template-columns: 1fr 1fr; }
+        }
+
+        @media (max-width: 768px) {
+            .nav-links { display: none; }
+            .section { padding: 80px 0; }
+            .section-title { font-size: 1.9rem; }
+            .hero { padding: 130px 0 70px; }
+            .hero h1 { font-size: 2.4rem; }
+            .services-grid, .reviews-grid, .pricing-grid, .process-grid { grid-template-columns: 1fr; }
+            .work-card.large, .work-card.small, .work-card.medium { grid-column: span 12; }
+            .work-card .work-img, .work-card.large .work-img { height: 240px; }
+            .form-row { grid-template-columns: 1fr; }
+            .cta { padding: 40px 24px; border-radius: 20px; }
+            .footer-inner { grid-template-columns: 1fr; gap: 32px; }
+            .footer-bottom { flex-direction: column; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- НАВИГАЦИЯ -->
+    <nav id="navbar">
+        <div class="nav-inner">
+            <a href="#" class="logo">
+                <span class="logo-mark"></span>
+                СОТА
+            </a>
+            <div class="nav-links">
+                <a href="#services">Услуги</a>
+                <a href="#portfolio">Работы</a>
+                <a href="#process">Процесс</a>
+                <a href="#pricing">Цены</a>
+                <a href="#faq">Вопросы</a>
+            </div>
+            <a href="#contact" class="btn btn-primary nav-cta">Обсудить задачу</a>
+        </div>
+    </nav>
+
+    <!-- HERO -->
+    <header class="hero">
+        <div class="container hero-inner">
+            <div class="reveal-left">
+                <div class="hero-badge">
+                    <span class="dot"></span>
+                    Свободны для 3 проектов в феврале
+                </div>
+                <h1>Создаём сайты и дизайн, <span class="gradient-text">которые работают</span></h1>
+                <p>Небольшая студия. Делаем лендинги, обложки для ВК, постеры и рекламные креативы. Без посредников, честные цены и человеческий подход.</p>
+                <div class="hero-actions">
+                    <a href="#contact" class="btn btn-primary">
+                        Начать проект
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    </a>
+                    <a href="#portfolio" class="btn btn-ghost">Смотреть работы</a>
+                </div>
+            </div>
+
+            <div class="hero-terminal reveal-right d2">
+                <div class="terminal-bar">
+                    <span class="terminal-dot"></span>
+                    <span class="terminal-dot"></span>
+                    <span class="terminal-dot"></span>
+                    <span class="terminal-title">sota.studio — live preview</span>
+                </div>
+                <div class="terminal-body">
+                    <div class="term-line"><span class="term-num">1</span><span><span class="term-comment">// проект под ключ за 3 дня</span></span></div>
+                    <div class="term-line"><span class="term-num">2</span><span><span class="term-key">const</span> <span class="term-fn">studio</span> <span class="term-punc">= {</span></span></div>
+                    <div class="term-line"><span class="term-num">3</span><span>&nbsp;&nbsp;<span class="term-fn">name</span><span class="term-punc">:</span> <span class="term-str">'СОТА'</span><span class="term-punc">,</span></span></div>
+                    <div class="term-line"><span class="term-num">4</span><span>&nbsp;&nbsp;<span class="term-fn">services</span><span class="term-punc">:</span> <span class="term-punc">[</span><span class="term-str">'сайты'</span><span class="term-punc">,</span> <span class="term-str">'обложки'</span><span class="term-punc">,</span> <span class="term-str">'постеры'</span><span class="term-punc">],</span></span></div>
+                    <div class="term-line"><span class="term-num">5</span><span>&nbsp;&nbsp;<span class="term-fn">price</span><span class="term-punc">:</span> <span class="term-str">'от 800 ₽'</span><span class="term-punc">,</span></span></div>
+                    <div class="term-line"><span class="term-num">6</span><span>&nbsp;&nbsp;<span class="term-fn">deadline</span><span class="term-punc">:</span> <span class="term-str">'24 часа'</span></span></div>
+                    <div class="term-line"><span class="term-num">7</span><span><span class="term-punc">};</span> <span class="term-cursor"></span></span></div>
+                </div>
+                <div class="terminal-footer">
+                    <span>✓ все системы работают</span>
+                    <div class="status-dots">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- БЕГУЩАЯ СТРОКА -->
+    <div class="ticker">
+        <div class="ticker-track">
+            <span class="ticker-item">Сайты под ключ</span>
+            <span class="ticker-item">Обложки для ВК</span>
+            <span class="ticker-item">Постеры и афиши</span>
+            <span class="ticker-item">Рекламные креативы</span>
+            <span class="ticker-item">Оформление сообществ</span>
+            <span class="ticker-item">Срочные заказы 24/7</span>
+            <span class="ticker-item">Сайты под ключ</span>
+            <span class="ticker-item">Обложки для ВК</span>
+            <span class="ticker-item">Постеры и афиши</span>
+            <span class="ticker-item">Рекламные креативы</span>
+            <span class="ticker-item">Оформление сообществ</span>
+            <span class="ticker-item">Срочные заказы 24/7</span>
+        </div>
+    </div>
+
+    <!-- УСЛУГИ -->
+    <section class="section" id="services">
+        <div class="container">
+            <div class="section-head reveal">
+                <div class="section-label">01 / Услуги</div>
+                <h2 class="section-title">Что мы <span class="gradient-text">умеем</span></h2>
+                <p class="section-sub">Полный набор дизайн-услуг для небольших проектов. Берём задачи любого масштаба — от одного постера до сайта под ключ.</p>
+            </div>
+
+            <div class="services-grid">
+                <div class="service-card reveal d1">
+                    <span class="service-num">01</span>
+                    <div class="service-icon-wrap">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    </div>
+                    <h3>Лендинги и сайты</h3>
+                    <p>Одностраничники, визитки, портфолио. Адаптивно, быстро, с проработкой структуры и текста.</p>
+                    <div class="service-price"><span class="price-from">от 5 000 ₽</span><small>2–5 дней</small></div>
+                </div>
+
+                <div class="service-card reveal d2">
+                    <span class="service-num">02</span>
+                    <div class="service-icon-wrap">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                    </div>
+                    <h3>Обложки для ВК</h3>
+                    <p>Оформление групп: обложка, аватар, меню. В едином стиле и с учётом всех требований ВКонтакте.</p>
+                    <div class="service-price"><span class="price-from">от 800 ₽</span><small>за 1 день</small></div>
+                </div>
+
+                <div class="service-card reveal d3">
+                    <span class="service-num">03</span>
+                    <div class="service-icon-wrap">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v12H4z"/><path d="M8 20h8"/><path d="M12 16v4"/></svg>
+                    </div>
+                    <h3>Постеры и афиши</h3>
+                    <p>Афиши концертов, постеры для соцсетей, рекламные баннеры. Готовим и для печати, и для веба.</p>
+                    <div class="service-price"><span class="price-from">от 1 200 ₽</span><small>за 1 день</small></div>
+                </div>
+
+                <div class="service-card reveal d1">
+                    <span class="service-num">04</span>
+                    <div class="service-icon-wrap">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                    </div>
+                    <h3>Оформление сообществ</h3>
+                    <p>Полный комплект для группы или канала: обложки, шаблоны постов, сторис, меню. Единый визуал.</p>
+                    <div class="service-price"><span class="price-from">от 2 500 ₽</span><small>3 дня</small></div>
+                </div>
+
+                <div class="service-card reveal d2">
+                    <span class="service-num">05</span>
+                    <div class="service-icon-wrap">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                    </div>
+                    <h3>Рекламные креативы</h3>
+                    <p>Баннеры для таргета, креативы для сторис, оформление акций. Серия из нескольких вариантов.</p>
+                    <div class="service-price"><span class="price-from">от 900 ₽</span><small>за 1 день</small></div>
+                </div>
+
+                <div class="service-card reveal d3">
+                    <span class="service-num">06</span>
+                    <div class="service-icon-wrap">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                    </div>
+                    <h3>Срочные заказы</h3>
+                    <p>Нужно «на вчера»? Работаем в режиме повышенной скорости. Срок — от 3 часов на небольшие задачи.</p>
+                    <div class="service-price"><span class="price-from">от 1 500 ₽</span><small>в день заказа</small></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ПОРТФОЛИО -->
+    <section class="section portfolio" id="portfolio">
+        <div class="container">
+            <div class="section-head reveal">
+                <div class="section-label">02 / Работы</div>
+                <h2 class="section-title">Свежие <span class="gradient-text">проекты</span></h2>
+                <p class="section-sub">Небольшая подборка последних работ. Больше кейсов и подробные описания — по запросу.</p>
+            </div>
+
+            <div class="portfolio-grid">
+                <div class="work-card large reveal d1">
+                    <div class="work-img">
+                        <img src="https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?auto=format&fit=crop&w=900&q=80" alt="Лендинг">
+                    </div>
+                    <div class="work-info">
+                        <span class="work-tag">Сайт · Лендинг</span>
+                        <h4>Одностраничник для кофейни</h4>
+                        <p>С записью, меню и картой</p>
+                    </div>
+                </div>
+
+                <div class="work-card small reveal d2">
+                    <div class="work-img">
+                        <img src="https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?auto=format&fit=crop&w=600&q=80" alt="Обложка">
+                    </div>
+                    <div class="work-info">
+                        <span class="work-tag">ВК</span>
+                        <h4>Обложка паблика</h4>
+                    </div>
+                </div>
+
+                <div class="work-card small reveal d3">
+                    <div class="work-img">
+                        <img src="https://images.unsplash.com/photo-1561070791-2526d30994b5?auto=format&fit=crop&w=600&q=80" alt="Постер">
+                    </div>
+                    <div class="work-info">
+                        <span class="work-tag">Постер</span>
+                        <h4>Афиша вечера</h4>
+                    </div>
+                </div>
+
+                <div class="work-card medium reveal d1">
+                    <div class="work-img">
+                        <img src="https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=600&q=80" alt="Сайт">
+                    </div>
+                    <div class="work-info">
+                        <span class="work-tag">Сайт</span>
+                        <h4>Визитка фотографа</h4>
+                    </div>
+                </div>
+
+                <div class="work-card medium reveal d2">
+                    <div class="work-img">
+                        <img src="https://images.unsplash.com/photo-1542744173-8e7e53415bb0?auto=format&fit=crop&w=600&q=80" alt="Креативы">
+                    </div>
+                    <div class="work-info">
+                        <span class="work-tag">Реклама</span>
+                        <h4>Баннеры для таргета</h4>
+                    </div>
+                </div>
+
+                <div class="work-card medium reveal d3">
+                    <div class="work-img">
+                        <img src="https://images.unsplash.com/photo-1611162616475-46b635cb6868?auto=format&fit=crop&w=600&q=80" alt="Оформление">
+                    </div>
+                    <div class="work-info">
+                        <span class="work-tag">Соцсети</span>
+                        <h4>Оформление сообщества</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ПРОЦЕСС -->
+    <section class="section" id="process">
+        <div class="container">
+            <div class="section-head center reveal">
+                <div class="section-label">03 / Процесс</div>
+                <h2 class="section-title">Как проходит <span class="gradient-text">работа</span></h2>
+                <p class="section-sub">Простой и понятный процесс из 4 шагов. Без лишней бюрократии и долгих согласований.</p>
+            </div>
+
+            <div class="process-grid">
+                <div class="process-step reveal d1">
+                    <div class="process-num">01</div>
+                    <h4>Заявка</h4>
+                    <p>Пишете задачу в любой удобной форме. Отвечаем в течение часа.</p>
+                </div>
+                <div class="process-step reveal d2">
+                    <div class="process-num">02</div>
+                    <h4>Обсуждение</h4>
+                    <p>Уточняем детали, сроки и бюджет. Всё фиксируем в переписке.</p>
+                </div>
+                <div class="process-step reveal d3">
+                    <div class="process-num">03</div>
+                    <h4>Работа</h4>
+                    <p>Готовим первый вариант. Показываем, обсуждаем, вносим правки.</p>
+                </div>
+                <div class="process-step reveal d4">
+                    <div class="process-num">04</div>
+                    <h4>Готово</h4>
+                    <p>Отдаём исходники и файлы. Помогаем с размещением при необходимости.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ЦЕНЫ -->
+    <section class="section pricing" id="pricing">
+        <div class="container">
+            <div class="section-head center reveal">
+                <div class="section-label">04 / Цены</div>
+                <h2 class="section-title">Прозрачные <span class="gradient-text">тарифы</span></h2>
+                <p class="section-sub">Никаких скрытых платежей. Возможна предоплата 50%. Все правки в рамках тарифа — бесплатно.</p>
+            </div>
+
+            <div class="pricing-grid">
+                <div class="price-card reveal d1">
+                    <h3>Базовый</h3>
+                    <p class="price-desc">Для небольших задач и старта</p>
+                    <div class="price-amount">800 ₽ <small>/ задача</small></div>
+                    <ul class="price-features">
+                        <li>Обложка или постер</li>
+                        <li>1 вариант на выбор</li>
+                        <li>1 бесплатная правка</li>
+                        <li>Файлы PNG, JPG</li>
+                        <li>Срок — 1 рабочий день</li>
+                    </ul>
+                    <a href="#contact" class="btn btn-ghost">Заказать</a>
+                </div>
+
+                <div class="price-card featured reveal d2">
+                    <span class="price-tag-pop">Хит</span>
+                    <h3>Стандарт</h3>
+                    <p class="price-desc">Оптимально для большинства задач</p>
+                    <div class="price-amount">5 000 ₽ <small>/ проект</small></div>
+                    <ul class="price-features">
+                        <li>Лендинг до 5 блоков</li>
+                        <li>Адаптив под мобильные</li>
+                        <li>3 варианта на выбор</li>
+                        <li>3 бесплатные правки</li>
+                        <li>Исходники в Figma</li>
+                        <li>Срок — 2–3 рабочих дня</li>
+                    </ul>
+                    <a href="#contact" class="btn btn-primary">Заказать</a>
+                </div>
+
+                <div class="price-card reveal d3">
+                    <h3>Максимум</h3>
+                    <p class="price-desc">Полный цикл под ключ</p>
+                    <div class="price-amount">12 000 ₽ <small>/ проект</small></div>
+                    <ul class="price-features">
+                        <li>Сайт до 8 страниц</li>
+                        <li>Уникальный макет</li>
+                        <li>Подбор шрифтов и цвета</li>
+                        <li>Неограниченные правки</li>
+                        <li>Помощь с размещением</li>
+                        <li>Срок — от 5 рабочих дней</li>
+                    </ul>
+                    <a href="#contact" class="btn btn-ghost">Заказать</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ОТЗЫВЫ -->
+    <section class="section">
+        <div class="container">
+            <div class="section-head reveal">
+                <div class="section-label">05 / Отзывы</div>
+                <h2 class="section-title">Что говорят <span class="gradient-text">клиенты</span></h2>
+                <p class="section-sub">Несколько свежих отзывов от людей, с которыми мы работали.</p>
+            </div>
+
+            <div class="reviews-grid">
+                <div class="review-card reveal d1">
+                    <div class="review-stars">★★★★★</div>
+                    <p class="review-text">«Заказывала лендинг для кофейни. Сделали быстро и недорого, помогли с текстами. Сайт уже приносит клиентов.»</p>
+                    <div class="review-author">
+                        <div class="review-avatar"><img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80" alt="Анна"></div>
+                        <div>
+                            <div class="review-name">Анна Смирнова</div>
+                            <div class="review-role">Кофейня «Бариста»</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="review-card reveal d2">
+                    <div class="review-stars">★★★★★</div>
+                    <p class="review-text">«Оформляли группу ВК. Попали в стиль с первого раза. Все шаблоны удобные, менеджер отвечал быстро.»</p>
+                    <div class="review-author">
+                        <div class="review-avatar"><img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80" alt="Дмитрий"></div>
+                        <div>
+                            <div class="review-name">Дмитрий Козлов</div>
+                            <div class="review-role">Администратор паблика</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="review-card reveal d3">
+                    <div class="review-stars">★★★★★</div>
+                    <p class="review-text">«Нужна была срочная афиша на вечер. Сделали за 3 часа. Отличное качество и очень адекватная цена.»</p>
+                    <div class="review-author">
+                        <div class="review-avatar"><img src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=100&q=80" alt="Елена"></div>
+                        <div>
+                            <div class="review-name">Елена Петрова</div>
+                            <div class="review-role">Организатор мероприятий</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="section" id="faq" style="background: var(--bg-soft);">
+        <div class="container">
+            <div class="section-head center reveal">
+                <div class="section-label">06 / Вопросы</div>
+                <h2 class="section-title">Частые <span class="gradient-text">вопросы</span></h2>
+                <p class="section-sub">Если не нашли ответ — напишите, ответим лично в течение часа.</p>
+            </div>
+
+            <div class="faq-list">
+                <div class="faq-item reveal d1">
+                    <div class="faq-q">
+                        <span>Сколько стоит сайт и от чего зависит цена?</span>
+                        <span class="faq-icon"></span>
+                    </div>
+                    <div class="faq-a">Простой лендинг — от 5 000 ₽, многостраничный сайт — от 12 000 ₽. Итоговая цена зависит от количества блоков, сложности дизайна и сроков. Точную стоимость скажем после короткого обсуждения.</div>
+                </div>
+
+                <div class="faq-item reveal d2">
+                    <div class="faq-q">
+                        <span>Работаете с небольшими заказами?</span>
+                        <span class="faq-icon"></span>
+                    </div>
+                    <div class="faq-a">Да, и с удовольствием. Обложка за 800 ₽ или постер за 1 200 ₽ — обычные задачи для нас. Мы не считаем их «несерьёзными».</div>
+                </div>
+
+                <div class="faq-item reveal d3">
+                    <div class="faq-q">
+                        <span>Что нужно, чтобы начать работу?</span>
+                        <span class="faq-icon"></span>
+                    </div>
+                    <div class="faq-a">Достаточно коротко описать задачу и, если есть, прислать примеры стиля, которые нравятся. Всё остальное подскажем и уточним сами.</div>
+                </div>
+
+                <div class="faq-item reveal d4">
+                    <div class="faq-q">
+                        <span>Сколько правок входит в стоимость?</span>
+                        <span class="faq-icon"></span>
+                    </div>
+                    <div class="faq-a">На «Базовом» — 1 бесплатная правка, на «Стандарте» — 3, на «Максимум» — без ограничений. Правки по мелким деталям делаем бесплатно всегда.</div>
+                </div>
+
+                <div class="faq-item reveal d4">
+                    <div class="faq-q">
+                        <span>Как проходит оплата?</span>
+                        <span class="faq-icon"></span>
+                    </div>
+                    <div class="faq-a">Обычно 50% предоплата, остальное — после согласования финального макета. Для заказов до 2 000 ₽ можно оплатить полностью после сдачи.</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="section" id="contact" style="padding-bottom: 0;">
+        <div class="cta-wrap">
+            <div class="cta reveal">
+                <div class="cta-inner">
+                    <div>
+                        <h2>Расскажите о вашей <span class="gradient-text">задаче</span></h2>
+                        <p>Ответим в течение часа. Бесплатно оценим объём работы и предложим оптимальный вариант по цене и срокам.</p>
+                        <div class="contact-links">
+                            <a href="#" class="contact-link">
+                                <span class="contact-link-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>
+                                </span>
+                                hello@sota-studio.ru
+                            </a>
+                            <a href="#" class="contact-link">
+                                <span class="contact-link-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2.5 2.5 10.5l6 2 2 7 3-4.5 5 4.5 3-17z"/></svg>
+                                </span>
+                                Telegram: @sota_studio
+                            </a>
+                            <a href="#" class="contact-link">
+                                <span class="contact-link-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                                </span>
+                                Пн–Вс, 10:00–22:00
+                            </a>
+                        </div>
+                    </div>
+
+                    <form class="contact-form" onsubmit="event.preventDefault(); const b=this.querySelector('.btn'); b.textContent='✓ Заявка отправлена'; b.style.background='linear-gradient(135deg, #22c55e, #16a34a)'; setTimeout(()=>{this.reset(); b.textContent='Отправить заявку'; b.style.background='';},2500);">
+                        <div class="form-row">
+                            <input type="text" placeholder="Ваше имя" required>
+                            <input type="text" placeholder="Контакт (TG, VK, тел.)" required>
+                        </div>
+                        <select required>
+                            <option value="">Что нужно сделать?</option>
+                            <option>Сайт / лендинг</option>
+                            <option>Обложка для ВК</option>
+                            <option>Постер / афиша</option>
+                            <option>Оформление сообщества</option>
+                            <option>Рекламный креатив</option>
+                            <option>Другое</option>
+                        </select>
+                        <textarea placeholder="Коротко о задаче (по желанию)"></textarea>
+                        <button type="submit" class="btn btn-primary">Отправить заявку</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ПОДВАЛ -->
+    <footer>
+        <div class="container">
+            <div class="footer-inner">
+                <div class="footer-brand">
+                    <a href="#" class="logo">
+                        <span class="logo-mark"></span>
+                        СОТА
+                    </a>
+                    <p>Небольшая цифровая студия. Создаём сайты, оформление для соцсетей и постеры. Делаем работу, которой гордимся.</p>
+                </div>
+                <div class="footer-col">
+                    <h5>Услуги</h5>
+                    <a href="#services">Сайты</a>
+                    <a href="#services">Обложки для ВК</a>
+                    <a href="#services">Постеры</a>
+                    <a href="#services">Оформление групп</a>
+                </div>
+                <div class="footer-col">
+                    <h5>Студия</h5>
+                    <a href="#portfolio">Портфолио</a>
+                    <a href="#pricing">Цены</a>
+                    <a href="#process">Процесс</a>
+                    <a href="#faq">Вопросы</a>
+                </div>
+                <div class="footer-col">
+                    <h5>Связь</h5>
+                    <a href="#">Telegram</a>
+                    <a href="#">ВКонтакте</a>
+                    <a href="#">Email</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <span>© 2024 Цифровая студия «СОТА». Все права защищены.</span>
+                <span>Сделано с любовью к деталям</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script>
+        // Навигация при скролле
+        const navbar = document.getElementById('navbar');
+        window.addEventListener('scroll', () => {
+            navbar.classList.toggle('scrolled', window.scrollY > 40);
+        });
+
+        // FAQ аккордеон
+        document.querySelectorAll('.faq-item').forEach(item => {
+            const q = item.querySelector('.faq-q');
+            q.addEventListener('click', () => {
+                const isOpen = item.classList.contains('active');
+                document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('active'));
+                if (!isOpen) item.classList.add('active');
+            });
+        });
+
+        // Плавное появление блоков
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+
+        document.querySelectorAll('.reveal, .reveal-left, .reveal-right').forEach(el => observer.observe(el));
+
+        // Плавный скролл
+        document.querySelectorAll('a[href^="#"]').forEach(a => {
+            a.addEventListener('click', e => {
+                const target = document.querySelector(a.getAttribute('href'));
+                if (target) {
+                    e.preventDefault();
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+    </script>
+</body>
+</html>

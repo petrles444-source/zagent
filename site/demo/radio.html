@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CyberRadio — встраиваемый модуль</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      background: #0d0d0d;
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 24px 16px;
+    }
+    .radio-panel {
+      width: 100%;
+      max-width: 720px;
+      background: #1a1a1a;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+    }
+    h1 { font-size: 1.3rem; margin-bottom: 16px; color: #fff; }
+    .now-playing {
+      background: #121212;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 16px;
+      border-left: 4px solid #7cc4ff;
+    }
+    .now-playing .label { font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+    .now-playing .name { font-size: 1.1rem; font-weight: 600; margin-top: 4px; }
+    .now-playing .genre { font-size: 0.85rem; color: #aaa; margin-top: 2px; }
+    .controls { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+    .controls button {
+      background: #2a2a2a;
+      border: 1px solid #3a3a3a;
+      color: #e0e0e0;
+      padding: 10px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+    }
+    .controls button:hover { background: #3a3a3a; }
+    .controls button.active { background: #7cc4ff; color: #000; border-color: #7cc4ff; }
+    .volume-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+    .volume-row input { flex: 1; accent-color: #7cc4ff; }
+    .station-list { max-height: 400px; overflow-y: auto; }
+    .station-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+      gap: 12px;
+    }
+    .station-item:hover { background: #252525; }
+    .station-item.playing { background: #1e3a5f; border-left: 3px solid #7cc4ff; }
+    .station-item .info { flex: 1; min-width: 0; }
+    .station-item .sname { font-size: 0.9rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .station-item .sgenre { font-size: 0.75rem; color: #888; }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+    .status-dot.online { background: #4caf50; }
+    .status-dot.offline { background: #f44336; }
+    .status-dot.unknown { background: #ff9800; }
+    .log {
+      margin-top: 16px;
+      font-size: 0.75rem;
+      color: #666;
+      max-height: 80px;
+      overflow-y: auto;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+
+<div class="radio-panel">
+  <h1>🎵 CyberRadio</h1>
+
+  <div class="now-playing" id="nowPlaying">
+    <div class="label">Сейчас играет</div>
+    <div class="name" id="npName">—</div>
+    <div class="genre" id="npGenre">Выберите станцию</div>
+  </div>
+
+  <div class="controls">
+    <button id="btnPlay">▶ Играть</button>
+    <button id="btnPause">⏸ Пауза</button>
+    <button id="btnNext">⏭ Следующая</button>
+    <button id="btnPing">🔄 Проверить все</button>
+  </div>
+
+  <div class="volume-row">
+    <span>🔊</span>
+    <input type="range" id="volume" min="0" max="1" step="0.01" value="0.5">
+    <span id="volLabel">50%</span>
+  </div>
+
+  <div class="station-list" id="stationList"></div>
+  <div class="log" id="log"></div>
+</div>
+
+<script>
+/**
+ * CyberRadio — модуль фонового радио.
+ * Все станции — открытые прямые потоки, без API-ключей.
+ * Источники: rcast.net, dRadio, Stream World Radio, официальные сайты.
+ */
+
+const STATIONS = [
+  // ─── SYNTHWAVE / CYBERPUNK / DARKSYNTH ───
+  {
+    name: 'Nightride.fm',
+    genre: 'Synthwave / Cyberpunk / Darksynth',
+    url: 'https://stream.nightride.fm/nightride.mp3',
+    bitrate: '320 kbps'
+  },
+  {
+    name: 'Synthwave Radio EU',
+    genre: 'Synthwave / Retrowave',
+    url: 'https://stream.synthwaveradio.eu/listen/synthwaveradio.eu/radio.mp3',
+    bitrate: '192 kbps'
+  },
+  {
+    name: 'Retrowave.One',
+    genre: '80s / Chillsynth / Cyberpunk / Darksynth',
+    url: 'http://85.234.59.191:8000/stream',
+    bitrate: '192 kbps'
+  },
+  {
+    name: 'Radio Caprice — Cyberpunk',
+    genre: 'Cyberpunk / Dark Ambient / Industrial',
+    url: 'http://79.120.12.130:8002/cyberpunk',
+    bitrate: '320 kbps'
+  },
+  {
+    name: 'NightGrid FM',
+    genre: 'Cyberpunk / Dark Synthwave / Industrial',
+    url: 'https://radio.bitriver.tv:443/nightgrid',
+    bitrate: '128 kbps'
+  },
+  {
+    name: 'PsyCoPig Radio 100',
+    genre: 'Rock / Cyberpunk / Synthwave',
+    url: 'http://listen5.streamaudio.co:1060/stream',
+    bitrate: '64 kbps'
+  },
+  {
+    name: 'Cyberpunk Hacker Radio',
+    genre: 'Deep Ambient / Cyberpunk',
+    url: 'http://142.4.209.112:8284',
+    bitrate: '128 kbps'
+  },
+  {
+    name: 'laut.fm/cyberpunk-radio',
+    genre: 'Cyberpunk',
+    url: 'https://stream.laut.fm/cyberpunk-radio',
+    bitrate: '128 kbps'
+  },
+
+  // ─── PHONK ───
+  {
+    name: 'badradio 24/7 Phonk',
+    genre: 'OG Phonk / Memphis / Trap & Trill',
+    url: 'https://s2.radio.co/s2b2b68744/listen',
+    bitrate: '320 kbps'
+  },
+  {
+    name: 'Laut FM Phonk',
+    genre: 'Phonk',
+    url: 'https://stream.laut.fm/phonk',
+    bitrate: 'MP3'
+  },
+  {
+    name: 'Phonkio Radio',
+    genre: 'Phonk',
+    url: 'https://stream.phonkioradio.com/listen/phonkio_radio/radio.mp3',
+    bitrate: '320 kbps'
+  },
+  {
+    name: 'Phonk Nation Radio',
+    genre: 'Phonk',
+    url: 'https://radio.mxnticek.eu/stream',
+    bitrate: 'MP3'
+  },
+  {
+    name: 'Radio Liberty Multiplayer Phonk',
+    genre: 'Phonk',
+    url: 'https://hs1.radiolibertymp.ro/listen/lmpphonk/stream.mp3',
+    bitrate: '256 kbps'
+  },
+  {
+    name: 'HILLCHILL',
+    genre: 'Phonk (Atmospheric / Chill / Agressive)',
+    url: 'https://hillchill.net/stream',
+    bitrate: 'MP3'
+  },
+  {
+    name: 'No.1 PHONK RADIO',
+    genre: 'Phonk',
+    url: 'https://stream.zeno.fm/90fvpb27u18uv',
+    bitrate: 'MP3'
+  },
+  {
+    name: 'Radio Doucefm Internationale',
+    genre: 'Разное (включая фонк)',
+    url: 'https://stream.zeno.fm/8tkpqzayb7duv',
+    bitrate: 'MP3'
+  },
+
+  // ─── DEEP HOUSE / HOUSE / CLUB ───
+  {
+    name: 'Vanilla Radio Deep Flavors',
+    genre: 'Deep House / Deep Ambient',
+    url: 'https://vanillaradio.gr/deep',
+    bitrate: '320 kbps'
+  },
+  {
+    name: 'Soulful Link NYC',
+    genre: 'Soulful House / Deep House',
+    url: 'https://www.deeplink.stream/soulful-link-radio',
+    bitrate: '192 kbps'
+  },
+  {
+    name: 'Deep Link Radio — Old House',
+    genre: 'Deep House / Old House',
+    url: 'https://www.deeplink.stream/old-deep-house-music',
+    bitrate: 'MP3'
+  },
+  {
+    name: 'dinamo.fm deep',
+    genre: 'Deep House / Nu Disco',
+    url: 'https://channels.dinamo.fm/deep-mp3',
+    bitrate: '320 kbps'
+  },
+  {
+    name: 'Deep Radio',
+    genre: 'Ambient / Dance / Deep House / EDM',
+    url: 'http://stream.deep.radio/hd',
+    bitrate: '320 kbps'
+  },
+  {
+    name: 'Dance Wave',
+    genre: 'Dance / House / Deep House / Trance',
+    url: 'https://dancewave.online/dance.mp3',
+    bitrate: '128 kbps'
+  },
+  {
+    name: 'Side Street Radio',
+    genre: 'Big Room / Deep House',
+    url: 'https://player.cloudradionetwork.com/sidestreet',
+    bitrate: '128 kbps'
+  },
+  {
+    name: 'Metropolis Radio Network',
+    genre: 'Club / Electronic',
+    url: 'https://eu4.fastcast4u.com/proxy/metradio?mp=%2F1',
+    bitrate: '128 kbps'
+  },
+  {
+    name: 'Club Radio Macedonia',
+    genre: 'Club / Dance',
+    url: 'https://radiomk-portal.com/listen/club_radio_macedonia/radio.mp3',
+    bitrate: '320 kbps'
+  },
+  {
+    name: 'Hotmix Classic House',
+    genre: 'Classic House / Club House',
+    url: 'https://streaming.hotmixradio.com/hotmix-classic-house-en-mp3',
+    bitrate: '128 kbps'
+  },
+  {
+    name: 'Hits 1',
+    genre: 'Club Dance / Dance',
+    url: 'https://player.royan.hits1radio.com',
+    bitrate: '256 kbps'
+  },
+  {
+    name: 'i love radio — 2 dance',
+    genre: 'Club Hits / Dancefloor',
+    url: 'https://ilovemusic.de/ilove2dance',
+    bitrate: '192 kbps'
+  },
+  {
+    name: 'str8radio',
+    genre: 'Club / Clubbing',
+    url: 'https://str8.club/stream',
+    bitrate: '128 kbps'
+  },
+
+  // ─── EDM / FUNK / DISCO ───
+  {
+    name: 'EDM Sessions',
+    genre: 'EDM',
+    url: 'https://s2.radio.co/s30844a0f4/listen',
+    bitrate: 'MP3'
+  },
+  {
+    name: 'Ibiza Radio Global',
+    genre: 'EDM / House',
+    url: 'https://cdn-peer012.streaming-pro.com:8025/ibizaglobalradio.mp3',
+    bitrate: 'MP3'
+  },
+  {
+    name: 'ON EDM',
+    genre: 'EDM',
+    url: 'https://0n-edm.radionetz.de/0n-edm.mp3',
+    bitrate: 'MP3'
+  },
+  {
+    name: 'SONIQ Festival FM',
+    genre: 'EDM / Festival / Progressive House',
+    url: 'https://stream.zeno.fm/xhqytayiq3ftv',
+    bitrate: '128 kbps'
+  },
+  {
+    name: 'GENERATION SOUL DISCO FUNK',
+    genre: 'Soul / Disco / Funk',
+    url: 'http://91.121.104.123:8000/stream/1/',
+    bitrate: '192 kbps'
+  }
+];
+
+// ─── Состояние ───
+let audio = null;
+let currentIndex = -1;
+let stationStatus = STATIONS.map(() => 'unknown');
+let logEl = document.getElementById('log');
+
+// ─── Инициализация ───
+function init() {
+  audio = new Audio();
+  audio.preload = 'none';
+  audio.crossOrigin = 'anonymous';
+  audio.volume = 0.5;
+
+  audio.addEventListener('error', () => {
+    log(`Ошибка потока: ${STATIONS[currentIndex]?.name}`);
+    nextStation();
+  });
+
+  renderStations();
+  bindControls();
+  log('Готово. Нажмите «Проверить все» для пинга станций.');
+}
+
+// ─── Лог ───
+function log(msg) {
+  const time = new Date().toLocaleTimeString();
+  logEl.innerHTML += `[${time}] ${msg}<br>`;
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+// ─── Отрисовка списка ───
+function renderStations() {
+  const list = document.getElementById('stationList');
+  list.innerHTML = '';
+  STATIONS.forEach((s, i) => {
+    const div = document.createElement('div');
+    div.className = 'station-item' + (i === currentIndex ? ' playing' : '');
+    div.innerHTML = `
+      <div class="info">
+        <div class="sname">${s.name}</div>
+        <div class="sgenre">${s.genre} · ${s.bitrate}</div>
+      </div>
+      <div class="status-dot ${stationStatus[i]}"></div>
+    `;
+    div.onclick = () => playStation(i);
+    list.appendChild(div);
+  });
+}
+
+// ─── Управление ───
+function bindControls() {
+  document.getElementById('btnPlay').onclick = () => {
+    if (currentIndex >= 0) {
+      audio.play().catch(e => log('Ошибка воспроизведения: ' + e.message));
+    } else {
+      const firstOnline = stationStatus.findIndex(s => s === 'online');
+      playStation(firstOnline >= 0 ? firstOnline : 0);
+    }
+  };
+
+  document.getElementById('btnPause').onclick = () => audio.pause();
+
+  document.getElementById('btnNext').onclick = () => nextStation();
+
+  document.getElementById('btnPing').onclick = () => pingAll();
+
+  document.getElementById('volume').oninput = (e) => {
+    const v = parseFloat(e.target.value);
+    audio.volume = v;
+    document.getElementById('volLabel').textContent = Math.round(v * 100) + '%';
+  };
+}
+
+// ─── Воспроизведение ───
+function playStation(index) {
+  if (index < 0 || index >= STATIONS.length) return;
+  currentIndex = index;
+  const s = STATIONS[index];
+  audio.src = s.url;
+  audio.play().catch(e => log(`Не удалось: ${s.name} — ${e.message}`));
+  document.getElementById('npName').textContent = s.name;
+  document.getElementById('npGenre').textContent = `${s.genre} · ${s.bitrate}`;
+  renderStations();
+  log(`▶ ${s.name}`);
+}
+
+function nextStation() {
+  if (STATIONS.length === 0) return;
+  let next = (currentIndex + 1) % STATIONS.length;
+  playStation(next);
+}
+
+// ─── Пинг всех станций ───
+async function pingStation(url) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  try {
+    await fetch(url, {
+      method: 'HEAD',
+      mode: 'no-cors',
+      signal: controller.signal,
+      cache: 'no-store'
+    });
+    clearTimeout(timer);
+    return 'online';
+  } catch {
+    clearTimeout(timer);
+    // Fallback: GET с отменой тела
+    const c2 = new AbortController();
+    const t2 = setTimeout(() => c2.abort(), 5000);
+    try {
+      const resp = await fetch(url, {
+        method: 'GET',
+        mode: 'no-cors',
+        signal: c2.signal,
+        cache: 'no-store'
+      });
+      clearTimeout(t2);
+      if (resp.body) { try { resp.body.cancel(); } catch (_) {} }
+      return 'online';
+    } catch {
+      clearTimeout(t2);
+      return 'offline';
+    }
+  }
+}
+
+async function pingAll() {
+  log('Проверка станций...');
+  const results = await Promise.all(
+    STATIONS.map(async (s, i) => {
+      const status = await pingStation(s.url);
+      stationStatus[i] = status;
+      return { name: s.name, status };
+    })
+  );
+  renderStations();
+  const online = results.filter(r => r.status === 'online').length;
+  log(`Проверено: ${results.length}, онлайн: ${online}`);
+  results.forEach(r => {
+    log(`  ${r.status === 'online' ? '🟢' : '🔴'} ${r.name}`);
+  });
+}
+
+// ─── Запуск ───
+init();
+</script>
+</body>
+</html>
