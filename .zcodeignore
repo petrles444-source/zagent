@@ -116,13 +116,6 @@ site-dist/
 # а tools\build_site.py кладёт его в сборку сам. Двадцать восемь
 # мегабайт дубля в истории репозитория — это много и незачем.
 site/ruffle/
-# ---- PythonAnywhere и телеграм-боты ----
-# Токен API лежит в credentials.json: им заходят в аккаунт и перезаписывают
-# файлы. В репозитории ему не место; рядом лежит только схема без значения.
-hosting/pythonanywhere/credentials.json
-# Настоящий конфиг бота с ключами провайдеров и токеном Telegram.
-hosting/pythonanywhere/bots/config.json
-hosting/pythonanywhere/bots/config.local.json
 # ---- раздача решений ----
 # Готовые архивы для публикации. В репозитории им не место: это сборный
 # продукт, который пересобирается одной командой tools\build_packages.py.
